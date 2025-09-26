@@ -20,6 +20,7 @@ public class SellerServiceImpl implements SellerService {
     public TokenResponse login(String username, String password) {
         // 1. 查询卖家信息
         Seller seller = sellerMapper.selectByUsername(username);
+
         if (seller == null) {
             throw new IllegalArgumentException("用户名不存在");
         }
@@ -29,10 +30,10 @@ public class SellerServiceImpl implements SellerService {
             throw new IllegalArgumentException("密码错误");
         }
         // 3. 生成JWT Token
-        String token = JwtUtil.generateToken(seller.getSeller_Id(), username);
+        String token = JwtUtil.generateToken(seller.getSeller_id(), username);
 
         // 4. 返回Token信息
-        return new TokenResponse(token, seller.getSeller_Id(), username);
+        return new TokenResponse(token, seller.getSeller_id(), username);
     }
 
     @Override
