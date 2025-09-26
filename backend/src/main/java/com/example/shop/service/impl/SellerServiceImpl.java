@@ -28,12 +28,11 @@ public class SellerServiceImpl implements SellerService {
         if (!PasswordUtil.matches(password, seller.getPassword())) {
             throw new IllegalArgumentException("密码错误");
         }
-
         // 3. 生成JWT Token
-        String token = JwtUtil.generateToken(seller.getSellerId(), username);
+        String token = JwtUtil.generateToken(seller.getSeller_Id(), username);
 
         // 4. 返回Token信息
-        return new TokenResponse(token, seller.getSellerId(), username);
+        return new TokenResponse(token, seller.getSeller_Id(), username);
     }
 
     @Override

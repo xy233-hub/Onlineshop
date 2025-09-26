@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
  */
 @Data
 public class Seller {
-    private Integer sellerId;      // 主键ID
+    private Integer seller_Id;      // 主键ID
     private String username;       // 登录用户名
     private String password;       // BCrypt加密后的密码
     private LocalDateTime createTime;  // 账号创建时间
