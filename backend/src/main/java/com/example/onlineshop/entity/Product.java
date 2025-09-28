@@ -1,47 +1,91 @@
+// entity/Product.java
 package com.example.onlineshop.entity;
 
-import lombok.*;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
 
-/**
- * 商品实体（对应product表）
- */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class Product implements Serializable {
-    private static final long serialVersionUID = 1L;
+public class Product {
 
-    private Integer productId;
-    private Integer sellerId;
-    private Integer categoryId;
-    private String productName;
-    private String productDesc;
+    private Integer product_id;
+    private String product_name;
+    private String product_desc;
+    private String image_url;
     private BigDecimal price;
-    private Integer stockQuantity;
-    private String productStatus;
-    private String searchKeywords;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private String product_status;
+    private LocalDateTime created_at;
+    private LocalDateTime updated_at;
+    private Integer seller_id;
 
+    // Getters and Setters
+    public Integer getProduct_id() {
+        return product_id;
+    }
 
-    // 新增：封面图片 URL（来自 product_images 第一张图，非持久化）
-    private String coverImage;
+    public void setProduct_id(Integer product_id) {
+        this.product_id = product_id;
+    }
 
+    public String getProduct_name() {
+        return product_name;
+    }
 
-    // 新增：由 ProductService 填充，用于响应中的图片列表（仅 URL 列表）
-    @Builder.Default
-    private List<String> images = Collections.emptyList();
+    public void setProduct_name(String product_name) {
+        this.product_name = product_name;
+    }
 
-    // 新增：封面图（可与 images.first 一致）
+    public String getProduct_desc() {
+        return product_desc;
+    }
 
-    // 新增：媒体资源 URL 列表（如果需要返回简化结构）
-    @Builder.Default
-    private List<String> mediaResources = Collections.emptyList();
+    public void setProduct_desc(String product_desc) {
+        this.product_desc = product_desc;
+    }
 
+    public String getImage_url() {
+        return image_url;
+    }
+
+    public void setImage_url(String image_url) {
+        this.image_url = image_url;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
+    }
+
+    public void setPrice(BigDecimal price) {
+        this.price = price;
+    }
+
+    public String getProduct_status() {
+        return product_status;
+    }
+
+    public void setProduct_status(String product_status) {
+        this.product_status = product_status;
+    }
+
+    public LocalDateTime getCreated_at() {
+        return created_at;
+    }
+
+    public void setCreated_at(LocalDateTime created_at) {
+        this.created_at = created_at;
+    }
+
+    public LocalDateTime getUpdated_at() {
+        return updated_at;
+    }
+
+    public void setUpdated_at(LocalDateTime updated_at) {
+        this.updated_at = updated_at;
+    }
+
+    public Integer getSeller_id() {
+        return seller_id;
+    }
+
+    public void setSeller_id(Integer seller_id) {
+        this.seller_id = seller_id;
+    }
 }

@@ -1,22 +1,54 @@
 // entity/Seller.java
 package com.example.onlineshop.entity;
 
-import lombok.*;
-import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 卖家账号
- */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class Seller implements Serializable {
-    private static final long serialVersionUID = 1L;
+public class Seller {
 
-    private Integer sellerId;
+    private Integer seller_id;
     private String username;
-    private String password; // 建议存储 bcrypt 哈希
-    private LocalDateTime createTime;
+    private String password;
+    private LocalDateTime create_time;
+    private LocalDateTime updated_at;
+
+    // Getters and Setters
+    public Integer getSeller_id() {
+        return seller_id;
+    }
+
+    public void setSeller_id(Integer seller_id) {
+        this.seller_id = seller_id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public LocalDateTime getCreate_time() {
+        return create_time;
+    }
+
+    public void setCreate_time(LocalDateTime create_time) {
+        this.create_time = create_time;
+    }
+
+    public LocalDateTime getUpdated_at() {
+        return updated_at;
+    }
+
+    public void setUpdated_at(LocalDateTime updated_at) {
+        this.updated_at = updated_at;
+    }
 }
