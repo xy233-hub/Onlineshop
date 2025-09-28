@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.onlineshop.mapper.SellerMapper">
+
+    <resultMap id="SellerMap" type="com.example.onlineshop.entity.Seller">
+        <id property="seller_id" column="seller_id"/>
+        <result property="username" column="username"/>
+        <result property="password" column="password"/>
+        <result property="create_time" column="create_time"/>
+        <result property="updated_at" column="updated_at"/>
+    </resultMap>
+
+    <select id="findByUsername" parameterType="string" resultMap="SellerMap">
+        SELECT * FROM seller WHERE username = #{username}
+    </select>
+
+    <select id="findById" parameterType="int" resultMap="SellerMap">
+        SELECT * FROM seller WHERE seller_id = #{sellerId}
+    </select>
+
+    <update id="updatePassword">
+        UPDATE seller SET password = #{newPassword} WHERE seller_id = #{sellerId}
+    </update>
+</mapper>
