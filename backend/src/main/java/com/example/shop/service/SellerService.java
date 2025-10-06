@@ -1,5 +1,7 @@
 package com.example.shop.service;
 
+import com.example.shop.dto.request.ProductRequest;
+import com.example.shop.dto.response.ApiResponse;
 import com.example.shop.dto.response.TokenResponse;
 
 public interface SellerService {
@@ -21,4 +23,39 @@ public interface SellerService {
      * @throws IllegalArgumentException 旧密码错误/新密码无效时抛出
      */
     void updatePassword(Integer sellerId, String oldPassword, String newPassword);
+
+    /**
+     * 发布新商品
+     * @param request 商品发布参数
+     * @return ApiResponse（包含新商品信息，状态码200/401等）
+     */
+    ApiResponse publishProduct(ProductRequest request) ;
+
+    /**
+     * 查看历史商品列表
+     * @return ApiResponse（包含商品列表，状态码200/401等）
+     */
+    ApiResponse listProducts();
+
+    /**
+     * 冻结指定商品
+     * @param productId 商品ID
+     * @return ApiResponse（包含冻结后商品信息，状态码200/404等）
+     */
+    ApiResponse freezeProduct(Long productId);
+
+    /**
+     * 恢复商品上线
+     * @param productId 商品ID
+     * @return ApiResponse（包含恢复后商品信息，状态码200/404等）
+     */
+    ApiResponse unfreezeProduct(Long productId);
+
+    /**
+     * 标记商品为已售出
+     * @param productId 商品ID
+     * @return ApiResponse（包含售出后商品信息，状态码200/404等）
+     */
+    ApiResponse markProductSold(Long productId);
 }
+

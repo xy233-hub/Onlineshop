@@ -1,15 +1,36 @@
 package com.example.shop.dto.response;
 
-import lombok.AllArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
-/**
- * 登录成功返回的Token信息
- */
 @Data
-@AllArgsConstructor
 public class TokenResponse {
-    private String token;       // JWT令牌
-    private Integer sellerId;   // 卖家ID（唯一）
-    private String username;    // 卖家用户名
+    @JsonProperty("token")
+    private String token;
+
+    @JsonProperty("seller_info")
+    private SellerInfo sellerInfo;
+
+    public TokenResponse(String token, Integer sellerId, String username, String createTime) {
+        this.token = token;
+        this.sellerInfo = new SellerInfo(sellerId, username, createTime);
+    }
+
+    @Data
+    public static class SellerInfo {
+        @JsonProperty("seller_id")
+        private Integer sellerId;
+
+        @JsonProperty("username")
+        private String username;
+
+        @JsonProperty("create_time")
+        private String createTime;
+
+        public SellerInfo(Integer sellerId, String username, String createTime) {
+            this.sellerId = sellerId;
+            this.username = username;
+            this.createTime = createTime;
+        }
+    }
 }
