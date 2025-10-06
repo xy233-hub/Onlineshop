@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.shop.mapper.ProductMapper">
+
+
+    <!-- 新增商品 -->
+    <insert id="insert" parameterType="com.example.shop.entity.Product" useGeneratedKeys="true" keyProperty="productId">
+        INSERT INTO products (seller_id, product_name, product_desc, image_url, price, product_status, created_at, updated_at)
+        VALUES (#{sellerId}, #{productName}, #{productDesc}, #{imageUrl}, #{price}, #{productStatus}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <!-- 查询所有商品 -->
+    <select id="selectAll" resultType="com.example.shop.entity.Product">
+        SELECT * FROM products ORDER BY created_at DESC
+    </select>
+
+    <!-- 根据ID查询商品 -->
+    <select id="selectById" parameterType="Integer" resultType="com.example.shop.entity.Product">
+        SELECT * FROM products WHERE product_id = #{productId}
+    </select>
+
+    <!-- 更新商品 -->
+    <update id="update" parameterType="com.example.shop.entity.Product">
+        UPDATE products
+        SET product_name = #{productName},
+            product_desc = #{productDesc},
+            image_url = #{imageUrl},
+            price = #{price},
+            product_status = #{productStatus},
+            updated_at = #{updatedAt}
+        WHERE product_id = #{productId}
+    </update>
+
+</mapper>
