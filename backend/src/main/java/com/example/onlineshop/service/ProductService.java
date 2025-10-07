@@ -12,25 +12,25 @@ import java.util.List;
 public class ProductService {
 
     @Autowired
-    private ProductMapper productMapper;
+    private ProductMapper ProductMapper;
 
     public List<Product> getOnlineProducts() {
-        return productMapper.findOnlineProducts();
+        return ProductMapper.findOnlineProducts();
     }
 
     public Product getProductById(Integer productId) {
-        return productMapper.findById(productId);
+        return ProductMapper.findById(productId);
     }
 
     public boolean createProduct(Product product) {
-        return productMapper.insert(product) > 0;
+        return ProductMapper.insert(product) > 0;
     }
 
     public boolean updateProductStatus(Integer productId, String status) {
-        return productMapper.updateStatus(productId, status) > 0;
+        return ProductMapper.updateStatus(productId, status) > 0;
     }
 
     public List<Product> getHistoryProducts(Integer sellerId) {
-        return productMapper.findAllBySellerId(sellerId);
+        return ProductMapper.findAllBySellerId(sellerId);
     }
 }

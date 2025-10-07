@@ -11,14 +11,14 @@
         <relativePath/> <!-- 从仓库查找父依赖 -->
     </parent>
 
-    <groupId>org.example</groupId>
-    <artifactId>shop</artifactId>
+    <groupId>com.example</groupId>
+    <artifactId>onlineshop</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>shop</name>
     <description>极简在线购物系统</description>
 
+
     <properties>
-        <java.version>1.8</java.version>
         <java.version>17</java.version> <!-- Spring Boot 3.x 强制要求Java 17+ -->
         <jjwt.version>0.11.5</jjwt.version>
         <mybatis-spring-boot.version>3.0.3</mybatis-spring-boot.version> <!-- 适配Spring Boot 3.x的MyBatis版本 -->
@@ -103,9 +103,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.29</version>
         </dependency>
 
         <!-- 7. 测试依赖 -->
