@@ -21,4 +21,12 @@ public class ResponseUtil {
         response.put("data", null);
         return response;
     }
+    public static Object custom(int code, String message, Object data) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("code", code);
+        map.put("message", message);
+        map.put("data", data);
+        return map;
+    }
+
 }

@@ -1,16 +1,16 @@
-package com.example.shop.service.impl;
+package com.example.onlineshop.service.impl;
 
-import com.example.shop.dto.request.ProductRequest;
-import com.example.shop.dto.response.ApiResponse;
-import com.example.shop.dto.response.ProductInfoResponse;
-import com.example.shop.dto.response.TokenResponse;
-import com.example.shop.entity.Product;
-import com.example.shop.entity.Seller;
-import com.example.shop.mapper.ProductMapper;
-import com.example.shop.mapper.SellerMapper;
-import com.example.shop.service.SellerService;
-import com.example.shop.util.JwtUtil;
-import com.example.shop.util.PasswordUtil;
+import com.example.onlineshop.dto.request.ProductRequest;
+import com.example.onlineshop.dto.response.ApiResponse;
+import com.example.onlineshop.dto.response.ProductInfoResponse;
+import com.example.onlineshop.dto.response.TokenResponse;
+import com.example.onlineshop.entity.Product;
+import com.example.onlineshop.entity.Seller;
+import com.example.onlineshop.mapper.ProductMapper;
+import com.example.onlineshop.mapper.SellerMapper;
+import com.example.onlineshop.service.SellerService;
+import com.example.onlineshop.util.JwtUtil;
+import com.example.onlineshop.util.PasswordUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +85,11 @@ public class SellerServiceImpl implements SellerService {
     @Override
     @Transactional
     public ApiResponse publishProduct(ProductRequest request) {
+        // 检查是否已有在售商品
+        List<Product> onlineProducts = productMapper.selectByStatus("online");
+        if (!onlineProducts.isEmpty()) {
+            return new ApiResponse(400, "已有商品在售，不能重复发布", null);
+        }
         Integer sellerId = 1;
         Product product = new Product();
         product.setSellerId(sellerId);
@@ -118,7 +123,7 @@ public class SellerServiceImpl implements SellerService {
     @Override
     @Transactional
     public ApiResponse freezeProduct(Long productId) {
-        Product product = productMapper.selectById(productId.intValue());
+        Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
         }
@@ -134,7 +139,7 @@ public class SellerServiceImpl implements SellerService {
     @Override
     @Transactional
     public ApiResponse unfreezeProduct(Long productId) {
-        Product product = productMapper.selectById(productId.intValue());
+        Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
         }
@@ -150,7 +155,7 @@ public class SellerServiceImpl implements SellerService {
     @Override
     @Transactional
     public ApiResponse markProductSold(Long productId) {
-        Product product = productMapper.selectById(productId.intValue());
+        Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
         }
