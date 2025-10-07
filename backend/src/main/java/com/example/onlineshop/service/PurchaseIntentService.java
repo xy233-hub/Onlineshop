@@ -6,6 +6,7 @@ import com.example.onlineshop.mapper.PurchaseIntentMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -26,11 +27,24 @@ public class PurchaseIntentService {
         return purchaseIntentMapper.findById(purchaseId);
     }
 
-    public boolean updatePurchaseStatus(Integer purchaseId, String status) {
-        return purchaseIntentMapper.updateStatus(purchaseId, status) > 0;
+    public boolean updatePurchaseStatus(Integer purchaseId, String newStatus) {
+        PurchaseIntent intent = purchaseIntentMapper.findById(purchaseId);
+        if (intent == null) return false;
+        if ("success".equals(newStatus)) {
+            // 先将同商品下其他pending意向设为failed
+            purchaseIntentMapper.markOtherIntentsFailed(intent.getProduct_id(), purchaseId);
+        }
+        intent.setPurchase_status(newStatus);
+        intent.setUpdated_at(LocalDateTime.now());
+        return purchaseIntentMapper.updateStatus(purchaseId, newStatus) > 0;
     }
 
     public List<PurchaseIntent> getAllPurchaseIntents() {
         return purchaseIntentMapper.findAll();
     }
+
+    public void markOtherIntentsFailed(Integer productId, Integer excludePurchaseId) {
+        purchaseIntentMapper.markOtherIntentsFailed(productId, excludePurchaseId);
+    }
+
 }

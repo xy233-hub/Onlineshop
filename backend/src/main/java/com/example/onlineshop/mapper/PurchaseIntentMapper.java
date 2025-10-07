@@ -19,4 +19,7 @@ public interface PurchaseIntentMapper {
     int updateStatus(@Param("purchaseId") Integer purchaseId, @Param("status") String status);
 
     List<PurchaseIntent> findAll();
+    // 批量将同一商品下除指定意向外的pending意向设为failed
+    int markOtherIntentsFailed(Integer productId, Integer excludePurchaseId);
+
 }
