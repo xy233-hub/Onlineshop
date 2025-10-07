@@ -33,4 +33,13 @@
     <select id="findAll" resultMap="PurchaseIntentMap">
         SELECT * FROM purchase_intents
     </select>
+
+    <update id="markOtherIntentsFailed">
+        UPDATE purchase_intents
+        SET purchase_status = 'failed'
+        WHERE product_id = #{productId}
+          AND purchase_id != #{excludePurchaseId}
+          AND purchase_status = 'pending'
+    </update>
+
 </mapper>

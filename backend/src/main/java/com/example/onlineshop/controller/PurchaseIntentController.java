@@ -54,8 +54,8 @@ public class PurchaseIntentController {
                     .body(new ApiResponse(401, "未授权", null));
         }
         try {
-            Integer purchaseId = (Integer) req.get("purchase_id");
-            String newStatus = (String) req.get("new_status");
+            Integer purchaseId = Integer.parseInt(req.get("purchase_id").toString());
+            String newStatus = req.get("new_status").toString();
             boolean updated = purchaseIntentService.updatePurchaseStatus(purchaseId, newStatus);
             if (updated) {
                 PurchaseIntent intent = purchaseIntentService.getPurchaseIntentById(purchaseId);

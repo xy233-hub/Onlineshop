@@ -139,6 +139,14 @@ public class SellerServiceImpl implements SellerService {
     @Override
     @Transactional
     public ApiResponse unfreezeProduct(Long productId) {
+        // 检查是否已有其他商品为 online
+        List<Product> onlineProducts = productMapper.selectByStatus("online");
+        // 排除当前要解冻的商品
+        boolean hasOtherOnline = onlineProducts.stream()
+                .anyMatch(p -> !p.getProductId().equals(productId.intValue()));
+        if (hasOtherOnline) {
+            return new ApiResponse(400, "已有商品在售，不能解冻", null);
+        }
         Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
@@ -148,6 +156,7 @@ public class SellerServiceImpl implements SellerService {
         productMapper.update(product);
         return new ApiResponse(200, "恢复成功", new ProductInfoResponse(product));
     }
+
 
     /**
      * 标记商品为已售出
