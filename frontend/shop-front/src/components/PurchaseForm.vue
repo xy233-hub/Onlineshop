@@ -30,7 +30,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { purchaseProduct } from '../api'
+import { purchaseProduct } from '../api/product'
 
 const props = defineProps(['productId'])
 const emit = defineEmits(['close'])
