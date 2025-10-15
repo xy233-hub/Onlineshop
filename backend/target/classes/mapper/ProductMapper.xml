@@ -1,28 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
-        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-
-<mapper namespace="com.example.shop.mapper.ProductMapper">
-
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.onlineshop.mapper.ProductMapper">
+    <resultMap id="ProductMap" type="com.example.onlineshop.entity.Product">
+        <id property="productId" column="product_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="productName" column="product_name"/>
+        <result property="productDesc" column="product_desc"/>
+        <result property="imageUrl" column="image_url"/>
+        <result property="price" column="price"/>
+        <result property="productStatus" column="product_status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
 
     <!-- 新增商品 -->
-    <insert id="insert" parameterType="com.example.shop.entity.Product" useGeneratedKeys="true" keyProperty="productId">
+    <insert id="insert" parameterType="com.example.onlineshop.entity.Product" useGeneratedKeys="true" keyProperty="productId">
         INSERT INTO products (seller_id, product_name, product_desc, image_url, price, product_status, created_at, updated_at)
         VALUES (#{sellerId}, #{productName}, #{productDesc}, #{imageUrl}, #{price}, #{productStatus}, #{createdAt}, #{updatedAt})
     </insert>
 
     <!-- 查询所有商品 -->
-    <select id="selectAll" resultType="com.example.shop.entity.Product">
+    <select id="selectAll" resultMap="ProductMap">
         SELECT * FROM products ORDER BY created_at DESC
     </select>
 
-    <!-- 根据ID查询商品 -->
-    <select id="selectById" parameterType="Integer" resultType="com.example.shop.entity.Product">
+    <!-- 根据商品ID查询商品 -->
+    <select id="findById" parameterType="int" resultMap="ProductMap">
         SELECT * FROM products WHERE product_id = #{productId}
     </select>
 
-    <!-- 更新商品 -->
-    <update id="update" parameterType="com.example.shop.entity.Product">
+    <!-- 更新商品信息 -->
+    <update id="update" parameterType="com.example.onlineshop.entity.Product">
         UPDATE products
         SET product_name = #{productName},
             product_desc = #{productDesc},
@@ -33,4 +41,24 @@
         WHERE product_id = #{productId}
     </update>
 
+    <!-- 根据状态查询商品 -->
+    <select id="selectByStatus" parameterType="String" resultMap="ProductMap">
+        SELECT * FROM products WHERE product_status = #{productStatus} ORDER BY created_at DESC
+    </select>
+
+    <!-- 查询所有在售商品 -->
+    <select id="findOnlineProducts" resultMap="ProductMap">
+        SELECT * FROM products WHERE product_status = 'online'
+    </select>
+
+    <!-- 更新商品状态 -->
+    <update id="updateStatus">
+        UPDATE products SET product_status = #{status} WHERE product_id = #{productId}
+    </update>
+
+    <!-- 查询某卖家的所有商品 -->
+    <select id="findAllBySellerId" parameterType="int" resultMap="ProductMap">
+        SELECT * FROM products WHERE seller_id = #{sellerId}
+    </select>
 </mapper>
+

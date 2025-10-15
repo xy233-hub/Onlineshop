@@ -11,11 +11,12 @@
         <relativePath/> <!-- 从仓库查找父依赖 -->
     </parent>
 
-    <groupId>org.example</groupId>
-    <artifactId>shop</artifactId>
+    <groupId>com.example</groupId>
+    <artifactId>onlineshop</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>shop</name>
     <description>极简在线购物系统</description>
+
 
     <properties>
         <java.version>17</java.version> <!-- Spring Boot 3.x 强制要求Java 17+ -->
@@ -95,6 +96,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
 
         <!-- 6. Lombok（简化实体类代码） -->
         <dependency>
