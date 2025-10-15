@@ -5,6 +5,7 @@
       <button @click="showAdd = true" class="add-btn">发布新商品</button>
       <div v-if="showAdd" class="modal-mask" @click.self="showAdd = false">
         <div class="modal-card">
+          <div v-if="addError" class="error">{{ addError }}</div>
           <h3>发布新商品</h3>
           <input v-model="newProduct.product_name" placeholder="商品名称" />
           <input v-model="newProduct.product_desc" placeholder="商品描述" />
@@ -154,7 +155,8 @@ export default {
       products: [],
       showAdd: false,
       newProduct: { product_name: '', product_desc: '', image_url: '', price: null },
-      error: ''
+      error: '',
+      addError: '' // 新增
     }
   },
   mounted() {
@@ -172,7 +174,7 @@ export default {
       else this.error = data.message
     },
     async addProduct() {
-      this.error = ''
+      this.addError = ''
       const token = localStorage.getItem('seller_token')
       const res = await fetch('/api/seller/product', {
         method: 'POST',
@@ -184,7 +186,10 @@ export default {
         this.showAdd = false
         this.newProduct = { product_name: '', product_desc: '', image_url: '', price: null }
         this.fetchProducts()
-      } else this.error = data.message
+        this.addError = ''
+      } else {
+        this.addError = data.message
+      }
     },
     async freeze(id) {
       const token = localStorage.getItem('seller_token')
