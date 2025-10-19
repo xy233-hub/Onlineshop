@@ -32,10 +32,10 @@ public class PurchaseIntentService {
         if (intent == null) return false;
         if ("success".equals(newStatus)) {
             // 先将同商品下其他pending意向设为failed
-            purchaseIntentMapper.markOtherIntentsFailed(intent.getProduct_id(), purchaseId);
+            purchaseIntentMapper.markOtherIntentsFailed(intent.getProductId(), purchaseId);
         }
-        intent.setPurchase_status(newStatus);
-        intent.setUpdated_at(LocalDateTime.now());
+        intent.setPurchaseStatus(newStatus);
+        intent.setUpdatedAt(LocalDateTime.now());
         return purchaseIntentMapper.updateStatus(purchaseId, newStatus) > 0;
     }
 

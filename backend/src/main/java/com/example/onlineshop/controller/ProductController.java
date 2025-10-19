@@ -51,11 +51,11 @@ public class ProductController {
                 return ResponseUtil.error("商品当前不可购买");
             }
             PurchaseIntent purchaseIntent = new PurchaseIntent();
-            purchaseIntent.setProduct_id(product.getProductId());
-            purchaseIntent.setCustomer_name(request.getCustomer_name());
-            purchaseIntent.setCustomer_phone(request.getCustomer_phone());
-            purchaseIntent.setCustomer_address(request.getCustomer_address());
-            purchaseIntent.setPurchase_status("pending");
+            purchaseIntent.setProductId(product.getProductId());
+            purchaseIntent.setCustomerName(request.getCustomerName());
+            purchaseIntent.setCustomerPhone(request.getCustomerPhone());
+            purchaseIntent.setCustomerAddress(request.getCustomerAddress());
+            purchaseIntent.setPurchaseStatus("pending");
             if (purchaseIntentService.createPurchaseIntent(purchaseIntent)) {
                 return ResponseUtil.success("提交成功", purchaseIntent);
             } else {
