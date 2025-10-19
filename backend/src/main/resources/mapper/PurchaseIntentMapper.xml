@@ -3,19 +3,19 @@
 <mapper namespace="com.example.onlineshop.mapper.PurchaseIntentMapper">
 
     <resultMap id="PurchaseIntentMap" type="com.example.onlineshop.entity.PurchaseIntent">
-        <id property="purchase_id" column="purchase_id"/>
-        <result property="product_id" column="product_id"/>
-        <result property="customer_name" column="customer_name"/>
-        <result property="customer_phone" column="customer_phone"/>
-        <result property="customer_address" column="customer_address"/>
-        <result property="purchase_status" column="purchase_status"/>
-        <result property="created_at" column="created_at"/>
-        <result property="updated_at" column="updated_at"/>
+        <id property="purchaseId" column="purchase_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="customerName" column="customer_name"/>
+        <result property="customerPhone" column="customer_phone"/>
+        <result property="customerAddress" column="customer_address"/>
+        <result property="purchaseStatus" column="purchase_status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchase_id">
+    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId">
         INSERT INTO purchase_intents(product_id, customer_name, customer_phone, customer_address, purchase_status)
-        VALUES(#{product_id}, #{customer_name}, #{customer_phone}, #{customer_address}, #{purchase_status})
+        VALUES(#{productId}, #{customerName}, #{customerPhone}, #{customerAddress}, #{purchaseStatus})
     </insert>
 
     <select id="findByProductId" parameterType="int" resultMap="PurchaseIntentMap">
