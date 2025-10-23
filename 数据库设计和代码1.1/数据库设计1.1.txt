@@ -1,0 +1,241 @@
+1. 卖家表 (seller)
+存储卖家账号信息
+
+seller_id INT, 主键, 自增 - 卖家唯一ID
+
+username VARCHAR(50), 唯一 - 登录用户名
+
+password VARCHAR(100) - 加密后的密码（BCrypt加密）
+
+create_time DATETIME, 默认当前时间 - 账号创建时间
+
+索引：
+
+主键：seller_id
+
+唯一索引：uk_username (username)
+
+2. 客户表 (customers) - 新增
+支持客户自由注册
+
+customer_id INT, 主键, 自增 - 客户唯一ID
+
+customer_name VARCHAR(20), 唯一 - 登录用户名（6-20位）
+
+password VARCHAR(100) - 加密密码
+
+customer_phone VARCHAR(11), 唯一 - 联系电话（11位手机号）
+
+default_address VARCHAR(255), 可空 - 默认交易地点（可选）
+
+created_at DATETIME, 默认当前时间 - 注册时间
+
+updated_at DATETIME, 自动更新 - 最后更新时间
+
+索引：
+
+主键：customer_id
+
+唯一索引：uk_customer_username (username)
+
+唯一索引：uk_customer_phone (phone)
+
+3. 商品类别表 (categories) - 新增
+支持2级类别管理
+
+category_id INT, 主键, 自增 - 类别唯一ID
+
+parent_id INT, 可空, 外键 - 父类别ID（NULL表示一级类别）
+
+category_name VARCHAR(100) - 类别名称
+
+category_level TINYINT - 类别级别（1：一级类别，2：二级类别）
+
+created_at DATETIME, 默认当前时间 - 创建时间
+
+索引：
+
+主键：category_id
+
+索引：idx_parent_id (parent_id)
+
+索引：idx_category_level (category_level)
+
+外键约束：
+
+parent_id 引用 categories(category_id) ON DELETE CASCADE
+
+4. 商品表 (products) - 升级
+存储商品信息（支持库存、类别、搜索）
+
+product_id INT, 主键, 自增 - 商品唯一ID
+
+seller_id INT, 外键 - 所属卖家ID
+
+category_id INT, 外键 - 商品二级类别ID
+
+product_name VARCHAR(100) - 商品名称
+
+product_desc TEXT - 商品详细描述（支持富媒体）
+
+price DECIMAL(10,2) - 商品价格
+
+stock_quantity INT, 默认0 - 库存数量
+
+product_status ENUM - 商品状态：online=在线, outOfStock=售罄下架, frozen=已冻结, sold=已售出
+
+search_keywords VARCHAR(255), 可空 - 搜索关键词
+
+created_at DATETIME, 默认当前时间 - 上架时间
+
+updated_at DATETIME, 自动更新 - 最后更新时间
+
+索引：
+
+主键：product_id
+
+索引：idx_seller_id (seller_id)
+
+索引：idx_category_id (category_id)
+
+索引：idx_product_status (product_status)
+
+索引：idx_stock_quantity (stock_quantity)
+
+全文索引：ft_search (product_name, search_keywords)
+
+外键约束：
+
+seller_id 引用 seller(seller_id) ON DELETE CASCADE
+
+category_id 引用 categories(category_id) ON DELETE RESTRICT
+
+5. 商品图片表 (product_images) - 新增
+支持多张商品图片
+
+image_id INT, 主键, 自增 - 图片唯一ID
+
+product_id INT, 外键 - 关联的商品ID
+
+image_url VARCHAR(255) - 图片路径/链接
+
+image_order TINYINT, 默认0 - 图片排序（0-4，0为封面图）
+
+created_at DATETIME, 默认当前时间 - 上传时间
+
+索引：
+
+主键：image_id
+
+索引：idx_product_id (product_id)
+
+外键约束：
+
+product_id 引用 products(product_id) ON DELETE CASCADE
+
+6. 购买意向表 (purchase_intents) - 修正版
+记录购买意向和订单信息
+
+purchase_id INT, 主键, 自增 - 购买意向ID
+
+product_id INT, 外键 - 关联的商品ID
+
+customer_id INT, 外键 - 客户ID
+
+shipping_address VARCHAR(255) - 收货地址（下单时填写，可与默认地址不同）
+
+quantity INT, 默认1 - 购买数量
+
+total_amount DECIMAL(10,2) - 订单总金额
+
+purchase_status ENUM - 交易状态：pending=待处理, success=成功, failed=失败
+
+seller_notes VARCHAR(500), 可空 - 商家处理备注
+
+created_at DATETIME, 默认当前时间 - 意向提交时间
+
+updated_at DATETIME, 自动更新 - 最后更新时间
+
+索引：
+
+主键：purchase_id
+
+索引：idx_product_id (product_id)
+
+索引：idx_customer_id (customer_id)
+
+索引：idx_purchase_status (purchase_status)
+
+外键约束：
+
+product_id 引用 products(product_id) ON DELETE RESTRICT
+
+customer_id 引用 customers(customer_id) ON DELETE RESTRICT
+
+7. 媒体资源表 (media_resources) - 新增
+统一管理富媒体资源（商品描述中的图片、视频等）
+
+media_id INT, 主键, 自增 - 媒体资源唯一ID
+
+product_id INT, 外键 - 关联的商品ID
+
+media_type ENUM - 媒体类型：image=图片, video=视频, audio=音频
+
+media_url VARCHAR(255) - 媒体文件路径/链接
+
+file_name VARCHAR(100) - 原始文件名
+
+file_size INT - 文件大小（字节）
+
+mime_type VARCHAR(50) - 文件MIME类型
+
+display_order TINYINT, 默认0 - 显示顺序
+
+is_embedded BOOLEAN, 默认false - 是否嵌入在商品描述中
+
+created_at DATETIME, 默认当前时间 - 上传时间
+
+索引：
+
+主键：media_id
+
+索引：idx_product_id (product_id)
+
+索引：idx_media_type (media_type)
+
+索引：idx_display_order (display_order)
+
+索引：idx_embedded (is_embedded)
+
+外键约束：
+
+product_id 引用 products(product_id) ON DELETE CASCADE
+
+关键业务特性
+状态流转设计
+商品状态机：
+
+online（在线）→ 库存≤0 → outOfStock（售罄下架）
+
+outOfStock（售罄下架）→ 手动操作 → online（在线）
+
+online（在线）→ 有pending意向 → frozen（冻结）
+
+frozen（冻结）→ 意向success → sold（售出）
+
+frozen（冻结）→ 意向failed → online（在线）
+
+购买意向状态机：
+
+pending（待处理）→ 卖家确认 → success（成功）
+
+pending（待处理）→ 卖家拒绝/超时 → failed（失败）
+
+自动业务逻辑
+库存自动下架：当stock_quantity≤0时，自动将product_status从online改为outOfStock
+
+全文搜索：通过product_name和search_keywords字段支持商品搜索
+
+类别导航：通过categories表的层级关系支持一级→二级类别浏览
+
+多图片支持：每个商品最多5张图片，通过image_order控制显示顺序
