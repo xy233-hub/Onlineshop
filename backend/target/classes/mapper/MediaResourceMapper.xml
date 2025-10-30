@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.onlineshop.mapper.MediaResourceMapper">
+
+    <resultMap id="MediaResourceMap" type="com.example.onlineshop.entity.MediaResource">
+        <id property="mediaId" column="media_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="mediaType" column="media_type"/>
+        <result property="mediaUrl" column="media_url"/>
+        <result property="fileName" column="file_name"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="mimeType" column="mime_type"/>
+        <result property="displayOrder" column="display_order"/>
+        <result property="isEmbedded" column="is_embedded"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 插入媒体资源 -->
+    <insert id="insert" parameterType="com.example.onlineshop.entity.MediaResource"
+            useGeneratedKeys="true" keyProperty="mediaId" keyColumn="media_id">
+        INSERT INTO media_resources
+        (product_id, media_type, media_url, file_name, file_size, mime_type, display_order, is_embedded, created_at)
+        VALUES
+            (#{productId}, #{mediaType}, #{mediaUrl}, #{fileName}, #{fileSize}, #{mimeType}, #{displayOrder}, #{isEmbedded}, NOW())
+    </insert>
+
+    <!-- 根据 media_id 查询 -->
+    <select id="findById" parameterType="int" resultMap="MediaResourceMap">
+        SELECT media_id, product_id, media_type, media_url, file_name, file_size, mime_type, display_order, is_embedded, created_at
+        FROM media_resources
+        WHERE media_id = #{mediaId}
+    </select>
+
+    <!-- 查询某商品的所有媒体 -->
+    <select id="findByProductId" parameterType="int" resultMap="MediaResourceMap">
+        SELECT media_id, product_id, media_type, media_url, file_name, file_size, mime_type, display_order, is_embedded, created_at
+        FROM media_resources
+        WHERE product_id = #{productId}
+        ORDER BY display_order ASC, media_id ASC
+    </select>
+
+    <!-- 更新媒体资源 -->
+    <update id="update" parameterType="com.example.onlineshop.entity.MediaResource">
+        UPDATE media_resources
+        <set>
+            <if test="mediaType != null">media_type = #{mediaType},</if>
+            <if test="mediaUrl != null">media_url = #{mediaUrl},</if>
+            <if test="fileName != null">file_name = #{fileName},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="mimeType != null">mime_type = #{mimeType},</if>
+            <if test="displayOrder != null">display_order = #{displayOrder},</if>
+            <if test="isEmbedded != null">is_embedded = #{isEmbedded},</if>
+        </set>
+        WHERE media_id = #{mediaId}
+    </update>
+
+    <!-- 根据 media_id 删除 -->
+    <delete id="deleteById" parameterType="int">
+        DELETE FROM media_resources WHERE media_id = #{mediaId}
+    </delete>
+
+    <!-- 删除某商品的所有媒体 -->
+    <delete id="deleteByProductId" parameterType="int">
+        DELETE FROM media_resources WHERE product_id = #{productId}
+    </delete>
+
+</mapper>
+
