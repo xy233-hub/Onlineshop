@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 // 添加Product类的导入
 import com.example.onlineshop.entity.Product;
@@ -115,41 +116,5 @@ public class PurchaseIntentController {
         }
     }
 
-    // 客户：查看自己的购买意向记录
-    @GetMapping("/customers/{customer_id}/purchase-intents")
-    public ResponseEntity<ApiResponse> getCustomerPurchaseIntents(
-            @RequestHeader("Authorization") String token,
-            @PathVariable("customer_id") Integer customer_id,
-            @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
-            @RequestParam(value = "size", required = false, defaultValue = "10") Integer size,
-            @RequestParam(value = "purchase_status", required = false) String purchase_status) {
-        // 鉴权校验
-        Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
-        if (customerIdFromToken == null || !customerIdFromToken.equals(customer_id)) {
-            return ResponseEntity.status(401)
-                    .body(new ApiResponse(401, "未授权", null));
-        }
 
-        try {
-            Map<String, Object> params = new HashMap<>();
-            params.put("customer_id", customer_id);
-            params.put("page", page);
-            params.put("size", size);
-            params.put("purchase_status", purchase_status);
-
-            List<PurchaseIntent> intents = purchaseIntentService.getPurchaseIntentsByCondition(params);
-            int total = purchaseIntentService.countPurchaseIntentsByCondition(params);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("page", page);
-            result.put("size", size);
-            result.put("total", total);
-            result.put("items", intents);
-
-            return ResponseEntity.ok(new ApiResponse(200, "查询成功", result));
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body(new ApiResponse(500, "查询失败: " + e.getMessage(), null));
-        }
-    }
 }

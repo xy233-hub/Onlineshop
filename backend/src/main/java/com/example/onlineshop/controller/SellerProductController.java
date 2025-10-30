@@ -6,10 +6,10 @@ import com.example.onlineshop.dto.request.ProductRequest;
 import com.example.onlineshop.dto.request.ProductIdRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
+import com.example.onlineshop.entity.Customer;
 import com.example.onlineshop.entity.Product;
-import com.example.onlineshop.service.ProductService;
-import com.example.onlineshop.service.SellerService;
-import com.example.onlineshop.service.MediaService;
+import com.example.onlineshop.entity.PurchaseIntent;
+import com.example.onlineshop.service.*;
 import com.example.onlineshop.util.ResponseUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +32,12 @@ public class SellerProductController {
 
     @Autowired
     private MediaService mediaService;
+
+    @Autowired
+    private CustomerService customerService;
+
+    @Autowired
+    private PurchaseIntentService purchaseIntentService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -206,7 +212,7 @@ public class SellerProductController {
     // 标记商品为已售出
     @PutMapping("/product/mark-sold")
     public ApiResponse markProductSold(@RequestBody ProductIdRequest request) {
-        return sellerService.markProductSold(request.getProductId(), 1, "");
+        return sellerService.markProductSold(request.getProductId());
     }
 
     // 查看所有客户信息

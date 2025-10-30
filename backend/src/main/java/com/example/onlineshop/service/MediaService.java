@@ -125,7 +125,7 @@ public class MediaService {
         Files.writeString(metaPath, objectMapper.writeValueAsString(meta), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
         String url = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "temp/" + filename;
-        return new TempMediaResponse(key, url, file.getSize(), file.getContentType());
+        return new TempMediaResponse(key, url, file.getSize(), file.getContentType(), purpose);
     }
 
     // 在商品创建后，用 tempKey 关联到 product：读取 meta，把文件移动到正式目录并写入对应表

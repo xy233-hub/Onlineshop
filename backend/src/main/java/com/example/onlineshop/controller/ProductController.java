@@ -1,6 +1,7 @@
 // backend/src/main/java/com/example/onlineshop/controller/ProductController.java
 package com.example.onlineshop.controller;
 
+import com.example.onlineshop.dto.request.PurchaseIntentRequest;
 import com.example.onlineshop.dto.request.PurchaseRequest;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.Product;

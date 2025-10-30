@@ -5,13 +5,16 @@ import com.example.onlineshop.dto.request.CustomerLoginRequest;
 import com.example.onlineshop.dto.request.CustomerRegisterRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.entity.Customer;
+import com.example.onlineshop.entity.PurchaseIntent;
 import com.example.onlineshop.service.CustomerService;
+import com.example.onlineshop.service.PurchaseIntentService;
 import com.example.onlineshop.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -20,7 +23,8 @@ public class CustomerController {
 
     @Autowired
     private CustomerService customerService;
-
+    @Autowired
+    private PurchaseIntentService purchaseIntentService;
     // 客户注册
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@RequestBody CustomerRegisterRequest request) {
@@ -94,6 +98,44 @@ public class CustomerController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse(500, "登录失败: " + e.getMessage(), null));
+        }
+    }
+
+    // 客户：查看自己的购买意向记录
+    @GetMapping("/{customer_id}/purchase-intents")
+    public ResponseEntity<ApiResponse> getCustomerPurchaseIntents(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("customer_id") Integer customer_id,
+            @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") Integer size,
+            @RequestParam(value = "purchase_status", required = false) String purchase_status) {
+        // 鉴权校验
+        Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
+        if (customerIdFromToken == null || !customerIdFromToken.equals(customer_id)) {
+            return ResponseEntity.status(401)
+                    .body(new ApiResponse(401, "未授权", null));
+        }
+
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("customer_id", customer_id);
+            params.put("page", page);
+            params.put("size", size);
+            params.put("purchase_status", purchase_status);
+
+            List<PurchaseIntent> intents = purchaseIntentService.getPurchaseIntentsByCondition(params);
+            int total = purchaseIntentService.countPurchaseIntentsByCondition(params);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("page", page);
+            result.put("size", size);
+            result.put("total", total);
+            result.put("items", intents);
+
+            return ResponseEntity.ok(new ApiResponse(200, "查询成功", result));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse(500, "查询失败: " + e.getMessage(), null));
         }
     }
 }
