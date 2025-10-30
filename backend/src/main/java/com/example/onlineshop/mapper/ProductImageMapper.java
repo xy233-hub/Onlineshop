@@ -2,19 +2,23 @@ package com.example.onlineshop.mapper;
 
 import com.example.onlineshop.entity.ProductImage;
 import org.apache.ibatis.annotations.Mapper;
+import org.springframework.stereotype.Repository;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
 @Mapper
+@Repository
 public interface ProductImageMapper {
-
-    // 插入商品图片
     int insert(ProductImage productImage);
 
-    // 根据商品ID查询所有图片
-    List<ProductImage> findByProductId(@Param("productId") Integer productId);
+    ProductImage selectById(Integer imageId);
 
-    // 根据商品ID删除所有图片
-    int deleteByProductId(@Param("productId") Integer productId);
+    List<ProductImage> selectByProductId(Integer productId);
+
+    int update(ProductImage productImage);
+
+    int deleteById(Integer imageId);
+
+    int deleteByProductId(Integer productId);
 }

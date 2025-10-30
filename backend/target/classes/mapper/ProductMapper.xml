@@ -9,142 +9,175 @@
         <result property="productDesc" column="product_desc"/>
         <result property="price" column="price"/>
         <result property="stockQuantity" column="stock_quantity"/>
-        <result property="productStatus" column="product_status"/>
         <result property="searchKeywords" column="search_keywords"/>
+        <result property="productStatus" column="product_status"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
-    </resultMap>
-    
-    <resultMap id="ProductDetailMap" type="com.example.onlineshop.entity.Product" extends="ProductMap">
-        <association property="category" javaType="com.example.onlineshop.entity.Category">
-            <id property="categoryId" column="c_category_id"/>
-            <result property="parentId" column="c_parent_id"/>
-            <result property="categoryName" column="c_category_name"/>
-            <result property="categoryLevel" column="c_category_level"/>
-            <result property="createdAt" column="c_created_at"/>
-        </association>
+        <result property="coverImage" column="cover_image"/>
+        <!-- images / mediaResources 为非持久化字段，需单独查询组装 -->
     </resultMap>
 
     <!-- 新增商品 -->
-    <insert id="insert" parameterType="com.example.onlineshop.entity.Product" useGeneratedKeys="true" keyProperty="productId">
-        INSERT INTO products (seller_id, category_id, product_name, product_desc, price, stock_quantity, product_status, search_keywords, created_at, updated_at)
-        VALUES (#{sellerId}, #{categoryId}, #{productName}, #{productDesc}, #{price}, #{stockQuantity}, #{productStatus}, #{searchKeywords}, #{createdAt}, #{updatedAt})
+    <insert id="insert" parameterType="com.example.onlineshop.entity.Product" useGeneratedKeys="true" keyProperty="productId" keyColumn="product_id">
+        INSERT INTO products (seller_id, category_id, product_name, product_desc, price, stock_quantity, search_keywords, product_status, created_at, updated_at)
+        VALUES (#{sellerId}, #{categoryId}, #{productName}, #{productDesc}, #{price}, #{stockQuantity}, #{searchKeywords}, #{productStatus}, #{createdAt}, #{updatedAt})
     </insert>
 
     <!-- 查询所有商品 -->
     <select id="selectAll" resultMap="ProductMap">
-        SELECT * FROM products ORDER BY created_at DESC
+        SELECT product_id, seller_id, category_id, product_name, product_desc, price, stock_quantity, search_keywords, product_status, created_at, updated_at
+        FROM products
+        ORDER BY created_at DESC
     </select>
 
     <!-- 根据商品ID查询商品 -->
     <select id="findById" parameterType="int" resultMap="ProductMap">
-        SELECT * FROM products WHERE product_id = #{productId}
+        SELECT product_id, seller_id, category_id, product_name, product_desc, price, stock_quantity, search_keywords, product_status, created_at, updated_at
+        FROM products
+        WHERE product_id = #{productId}
+    </select>
+
+    <!-- 根据状态查询商品 -->
+    <select id="selectByStatus" parameterType="String" resultMap="ProductMap">
+        SELECT product_id, seller_id, category_id, product_name, product_desc, price, stock_quantity, search_keywords, product_status, created_at, updated_at
+        FROM products
+        WHERE product_status = #{productStatus}
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 查询在线商品（无分页） -->
+    <select id="findOnlineProducts" resultType="com.example.onlineshop.entity.Product">
+        SELECT *
+        FROM products
+        WHERE product_status = 'online'
+        ORDER BY created_at DESC
+    </select>
+
+    <!-- 查询某卖家的所有商品：通过子查询取第一张图片作为 cover_image -->
+    <select id="findAllBySellerId" parameterType="int" resultMap="ProductMap">
+        SELECT p.product_id, p.seller_id, p.category_id, p.product_name, p.product_desc, p.price, p.stock_quantity, p.search_keywords, p.product_status, p.created_at, p.updated_at,
+               (SELECT pi.image_url FROM product_images pi WHERE pi.product_id = p.product_id ORDER BY pi.image_order ASC, pi.image_id ASC LIMIT 1) AS cover_image
+        FROM products p
+        WHERE p.seller_id = #{sellerId}
+        ORDER BY p.created_at DESC
+    </select>
+
+    <!-- 分页/搜索/排序查询商品（controller -> service 已校验 sort/order） -->
+    <select id="selectProducts" parameterType="map" resultType="com.example.onlineshop.entity.Product">
+        SELECT p.*,
+        (SELECT pi.image_url
+        FROM product_images pi
+        WHERE pi.product_id = p.product_id
+        ORDER BY pi.image_order ASC, pi.image_id ASC
+        LIMIT 1) AS cover_image
+        FROM products p
+        WHERE 1 = 1
+        <if test="q != null and q != ''">
+            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+        </if>
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        <if test="status != null and status != ''">
+            AND product_status = #{status}
+        </if>
+
+        <choose>
+            <when test="sortBy != null and sortBy == 'price'">
+                ORDER BY price ${order}
+            </when>
+            <when test="sortBy != null and sortBy == 'stock_quantity'">
+                ORDER BY stock_quantity ${order}
+            </when>
+            <when test="sortBy != null and sortBy == 'created_at'">
+                ORDER BY created_at ${order}
+            </when>
+            <otherwise>
+                ORDER BY created_at ${order}
+            </otherwise>
+        </choose>
+
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 计数（与上面条件相同但无分页） -->
+    <select id="countProducts" parameterType="map" resultType="int">
+        SELECT COUNT(1)
+        FROM products
+        WHERE 1 = 1
+        <if test="q != null and q != ''">
+            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+        </if>
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        <if test="status != null and status != ''">
+            AND product_status = #{status}
+        </if>
+    </select>
+
+    <select id="countByCategoryId" parameterType="int" resultType="int">
+        SELECT COUNT(1) FROM products WHERE category_id = #{categoryId}
+    </select>
+
+    <select id="selectProductById" parameterType="int" resultType="com.example.onlineshop.entity.Product">
+        SELECT product_id, seller_id, category_id, product_name, product_desc, price, stock_quantity, search_keywords, product_status, created_at, updated_at
+        FROM products
+        WHERE product_id = #{productId}
+    </select>
+
+    <select id="selectImagesByProductId" parameterType="int" resultType="com.example.onlineshop.entity.ProductImage">
+        SELECT image_id, product_id, image_url, image_order, created_at
+        FROM product_images
+        WHERE product_id = #{productId}
+        ORDER BY image_order ASC, image_id ASC
+    </select>
+
+    <select id="selectMediaByProductId" parameterType="int" resultType="com.example.onlineshop.entity.MediaResource">
+        SELECT media_id, product_id, media_type, media_url, file_name, file_size, mime_type, display_order, is_embedded, created_at
+        FROM media_resources
+        WHERE product_id = #{productId}
+        ORDER BY display_order ASC, media_id ASC
+    </select>
+
+    <select id="selectCategoryById" parameterType="int" resultType="com.example.onlineshop.entity.Category">
+        SELECT category_id, parent_id, category_name, category_level, created_at
+        FROM categories
+        WHERE category_id = #{categoryId}
     </select>
 
     <!-- 更新商品信息 -->
     <update id="update" parameterType="com.example.onlineshop.entity.Product">
         UPDATE products
-        SET product_name = #{productName},
-            product_desc = #{productDesc},
-            category_id = #{categoryId},
-            price = #{price},
-            stock_quantity = #{stockQuantity},
-            product_status = #{productStatus},
-            search_keywords = #{searchKeywords},
-            updated_at = #{updatedAt}
+        <set>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="productName != null">product_name = #{productName},</if>
+            <if test="productDesc != null">product_desc = #{productDesc},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="stockQuantity != null">stock_quantity = #{stockQuantity},</if>
+            <if test="searchKeywords != null">search_keywords = #{searchKeywords},</if>
+            <if test="productStatus != null">product_status = #{productStatus},</if>
+            <if test="updatedAt != null">updated_at = #{updatedAt},</if>
+        </set>
         WHERE product_id = #{productId}
     </update>
 
-    <!-- 根据状态查询商品 -->
-    <select id="selectByStatus" parameterType="String" resultMap="ProductMap">
-        SELECT * FROM products WHERE product_status = #{productStatus} ORDER BY created_at DESC
-    </select>
-
-    <!-- 查询所有在售商品 -->
-    <select id="findOnlineProducts" resultMap="ProductMap">
-        SELECT * FROM products WHERE product_status = 'online'
-    </select>
-
-    <!-- 更新商品状态 -->
-    <update id="updateStatus">
-        UPDATE products SET product_status = #{status}, updated_at = NOW() WHERE product_id = #{productId}
+    <update id="deductStockIfEnough" parameterType="map">
+    UPDATE products
+    SET stock_quantity = stock_quantity - #{deduct},
+    updated_at = #{now}
+    WHERE product_id = #{productId}
+    AND stock_quantity >= #{deduct}
     </update>
 
-    <!-- 查询某卖家的所有商品 -->
-    <select id="findAllBySellerId" parameterType="int" resultMap="ProductMap">
-        SELECT * FROM products WHERE seller_id = #{sellerId}
-    </select>
-    
-    <!-- 根据条件查询商品 -->
-    <select id="findByCondition" parameterType="map" resultMap="ProductMap">
-        SELECT * FROM products
-        <where>
-            <if test="sellerId != null">
-                AND seller_id = #{sellerId}
-            </if>
-            <if test="status != null and status != ''">
-                AND product_status = #{status}
-            </if>
-            <if test="categoryId != null">
-                AND category_id = #{categoryId}
-            </if>
-            <if test="keyword != null and keyword != ''">
-                AND (product_name LIKE CONCAT('%', #{keyword}, '%') OR search_keywords LIKE CONCAT('%', #{keyword}, '%'))
-            </if>
-        </where>
-        ORDER BY 
-        <choose>
-            <when test="sortBy != null and sortBy == 'price'">
-                price
-            </when>
-            <when test="sortBy != null and sortBy == 'created_at'">
-                created_at
-            </when>
-            <otherwise>
-                product_id
-            </otherwise>
-        </choose>
-        <choose>
-            <when test="order != null and order == 'asc'">
-                ASC
-            </when>
-            <otherwise>
-                DESC
-            </otherwise>
-        </choose>
-        LIMIT #{limit} OFFSET #{offset}
-    </select>
-    
-    <!-- 统计符合条件的商品数量 -->
-    <select id="countByCondition" parameterType="map" resultType="int">
-        SELECT COUNT(*) FROM products
-        <where>
-            <if test="sellerId != null">
-                AND seller_id = #{sellerId}
-            </if>
-            <if test="status != null and status != ''">
-                AND product_status = #{status}
-            </if>
-            <if test="categoryId != null">
-                AND category_id = #{categoryId}
-            </if>
-            <if test="keyword != null and keyword != ''">
-                AND (product_name LIKE CONCAT('%', #{keyword}, '%') OR search_keywords LIKE CONCAT('%', #{keyword}, '%'))
-            </if>
-        </where>
-    </select>
-    
-    <!-- 根据ID查询商品详情（包含分类信息） -->
-    <select id="findWithDetailsById" parameterType="int" resultMap="ProductDetailMap">
-        SELECT 
-            p.*,
-            c.category_id AS c_category_id,
-            c.parent_id AS c_parent_id,
-            c.category_name AS c_category_name,
-            c.category_level AS c_category_level,
-            c.created_at AS c_created_at
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.category_id
-        WHERE p.product_id = #{productId}
-    </select>
+
+
+    <!-- 更新商品状态 -->
+    <update id="updateStatus" parameterType="map">
+        UPDATE products SET product_status = #{status} WHERE product_id = #{productId}
+    </update>
+
+
 </mapper>
+
+

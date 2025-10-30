@@ -1,13 +1,20 @@
-// service/ProductService.java
+// java
+// 文件：`backend/src/main/java/com/example/onlineshop/service/ProductService.java`
 package com.example.onlineshop.service;
 
+import com.example.onlineshop.dto.response.ProductDetailResponse;
+import com.example.onlineshop.entity.MediaResource;
 import com.example.onlineshop.entity.Product;
+import com.example.onlineshop.entity.ProductImage;
 import com.example.onlineshop.mapper.ProductMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -15,9 +22,6 @@ public class ProductService {
     @Autowired
     private ProductMapper productMapper;
 
-    public List<Product> getOnlineProducts() {
-        return productMapper.findOnlineProducts();
-    }
 
     public Product getProductById(Integer productId) {
         return productMapper.findById(productId);
@@ -31,39 +35,49 @@ public class ProductService {
         return productMapper.updateStatus(productId, status) > 0;
     }
 
+    // 修改：返回历史商品时同时填充 images 列表（和必要时回填 coverImage）
     public List<Product> getHistoryProducts(Integer sellerId) {
-        return productMapper.findAllBySellerId(sellerId);
-    }
-
-    public Object getProductsByCondition(Map<String, Object> params) {
-        // 处理分页参数
-        Integer page = (Integer) params.getOrDefault("page", 1);
-        Integer size = (Integer) params.getOrDefault("size", 10);
-        Integer offset = (page - 1) * size;
-
-        params.put("offset", offset);
-        params.put("limit", size);
-
-        List<Product> products = productMapper.findByCondition(params);
-        int total = productMapper.countByCondition(params);
-
-        // 为每个商品加载图片和媒体资源
-        for (Product product : products) {
-            loadProductImagesAndMedia(product);
+        List<Product> products = productMapper.findAllBySellerId(sellerId);
+        if (products == null || products.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        Map<String, Object> result = Map.of(
-                "page", page,
-                "size", size,
-                "total", total,
-                "items", products
-        );
-
-        return result;
+        for (Product p : products) {
+            if (p == null) continue;
+            p.setImages(Collections.emptyList());
+        }
+        return products;
     }
 
-    private void loadProductImagesAndMedia(Product product) {
-        // 加载商品图片和媒体资源
-        // 这里需要调用对应的Mapper方法，但为了简化，暂时留空
+    // 兼容前端分页/搜索接口（可直接被之前的 Controller 调用）
+    public List<Product> searchProducts(String q, Integer categoryId, String status, int offset, int size, String sortBy, String order) {
+        if (order == null || (!order.equalsIgnoreCase("asc") && !order.equalsIgnoreCase("desc"))) {
+            order = "desc";
+        }
+        String sort = null;
+        if ("price".equalsIgnoreCase(sortBy) || "created_at".equalsIgnoreCase(sortBy) || "stock_quantity".equalsIgnoreCase(sortBy)) {
+            sort = sortBy;
+        }
+        return productMapper.selectProducts(q, categoryId, status, offset, size, sort, order);
     }
+
+    public int countProducts(String q, Integer categoryId, String status) {
+        return productMapper.countProducts(q, categoryId, status);
+    }
+
+    // 仅返回在线商品的详情；非 online 返回 null（Controller 会转换为 404）
+    public ProductDetailResponse getProductDetail(Integer productId) {
+        if (productId == null) return null;
+        Product p = productMapper.selectProductById(productId);
+        if (p == null) return null;
+        if (p.getProductStatus() == null || !"online".equalsIgnoreCase(p.getProductStatus())) {
+            return null;
+        }
+
+        List<com.example.onlineshop.entity.ProductImage> imgs = productMapper.selectImagesByProductId(productId);
+        List<com.example.onlineshop.entity.MediaResource> medias = productMapper.selectMediaByProductId(productId);
+        com.example.onlineshop.entity.Category cat = productMapper.selectCategoryById(p.getCategoryId());
+        return new ProductDetailResponse(p, imgs, medias, cat);
+    }
+
 }

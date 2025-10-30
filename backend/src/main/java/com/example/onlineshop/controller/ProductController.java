@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
 
 @RestController
@@ -25,45 +26,95 @@ public class ProductController {
     @Autowired
     private PurchaseIntentService purchaseIntentService;
 
-    // 获取商品列表，支持关键词、分类、状态、分页、排序等筛选
+    /**
+     * 搜索/分页/排序获取商品列表
+     * 支持参数：q, category_id, status, page, size, sort_by, order
+     * 若未传 status，默认只返回 online 商品
+     */
     @GetMapping("")
-    public Object getProductList(
-            @RequestParam(required = false) String q,
-            @RequestParam(required = false) Integer category_id,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false, defaultValue = "1") Integer page,
-            @RequestParam(required = false, defaultValue = "10") Integer size,
-            @RequestParam(required = false) String sort_by,
-            @RequestParam(required = false) String order) {
+    public Object listProducts(
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "category_id", required = false) Integer categoryId,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @RequestParam(value = "size", defaultValue = "10") Integer size,
+            @RequestParam(value = "sort_by", required = false) String sortBy,
+            @RequestParam(value = "order", defaultValue = "desc") String order
+    ) {
         try {
-            Map<String, Object> params = new HashMap<>();
-            params.put("keyword", q);
-            params.put("categoryId", category_id);
-            params.put("status", status);
-            params.put("page", page);
-            params.put("size", size);
-            params.put("sortBy", sort_by);
-            params.put("order", order);
+            if (page == null || page < 1) page = 1;
+            if (size == null || size < 1) size = 10;
+            int offset = (page - 1) * size;
 
-            Object result = productService.getProductsByCondition(params);
-            return ResponseUtil.success("获取成功", result);
+            // 如果调用方没有显式传 status，默认只查询在线商品
+            if (status == null || status.trim().isEmpty()) {
+                status = "online";
+            }
+
+            List<Product> products = productService.searchProducts(q, categoryId, status, offset, size, sortBy, order);
+            int total = productService.countProducts(q, categoryId, status);
+
+            List<ProductInfoResponse> items = products.stream()
+                    .map(ProductInfoResponse::new)
+                    .collect(Collectors.toList());
+
+            HashMap<String, Object> data = new HashMap<>();
+            data.put("page", page);
+            data.put("size", size);
+            data.put("total", total);
+            data.put("items", items);
+
+            return ResponseUtil.success("查询成功", data);
+        } catch (IllegalArgumentException iae) {
+            return ResponseUtil.custom(400, iae.getMessage(), null);
         } catch (Exception e) {
-            return ResponseUtil.error("获取商品列表失败: " + e.getMessage());
+            return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
 
-    // 获取单个商品的详细信息
+
     @GetMapping("/{product_id}")
-    public Object getProductById(@PathVariable Integer product_id) {
+    public Object getProductDetail(@PathVariable("product_id") Integer productId) {
         try {
-            Product product = productService.getProductById(product_id);
-            if (product == null) {
+            if (productId == null) {
+                return ResponseUtil.custom(400, "product_id 必填", null);
+            }
+            com.example.onlineshop.dto.response.ProductDetailResponse detail =
+                    productService.getProductDetail(productId);
+            if (detail == null) {
                 return ResponseUtil.custom(404, "商品不存在", null);
             }
-            return ResponseUtil.success("获取成功", product);
+            return ResponseUtil.success("查询成功", detail);
         } catch (Exception e) {
-            return ResponseUtil.error("获取商品失败: " + e.getMessage());
+            return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
 
+    // 提交购买意向
+    @PostMapping("/purchase-intents")
+    public Object createPurchaseIntent(@RequestBody PurchaseIntentRequest req) {
+        try {
+            if (req.getProductId() == null) {
+                return ResponseUtil.custom(400, "product_id 必填", null);
+            }
+            Integer qty = req.getQuantity() == null ? 1 : req.getQuantity();
+            if (qty <= 0) {
+                return ResponseUtil.custom(400, "quantity 必须大于 0", null);
+            }
+            if (req.getCustomerId() == null) {
+                return ResponseUtil.custom(400, "customer_id 必填", null);
+            }
+
+            PurchaseIntent created = purchaseIntentService.createPurchaseIntent(req);
+            if (created == null) {
+                return ResponseUtil.error("提交失败");
+            }
+            return ResponseUtil.success("提交成功", created);
+        } catch (IllegalArgumentException iae) {
+            return ResponseUtil.custom(400, iae.getMessage(), null);
+        } catch (Exception e) {
+            return ResponseUtil.error("提交失败: " + e.getMessage());
+        }
+    }
 }
+

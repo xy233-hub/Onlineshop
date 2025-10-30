@@ -17,15 +17,37 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId">
-        INSERT INTO purchase_intents(product_id, customer_id, customer_name, customer_phone, customer_address, quantity, total_amount, purchase_status)
-        VALUES(#{productId}, #{customerId}, #{customerName}, #{customerPhone}, #{customerAddress}, #{quantity}, #{totalAmount}, #{purchaseStatus})
+    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId" keyColumn="purchase_id">
+        INSERT INTO purchase_intents
+        (product_id,
+         customer_id,
+         customer_name,
+         customer_phone,
+         customer_address,
+         quantity,
+         total_amount,
+         purchase_status,
+         seller_notes,
+         created_at,
+         updated_at)
+        VALUES
+            (#{productId},
+             #{customerId},
+             #{customerName},
+             #{customerPhone},
+             #{customerAddress},
+             #{quantity},
+             #{totalAmount},
+             #{purchaseStatus},
+             #{sellerNotes},
+             #{createdAt},
+             #{updatedAt})
     </insert>
 
     <select id="findByProductId" parameterType="int" resultMap="PurchaseIntentMap">
         SELECT * FROM purchase_intents WHERE product_id = #{productId}
     </select>
-    
+
     <select id="findByCustomerId" parameterType="int" resultMap="PurchaseIntentMap">
         SELECT * FROM purchase_intents WHERE customer_id = #{customerId}
     </select>
@@ -49,7 +71,7 @@
           AND purchase_id != #{excludePurchaseId}
           AND purchase_status = 'pending'
     </update>
-    
+
     <select id="findByCondition" parameterType="map" resultMap="PurchaseIntentMap">
         SELECT * FROM purchase_intents
         <where>
@@ -68,7 +90,7 @@
             LIMIT #{offset}, #{limit}
         </if>
     </select>
-    
+
     <select id="countByCondition" parameterType="map" resultType="int">
         SELECT COUNT(*) FROM purchase_intents
         <where>
@@ -84,4 +106,11 @@
         </where>
     </select>
 
+    <update id="updateStatusAndNotes" parameterType="map">
+        UPDATE purchase_intents
+        SET purchase_status = #{status},
+            seller_notes = #{sellerNotes},
+            updated_at = #{updatedAt}
+        WHERE purchase_id = #{purchaseId}
+    </update>
 </mapper>
