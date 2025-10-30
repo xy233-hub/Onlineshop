@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface ProductMapper {
@@ -32,4 +33,10 @@ public interface ProductMapper {
 
     // 查询某卖家的所有商品
     List<Product> findAllBySellerId(@Param("sellerId") Integer sellerId);
+
+    // 根据条件查询商品
+    List<Product> findByCondition(Map<String, Object> params);
+
+    // 统计符合条件的商品数量
+    int countByCondition(Map<String, Object> params);
 }

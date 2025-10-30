@@ -5,21 +5,29 @@
     <resultMap id="PurchaseIntentMap" type="com.example.onlineshop.entity.PurchaseIntent">
         <id property="purchaseId" column="purchase_id"/>
         <result property="productId" column="product_id"/>
+        <result property="customerId" column="customer_id"/>
         <result property="customerName" column="customer_name"/>
         <result property="customerPhone" column="customer_phone"/>
         <result property="customerAddress" column="customer_address"/>
+        <result property="quantity" column="quantity"/>
+        <result property="totalAmount" column="total_amount"/>
         <result property="purchaseStatus" column="purchase_status"/>
+        <result property="sellerNotes" column="seller_notes"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
     <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId">
-        INSERT INTO purchase_intents(product_id, customer_name, customer_phone, customer_address, purchase_status)
-        VALUES(#{productId}, #{customerName}, #{customerPhone}, #{customerAddress}, #{purchaseStatus})
+        INSERT INTO purchase_intents(product_id, customer_id, customer_name, customer_phone, customer_address, quantity, total_amount, purchase_status)
+        VALUES(#{productId}, #{customerId}, #{customerName}, #{customerPhone}, #{customerAddress}, #{quantity}, #{totalAmount}, #{purchaseStatus})
     </insert>
 
     <select id="findByProductId" parameterType="int" resultMap="PurchaseIntentMap">
         SELECT * FROM purchase_intents WHERE product_id = #{productId}
+    </select>
+    
+    <select id="findByCustomerId" parameterType="int" resultMap="PurchaseIntentMap">
+        SELECT * FROM purchase_intents WHERE customer_id = #{customerId}
     </select>
 
     <select id="findById" parameterType="int" resultMap="PurchaseIntentMap">
@@ -27,7 +35,7 @@
     </select>
 
     <update id="updateStatus">
-        UPDATE purchase_intents SET purchase_status = #{status} WHERE purchase_id = #{purchaseId}
+        UPDATE purchase_intents SET purchase_status = #{status}, updated_at = NOW() WHERE purchase_id = #{purchaseId}
     </update>
 
     <select id="findAll" resultMap="PurchaseIntentMap">
@@ -41,5 +49,39 @@
           AND purchase_id != #{excludePurchaseId}
           AND purchase_status = 'pending'
     </update>
+    
+    <select id="findByCondition" parameterType="map" resultMap="PurchaseIntentMap">
+        SELECT * FROM purchase_intents
+        <where>
+            <if test="customer_id != null">
+                AND customer_id = #{customer_id}
+            </if>
+            <if test="purchase_status != null and purchase_status != ''">
+                AND purchase_status = #{purchase_status}
+            </if>
+            <if test="product_id != null">
+                AND product_id = #{product_id}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{offset}, #{limit}
+        </if>
+    </select>
+    
+    <select id="countByCondition" parameterType="map" resultType="int">
+        SELECT COUNT(*) FROM purchase_intents
+        <where>
+            <if test="customer_id != null">
+                AND customer_id = #{customer_id}
+            </if>
+            <if test="purchase_status != null and purchase_status != ''">
+                AND purchase_status = #{purchase_status}
+            </if>
+            <if test="product_id != null">
+                AND product_id = #{product_id}
+            </if>
+        </where>
+    </select>
 
 </mapper>

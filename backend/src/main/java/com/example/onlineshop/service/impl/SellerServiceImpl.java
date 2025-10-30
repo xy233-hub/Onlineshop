@@ -5,7 +5,11 @@ import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.dto.response.TokenResponse;
 import com.example.onlineshop.entity.Product;
+import com.example.onlineshop.entity.ProductImage;
+import com.example.onlineshop.entity.MediaResource;
 import com.example.onlineshop.entity.Seller;
+import com.example.onlineshop.mapper.ProductImageMapper;
+import com.example.onlineshop.mapper.MediaResourceMapper;
 import com.example.onlineshop.mapper.ProductMapper;
 import com.example.onlineshop.mapper.SellerMapper;
 import com.example.onlineshop.service.SellerService;
@@ -15,9 +19,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class SellerServiceImpl implements SellerService {
@@ -27,6 +34,13 @@ public class SellerServiceImpl implements SellerService {
 
     @Autowired
     private ProductMapper productMapper;
+
+    @Autowired
+    private ProductImageMapper productImageMapper;
+
+    @Autowired
+    private MediaResourceMapper mediaResourceMapper;
+
     /**
      * 卖家登录
      */
@@ -55,6 +69,7 @@ public class SellerServiceImpl implements SellerService {
         );
 
     }
+
     @Override
     @Transactional  // 事务保证：密码更新失败时回滚
     public void updatePassword(Integer sellerId, String oldPassword, String newPassword) {
@@ -79,42 +94,177 @@ public class SellerServiceImpl implements SellerService {
         }
     }
 
+    // ... existing code ...
     /**
      * 发布新商品
      */
     @Override
     @Transactional
     public ApiResponse publishProduct(ProductRequest request) {
-        // 检查是否已有在售商品
-        List<Product> onlineProducts = productMapper.selectByStatus("online");
-        if (!onlineProducts.isEmpty()) {
-            return new ApiResponse(400, "已有商品在售，不能重复发布", null);
-        }
-        Integer sellerId = 1;
+        Integer sellerId = 1; // 从token中获取
         Product product = new Product();
         product.setSellerId(sellerId);
+        product.setCategoryId(request.getCategoryId());
         product.setProductName(request.getProductName());
         product.setProductDesc(request.getProductDesc());
-        product.setImageUrl(request.getImageUrl());
         product.setPrice(request.getPrice());
-        product.setProductStatus("online");
+        product.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
+        product.setSearchKeywords(request.getSearchKeywords());
+
+        // 根据库存设置商品状态
+        if (product.getStockQuantity() > 0) {
+            product.setProductStatus("online");
+        } else {
+            product.setProductStatus("outOfStock");
+        }
+
         product.setCreatedAt(LocalDateTime.now());
         product.setUpdatedAt(LocalDateTime.now());
+
+        // 插入商品
         productMapper.insert(product);
-        return new ApiResponse(200, "发布成功", new ProductInfoResponse(product));
+
+        // 插入商品图片
+        if (request.getImages() != null && !request.getImages().isEmpty()) {
+            for (int i = 0; i < request.getImages().size(); i++) {
+                ProductImage image = new ProductImage();
+                image.setProductId(product.getProductId());
+                image.setImageUrl(request.getImages().get(i).getImageUrl());
+                image.setImageOrder(request.getImages().get(i).getImageOrder() != null
+                        ? request.getImages().get(i).getImageOrder() : i);
+                image.setCreatedAt(LocalDateTime.now());
+                productImageMapper.insert(image);
+            }
+        }
+
+        // 插入媒体资源
+        if (request.getMediaResources() != null && !request.getMediaResources().isEmpty()) {
+            for (ProductRequest.MediaResource media : request.getMediaResources()) {
+                MediaResource mediaResource = new MediaResource();
+                mediaResource.setProductId(product.getProductId());
+                mediaResource.setMediaType(media.getMediaType() != null ? media.getMediaType() : "image");
+                mediaResource.setMediaUrl(media.getMediaUrl());
+                mediaResource.setFileName(media.getFileName());
+                mediaResource.setFileSize(media.getFileSize() != null ? media.getFileSize().intValue() : null);
+                mediaResource.setMimeType(media.getMimeType());
+                mediaResource.setDisplayOrder(media.getDisplayOrder() != null ? media.getDisplayOrder() : 0);
+                mediaResource.setIsEmbedded(media.getIsEmbedded() != null ? media.getIsEmbedded() : false);
+                mediaResource.setCreatedAt(LocalDateTime.now());
+                mediaResourceMapper.insert(mediaResource);
+            }
+        }
+
+        return new ApiResponse(200, "发布成功", product);
+    }
+// ... existing code ...
+
+    /**
+     * 批量发布商品
+     */
+    @Override
+    @Transactional
+    public ApiResponse publishProducts(List<ProductRequest> requests) {
+        // 检查请求是否为空
+        if (requests == null || requests.isEmpty()) {
+            return new ApiResponse(400, "请求数据不能为空", null);
+        }
+
+        // 批量发布商品
+        List<Product> products = requests.stream()
+                .map(this::createProductFromRequest)
+                .collect(Collectors.toList());
+
+        return new ApiResponse(200, "批量发布成功", products);
     }
 
+// ... existing code ...
+    private Product createProductFromRequest(ProductRequest request) {
+        Integer sellerId = 1; // 从token中获取
+        Product product = new Product();
+        product.setSellerId(sellerId);
+        product.setCategoryId(request.getCategoryId());
+        product.setProductName(request.getProductName());
+        product.setProductDesc(request.getProductDesc());
+        product.setPrice(request.getPrice());
+        product.setStockQuantity(request.getStockQuantity() != null ? request.getStockQuantity() : 0);
+        product.setSearchKeywords(request.getSearchKeywords());
+
+        // 根据库存设置商品状态
+        if (product.getStockQuantity() > 0) {
+            product.setProductStatus("online");
+        } else {
+            product.setProductStatus("outOfStock");
+        }
+
+        product.setCreatedAt(LocalDateTime.now());
+        product.setUpdatedAt(LocalDateTime.now());
+
+        // 插入商品
+        productMapper.insert(product);
+
+        // 插入商品图片
+        if (request.getImages() != null && !request.getImages().isEmpty()) {
+            for (int i = 0; i < request.getImages().size(); i++) {
+                ProductImage image = new ProductImage();
+                image.setProductId(product.getProductId());
+                image.setImageUrl(request.getImages().get(i).getImageUrl());
+                image.setImageOrder(request.getImages().get(i).getImageOrder() != null
+                        ? request.getImages().get(i).getImageOrder() : i);
+                image.setCreatedAt(LocalDateTime.now());
+                productImageMapper.insert(image);
+            }
+        }
+
+        // 插入媒体资源
+        if (request.getMediaResources() != null && !request.getMediaResources().isEmpty()) {
+            for (ProductRequest.MediaResource media : request.getMediaResources()) {
+                MediaResource mediaResource = new MediaResource();
+                mediaResource.setProductId(product.getProductId());
+                mediaResource.setMediaType(media.getMediaType() != null ? media.getMediaType() : "image");
+                mediaResource.setMediaUrl(media.getMediaUrl());
+                mediaResource.setFileName(media.getFileName());
+                mediaResource.setFileSize(media.getFileSize() != null ? media.getFileSize().intValue() : null);
+                mediaResource.setMimeType(media.getMimeType());
+                mediaResource.setDisplayOrder(media.getDisplayOrder() != null ? media.getDisplayOrder() : 0);
+                mediaResource.setIsEmbedded(media.getIsEmbedded() != null ? media.getIsEmbedded() : false);
+                mediaResource.setCreatedAt(LocalDateTime.now());
+                mediaResourceMapper.insert(mediaResource);
+            }
+        }
+
+        return product;
+    }
+// ... existing code ...
 
     /**
      * 查看历史商品列表
      */
     @Override
-    public ApiResponse listProducts() {
-        List<Product> products = productMapper.selectAll();
-        List<ProductInfoResponse> data = products.stream()
-                .map(ProductInfoResponse::new)
-                .toList();
-        return new ApiResponse(200, "查询成功", data);
+    public ApiResponse listProducts(Map<String, Object> params) {
+        // 处理分页参数
+        Integer page = (Integer) params.getOrDefault("page", 1);
+        Integer size = (Integer) params.getOrDefault("size", 10);
+        Integer offset = (page - 1) * size;
+
+        params.put("offset", offset);
+        params.put("limit", size);
+
+        List<Product> products = productMapper.findByCondition(params);
+        int total = productMapper.countByCondition(params);
+
+        // 为每个商品加载图片和媒体资源
+        for (Product product : products) {
+            loadProductImagesAndMedia(product);
+        }
+
+        Map<String, Object> result = Map.of(
+                "page", page,
+                "size", size,
+                "total", total,
+                "items", products
+        );
+
+        return new ApiResponse(200, "查询成功", result);
     }
 
     /**
@@ -122,7 +272,7 @@ public class SellerServiceImpl implements SellerService {
      */
     @Override
     @Transactional
-    public ApiResponse freezeProduct(Long productId) {
+    public ApiResponse freezeProduct(Long productId, String reason) {
         Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
@@ -130,7 +280,13 @@ public class SellerServiceImpl implements SellerService {
         product.setProductStatus("frozen");
         product.setUpdatedAt(LocalDateTime.now());
         productMapper.update(product);
-        return new ApiResponse(200, "冻结成功", new ProductInfoResponse(product));
+
+        // 添加备注到sellerNotes字段（如果有）
+        if (reason != null && !reason.isEmpty()) {
+            // 这里可以将原因保存到某个地方，比如商品备注字段
+        }
+
+        return new ApiResponse(200, "冻结成功", product);
     }
 
     /**
@@ -138,41 +294,74 @@ public class SellerServiceImpl implements SellerService {
      */
     @Override
     @Transactional
-    public ApiResponse unfreezeProduct(Long productId) {
-        // 检查是否已有其他商品为 online
-        List<Product> onlineProducts = productMapper.selectByStatus("online");
-        // 排除当前要解冻的商品
-        boolean hasOtherOnline = onlineProducts.stream()
-                .anyMatch(p -> !p.getProductId().equals(productId.intValue()));
-        if (hasOtherOnline) {
-            return new ApiResponse(400, "已有商品在售，不能解冻", null);
-        }
+    public ApiResponse unfreezeProduct(Long productId, String remark) {
         Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
         }
-        product.setProductStatus("online");
+
+        // 根据库存确定状态
+        if (product.getStockQuantity() > 0) {
+            product.setProductStatus("online");
+        } else {
+            product.setProductStatus("outOfStock");
+        }
+
         product.setUpdatedAt(LocalDateTime.now());
         productMapper.update(product);
-        return new ApiResponse(200, "恢复成功", new ProductInfoResponse(product));
-    }
 
+        return new ApiResponse(200, "恢复成功", product);
+    }
 
     /**
      * 标记商品为已售出
      */
     @Override
     @Transactional
-    public ApiResponse markProductSold(Long productId) {
+    public ApiResponse markProductSold(Long productId, Integer soldQuantity, String note) {
         Product product = productMapper.findById(productId.intValue());
         if (product == null) {
             return new ApiResponse(404, "商品不存在", null);
         }
-        product.setProductStatus("sold");
+
+        // 默认售出数量为1
+        int quantity = soldQuantity != null ? soldQuantity : 1;
+
+        // 检查库存是否足够
+        if (product.getStockQuantity() < quantity) {
+            return new ApiResponse(400, "库存不足", null);
+        }
+
+        // 更新库存
+        product.setStockQuantity(product.getStockQuantity() - quantity);
+
+        // 根据剩余库存确定状态
+        if (product.getStockQuantity() <= 0) {
+            product.setProductStatus("sold");
+        } else {
+            product.setProductStatus("outOfStock");
+        }
+
         product.setUpdatedAt(LocalDateTime.now());
         productMapper.update(product);
-        return new ApiResponse(200, "标记售出成功", new ProductInfoResponse(product));
+
+        return new ApiResponse(200, "标记售出成功", product);
     }
 
+    /**
+     * 为商品加载图片和媒体资源
+     */
+    private void loadProductImagesAndMedia(Product product) {
+        // 加载商品图片
+        List<ProductImage> images = productImageMapper.findByProductId(product.getProductId());
+        product.setImages(images.stream()
+                .map(ProductImage::getImageUrl)
+                .collect(Collectors.toList()));
 
+        // 加载媒体资源
+        List<MediaResource> mediaResources = mediaResourceMapper.findByProductId(product.getProductId());
+        product.setMediaResources(mediaResources.stream()
+                .map(MediaResource::getMediaUrl)
+                .collect(Collectors.toList()));
+    }
 }

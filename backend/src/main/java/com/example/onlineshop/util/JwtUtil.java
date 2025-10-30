@@ -28,11 +28,27 @@ public class JwtUtil {
         Date expiryDate = new Date(now.getTime() + EXPIRATION);
 
         return Jwts.builder()
-                .setSubject(username)  // 主题（用户名）
-                .claim("sellerId", sellerId)  // 自定义载荷（卖家ID）
+                .setSubject(username) // 主题（用户名）
+                .claim("sellerId", sellerId) // 自定义载荷（卖家ID）
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSecretKey(), SignatureAlgorithm.HS256)  // 签名算法
+                .signWith(getSecretKey(), SignatureAlgorithm.HS256) // 签名算法
+                .compact();
+    }
+
+    /**
+     * 生成客户Token（包含客户ID和用户名）
+     */
+    public static String generateCustomerToken(Integer customerId, String username) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + EXPIRATION);
+
+        return Jwts.builder()
+                .setSubject(username) // 主题（用户名）
+                .claim("customerId", customerId) // 自定义载荷（客户ID）
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(getSecretKey(), SignatureAlgorithm.HS256) // 签名算法
                 .compact();
     }
 
@@ -52,6 +68,27 @@ public class JwtUtil {
                     .parseClaimsJws(token)
                     .getBody();
             return claims.get("sellerId", Integer.class);
+        } catch (Exception e) {
+            return null;  // Token无效时返回null
+        }
+    }
+
+    /**
+     * 从Token中解析客户ID
+     */
+    public static Integer getCustomerIdFromToken(String token) {
+        try {
+            // 去除Bearer前缀
+            if (token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSecretKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.get("customerId", Integer.class);
         } catch (Exception e) {
             return null;  // Token无效时返回null
         }

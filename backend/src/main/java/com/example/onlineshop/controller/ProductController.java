@@ -11,10 +11,12 @@ import com.example.onlineshop.util.ResponseUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/product")
+@RequestMapping("/api/products")
 public class ProductController {
 
     @Autowired
@@ -23,47 +25,45 @@ public class ProductController {
     @Autowired
     private PurchaseIntentService purchaseIntentService;
 
-    // 获取当前在售商品
+    // 获取商品列表，支持关键词、分类、状态、分页、排序等筛选
     @GetMapping("")
-    public Object getOnlineProducts() {
+    public Object getProductList(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Integer category_id,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "10") Integer size,
+            @RequestParam(required = false) String sort_by,
+            @RequestParam(required = false) String order) {
         try {
-            List<Product> products = productService.getOnlineProducts();
-            if (products.isEmpty()) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("keyword", q);
+            params.put("categoryId", category_id);
+            params.put("status", status);
+            params.put("page", page);
+            params.put("size", size);
+            params.put("sortBy", sort_by);
+            params.put("order", order);
+
+            Object result = productService.getProductsByCondition(params);
+            return ResponseUtil.success("获取成功", result);
+        } catch (Exception e) {
+            return ResponseUtil.error("获取商品列表失败: " + e.getMessage());
+        }
+    }
+
+    // 获取单个商品的详细信息
+    @GetMapping("/{product_id}")
+    public Object getProductById(@PathVariable Integer product_id) {
+        try {
+            Product product = productService.getProductById(product_id);
+            if (product == null) {
                 return ResponseUtil.custom(404, "商品不存在", null);
             }
-            ProductInfoResponse resp = new ProductInfoResponse(products.get(0));
-            return ResponseUtil.success("获取成功", resp);
+            return ResponseUtil.success("获取成功", product);
         } catch (Exception e) {
-            return ResponseUtil.error("获取商品失败");
+            return ResponseUtil.error("获取商品失败: " + e.getMessage());
         }
     }
 
-
-    // 提交购买意向
-    @PostMapping("/purchase")
-    public Object submitPurchaseIntent(@RequestBody PurchaseRequest request) {
-        try {
-            Product product = productService.getOnlineProducts().stream().findFirst().orElse(null);
-            if (product == null) {
-                return ResponseUtil.error("暂无在售商品");
-            }
-            if (!"online".equals(product.getProductStatus())) {
-                return ResponseUtil.error("商品当前不可购买");
-            }
-            PurchaseIntent purchaseIntent = new PurchaseIntent();
-            purchaseIntent.setProductId(product.getProductId());
-            purchaseIntent.setCustomerName(request.getCustomerName());
-            purchaseIntent.setCustomerPhone(request.getCustomerPhone());
-            purchaseIntent.setCustomerAddress(request.getCustomerAddress());
-            purchaseIntent.setPurchaseStatus("pending");
-            if (purchaseIntentService.createPurchaseIntent(purchaseIntent)) {
-                return ResponseUtil.success("提交成功", purchaseIntent);
-            } else {
-                return ResponseUtil.error("提交失败");
-            }
-        } catch (Exception e) {
-            return ResponseUtil.error("提交失败: " + e.getMessage());
-        }
-    }
 }
-

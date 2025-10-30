@@ -4,10 +4,14 @@ import com.example.onlineshop.dto.request.ProductRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.TokenResponse;
 
+import java.util.List;
+import java.util.Map;
+
 public interface SellerService {
 
     /**
      * 卖家登录验证
+     *
      * @param username 用户名
      * @param password 明文密码
      * @return TokenResponse（包含Token、卖家ID、用户名）
@@ -17,6 +21,7 @@ public interface SellerService {
 
     /**
      * 修改卖家密码
+     *
      * @param sellerId 卖家ID（从Token中解析）
      * @param oldPassword 旧密码（明文）
      * @param newPassword 新密码（明文）
@@ -26,35 +31,52 @@ public interface SellerService {
 
     /**
      * 发布新商品
+     *
      * @param request 商品发布参数
      * @return ApiResponse（包含新商品信息，状态码200/401等）
      */
-    ApiResponse publishProduct(ProductRequest request) ;
+    ApiResponse publishProduct(ProductRequest request);
+
+    /**
+     * 批量发布商品
+     *
+     * @param requests 商品发布参数列表
+     * @return ApiResponse（包含新商品信息列表，状态码200/401等）
+     */
+    ApiResponse publishProducts(List<ProductRequest> requests);
 
     /**
      * 查看历史商品列表
+     *
      * @return ApiResponse（包含商品列表，状态码200/401等）
      */
-    ApiResponse listProducts();
+    ApiResponse listProducts(Map<String, Object> params);
 
     /**
      * 冻结指定商品
+     *
      * @param productId 商品ID
+     * @param reason 冻结原因
      * @return ApiResponse（包含冻结后商品信息，状态码200/404等）
      */
-    ApiResponse freezeProduct(Long productId);
+    ApiResponse freezeProduct(Long productId, String reason);
 
     /**
      * 恢复商品上线
+     *
      * @param productId 商品ID
+     * @param remark 备注
      * @return ApiResponse（包含恢复后商品信息，状态码200/404等）
      */
-    ApiResponse unfreezeProduct(Long productId);
+    ApiResponse unfreezeProduct(Long productId, String remark);
 
     /**
      * 标记商品为已售出
+     *
      * @param productId 商品ID
+     * @param soldQuantity 售出数量
+     * @param note 备注
      * @return ApiResponse（包含售出后商品信息，状态码200/404等）
      */
-    ApiResponse markProductSold(Long productId);
+    ApiResponse markProductSold(Long productId, Integer soldQuantity, String note);
 }

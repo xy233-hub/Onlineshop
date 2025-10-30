@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PurchaseIntentService {
@@ -23,13 +24,19 @@ public class PurchaseIntentService {
         return purchaseIntentMapper.findByProductId(productId);
     }
 
+    public List<PurchaseIntent> getPurchaseIntentsByCustomerId(Integer customerId) {
+        return purchaseIntentMapper.findByCustomerId(customerId);
+    }
+
     public PurchaseIntent getPurchaseIntentById(Integer purchaseId) {
         return purchaseIntentMapper.findById(purchaseId);
     }
 
     public boolean updatePurchaseStatus(Integer purchaseId, String newStatus) {
         PurchaseIntent intent = purchaseIntentMapper.findById(purchaseId);
-        if (intent == null) return false;
+        if (intent == null) {
+            return false;
+        }
         if ("success".equals(newStatus)) {
             // 先将同商品下其他pending意向设为failed
             purchaseIntentMapper.markOtherIntentsFailed(intent.getProductId(), purchaseId);
@@ -47,4 +54,11 @@ public class PurchaseIntentService {
         purchaseIntentMapper.markOtherIntentsFailed(productId, excludePurchaseId);
     }
 
+    public List<PurchaseIntent> getPurchaseIntentsByCondition(Map<String, Object> params) {
+        return purchaseIntentMapper.findByCondition(params);
+    }
+
+    public int countPurchaseIntentsByCondition(Map<String, Object> params) {
+        return purchaseIntentMapper.countByCondition(params);
+    }
 }
