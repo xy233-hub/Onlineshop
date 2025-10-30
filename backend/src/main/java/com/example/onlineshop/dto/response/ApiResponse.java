@@ -16,6 +16,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ApiResponse {
 
+
         @JsonProperty("code") // 状态码（200=成功，400=参数错误，401=未认证等）
         private int code;
 
@@ -25,4 +26,12 @@ public class ApiResponse {
         @JsonProperty("data")// 响应数据（可选，成功时返回业务数据，失败时为null）
         @JsonInclude(JsonInclude.Include.ALWAYS)
         private Object data;
+
+        public static ApiResponse ok(Object data) {
+            return new ApiResponse(200, "ok", data);
+        }
+
+        public static ApiResponse error(int code, String message) {
+            return new ApiResponse(code, message, null);
+        }
 }

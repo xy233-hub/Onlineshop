@@ -13,9 +13,31 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId">
-        INSERT INTO purchase_intents(product_id, customer_name, customer_phone, customer_address, purchase_status)
-        VALUES(#{productId}, #{customerName}, #{customerPhone}, #{customerAddress}, #{purchaseStatus})
+    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId" keyColumn="purchase_id">
+        INSERT INTO purchase_intents
+        (product_id,
+         customer_id,
+         customer_name,
+         customer_phone,
+         customer_address,
+         quantity,
+         total_amount,
+         purchase_status,
+         seller_notes,
+         created_at,
+         updated_at)
+        VALUES
+            (#{productId},
+             #{customerId},
+             #{customerName},
+             #{customerPhone},
+             #{customerAddress},
+             #{quantity},
+             #{totalAmount},
+             #{purchaseStatus},
+             #{sellerNotes},
+             #{createdAt},
+             #{updatedAt})
     </insert>
 
     <select id="findByProductId" parameterType="int" resultMap="PurchaseIntentMap">
@@ -42,4 +64,11 @@
           AND purchase_status = 'pending'
     </update>
 
+    <update id="updateStatusAndNotes" parameterType="map">
+        UPDATE purchase_intents
+        SET purchase_status = #{status},
+            seller_notes = #{sellerNotes},
+            updated_at = #{updatedAt}
+        WHERE purchase_id = #{purchaseId}
+    </update>
 </mapper>
