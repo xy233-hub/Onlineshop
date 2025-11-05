@@ -11,7 +11,6 @@ D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\response\ProductI
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\service\MediaService.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\config\WebMvcConfig.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\controller\MediaController.java
-D:\Onlineshop\backend\src\main\java\com\example\onlineshop\config\WebConfig.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\response\CategoryResponse.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\request\PurchaseIntentRequest.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\service\ProductService.java
@@ -23,10 +22,12 @@ D:\Onlineshop\backend\src\main\java\com\example\onlineshop\mapper\MediaResourceM
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\entity\Product.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\service\SellerService.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\service\CategoryService.java
+D:\Onlineshop\backend\src\main\java\com\example\onlineshop\config\SecurityConfig.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\OnlineShopApplication.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\mapper\ProductImageMapper.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\response\ProductImageResponse.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\util\PasswordUtil.java
+D:\Onlineshop\backend\src\main\java\com\example\onlineshop\config\CorsConfig.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\request\CustomerRegisterRequest.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\request\PurchaseIntentStatusRequest.java
 D:\Onlineshop\backend\src\main\java\com\example\onlineshop\dto\request\MediaResourceRequest.java
