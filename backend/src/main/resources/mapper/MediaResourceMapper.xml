@@ -16,8 +16,23 @@
 
     <!-- 插入媒体资源 -->
     <insert id="insert" parameterType="com.example.onlineshop.entity.MediaResource">
-        INSERT INTO media_resources (product_id, media_type, media_url, file_name, file_size, mime_type, display_order, is_embedded, created_at)
-        VALUES (#{productId}, #{mediaType}, #{mediaUrl}, #{fileName}, #{fileSize}, #{mimeType}, #{displayOrder}, #{isEmbedded}, #{createdAt})
+        INSERT INTO media_resources
+        (product_id, media_type, media_url, file_name, file_size, mime_type, display_order, is_embedded, created_at)
+        VALUES
+        (
+        #{productId},
+        #{mediaType},
+        #{mediaUrl},
+        #{fileName},
+        #{fileSize},
+        #{mimeType},
+        #{displayOrder},
+        #{isEmbedded},
+        <choose>
+            <when test="createdAt != null">#{createdAt}</when>
+            <otherwise>NOW()</otherwise>
+        </choose>
+        )
     </insert>
 
     <!-- 根据商品ID查询所有媒体资源 -->

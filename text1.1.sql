@@ -130,3 +130,6 @@ INSERT INTO `categories` (`parent_id`, `category_name`, `category_level`) VALUES
 (1, '笔记本电脑', 2),
 (2, '男装', 2),
 (2, '女装', 2);
+
+ALTER TABLE media_resources
+    MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;

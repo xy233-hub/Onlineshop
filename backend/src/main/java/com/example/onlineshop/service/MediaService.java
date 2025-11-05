@@ -86,6 +86,7 @@ public class MediaService {
                     .mimeType(contentType)
                     .displayOrder(order)
                     .isEmbedded(true)
+                    .createdAt(createdAt)
                     .build();
             mediaResourceMapper.insert(mr);
             return new MediaResourceResponse(mr.getMediaId(), mr.getProductId(), mr.getMediaType(), mr.getMediaUrl(),

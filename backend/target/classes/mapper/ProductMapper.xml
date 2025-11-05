@@ -163,11 +163,15 @@
     </update>
 
     <update id="deductStockIfEnough" parameterType="map">
-    UPDATE products
-    SET stock_quantity = stock_quantity - #{deduct},
-    updated_at = #{now}
-    WHERE product_id = #{productId}
-    AND stock_quantity >= #{deduct}
+        UPDATE products
+        SET stock_quantity = stock_quantity - #{deduct},
+        product_status = CASE
+        WHEN stock_quantity - #{deduct} &lt;= 0 THEN 'outOfStock'
+        ELSE product_status
+        END,
+        updated_at = #{now}
+        WHERE product_id = #{productId}
+        AND stock_quantity >= #{deduct}
     </update>
 
 

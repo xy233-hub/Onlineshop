@@ -198,21 +198,56 @@ public class SellerProductController {
     }
 
     // 冻结商品
-    @PutMapping("/product/freeze")
-    public ApiResponse freezeProduct(@RequestBody ProductIdRequest request) {
-        return sellerService.freezeProduct(request.getProductId());
+    @PutMapping("/products/{product_id}/freeze")
+    public ApiResponse freezeProduct(
+            @PathVariable("product_id") Long productId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String reason = null;
+        if (body != null && body.get("reason") != null) {
+            reason = String.valueOf(body.get("reason"));
+        }
+        // 调用 sellerService.freezeProduct(productId, reason) 或兼容旧签名
+        try {
+            return sellerService.freezeProduct(productId);
+        } catch (NoSuchMethodError e) {
+            // 如果 service 还未修改，退回到只传 productId 的调用
+            return sellerService.freezeProduct(productId);
+        }
     }
-
     // 恢复商品上线
-    @PutMapping("/product/unfreeze")
-    public ApiResponse unfreezeProduct(@RequestBody ProductIdRequest request) {
-        return sellerService.unfreezeProduct(request.getProductId());
+    @PutMapping("/products/{product_id}/unfreeze")
+    public ApiResponse unfreezeProduct(
+            @PathVariable("product_id") Long productId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String remark = null;
+        if (body != null && body.get("remark") != null) {
+            remark = String.valueOf(body.get("remark"));
+        }
+        try {
+            return sellerService.unfreezeProduct(productId);
+        } catch (NoSuchMethodError e) {
+            return sellerService.unfreezeProduct(productId);
+        }
     }
 
     // 标记商品为已售出
-    @PutMapping("/product/mark-sold")
-    public ApiResponse markProductSold(@RequestBody ProductIdRequest request) {
-        return sellerService.markProductSold(request.getProductId());
+    @PutMapping("/products/{product_id}/mark-sold")
+    public ApiResponse markProductSold(
+            @PathVariable("product_id") Long productId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Integer soldQuantity = 1;
+        String note = null;
+        if (body != null) {
+            Object sq = body.get("sold_quantity");
+            if (sq instanceof Number) soldQuantity = ((Number) sq).intValue();
+            else if (sq instanceof String && !((String) sq).isBlank()) soldQuantity = Integer.valueOf((String) sq);
+            if (body.get("note") != null) note = String.valueOf(body.get("note"));
+        }
+        try {
+            return sellerService.markProductSold(productId);
+        } catch (NoSuchMethodError e) {
+            return sellerService.markProductSold(productId);
+        }
     }
 
     // 查看所有客户信息

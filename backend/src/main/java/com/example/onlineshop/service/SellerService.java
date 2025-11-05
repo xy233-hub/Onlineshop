@@ -112,7 +112,7 @@ public class SellerService {
         Integer sellerId = 1; // TODO: 从上下文获取真实 sellerId
 
         Integer stock = request.getStockQuantity() == null ? 0 : request.getStockQuantity();
-        String status = stock > 0 ? "online" : "outOfStock";
+        String status = stock > 0 ? "frozen" : "outOfStock";
 
         Product product = Product.builder()
                 .sellerId(sellerId)
