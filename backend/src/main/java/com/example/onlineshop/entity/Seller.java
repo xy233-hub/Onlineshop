@@ -1,16 +1,22 @@
 // entity/Seller.java
 package com.example.onlineshop.entity;
-import lombok.Data;
+
+import lombok.*;
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 卖家实体（对应seller表）
+ * 卖家账号
  */
 @Data
-public class Seller {
-    private Integer sellerId;      // 主键ID
-    private String username;       // 登录用户名
-    private String password;       // BCrypt加密后的密码
-    private LocalDateTime createTime;  // 账号创建时间
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Seller implements Serializable {
+    private static final long serialVersionUID = 1L;
 
+    private Integer sellerId;
+    private String username;
+    private String password; // 建议存储 bcrypt 哈希
+    private LocalDateTime createTime;
 }
