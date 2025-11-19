@@ -99,42 +99,9 @@ export const purchaseAPI = {
     createPurchaseIntent: (data) => api.post('/products/purchase-intents', data),
     getCustomerPurchaseIntents: (customerId, params) => api.get(`/customers/${customerId}/purchase-intents`, { params }),
     getSellerPurchaseIntents: (params) => api.get('/seller/purchase-intents', { params }),
-    updatePurchaseIntentStatus: (purchaseId, payload) => api.put(`/seller/purchase-intents/${purchaseId}/status`, payload),
-    // 客户取消订单
-    customerCancelOrder: (customerId, purchaseId, payload) => api.post(`/customers/${customerId}/purchase-intents/${purchaseId}/cancel`, payload),
-    // 客户确认收货
-    customerConfirmReceived: (customerId, purchaseId) => api.post(`/customers/${customerId}/purchase-intents/${purchaseId}/confirm-received`)
+    updatePurchaseIntentStatus: (purchaseId, payload) => api.put(`/seller/purchase-intents/${purchaseId}/status`, payload)
 }
 
-/**
- * 购物车相关接口（已按接口文档统一为 /customers/cart/items）
- * - 获取购物车商品：GET /api/customers/cart/items
- * - 添加商品到购物车（单）：POST /api/customers/cart/items
- * - 更新购物车商品数量：PUT /api/customers/cart/items/{cart_item_id}
- * - 从购物车移除商品：DELETE /api/customers/cart/items/{cart_item_id}
- * - 批量移除购物车商品：DELETE /api/customers/cart/items （请求体包含 customer_id 与 cart_item_ids）
- */
-export const cartAPI = {
-    // 现保持同一路径，后端已改为与收藏同体：{ customer_id, product_id }
-    addToCart: (data) => api.post('/customers/cart/items', data),
-    getCartItems: (params) => api.get('/customers/cart/items', { params }),
-    updateCartItem: (cartItemId, data) => api.put(`/customers/cart/items/${cartItemId}`, data),
-    removeCartItem: (cartItemId) => api.delete(`/customers/cart/items/${cartItemId}`),
-    removeCartItems: (payload) => api.delete('/customers/cart/items', { data: payload }),
-    batchPurchase: (payload) => api.post('/customers/cart/batch-purchase', payload),
-    batchConvertToFavorites: (payload) => api.post('/customers/cart/batch-convert-favorite', payload)
-}
-/**
- * 收藏夹相关接口（与接口文档一致）
- * - 获取收藏商品：GET /api/customers/favorites  (支持 params: customer_id, page, size, sort_by, order)
- * - 添加商品到收藏：POST /api/customers/favorites
- * - 从收藏移除商品：DELETE /api/customers/favorites/{favorite_id}
- */
-export const favoritesAPI = {
-    getFavorites: (params) => api.get('/customers/favorites', { params }),
-    addToFavorites: (data) => api.post('/customers/favorites', data),
-    removeFavorite: (favoriteId, params) => api.delete(`/customers/favorites/${favoriteId}`, { params })
-}
 /**
  * 客户相关认证（文档：POST /api/customers/register, POST /api/customers/login）
  */
@@ -195,42 +162,6 @@ export const sellerCustomerAPI = {
  */
 export const dashboardAPI = {
     getStats: () => api.get('/dashboard/stats')
-}
-
-/**
- * 售后相关接口
- */
-export const afterSalesAPI = {
-    // 客户提交售后申请
-    createAfterSales: (data) => api.post('/customers/after-sales', data),
-    // 客户查询售后列表
-    getCustomerAfterSales: (params) => {
-      console.log('调用getCustomerAfterSales，参数:', params);
-      return api.get('/customers/after-sales', { params })
-        .then(response => {
-          console.log('getCustomerAfterSales响应:', response);
-          return response;
-        })
-        .catch(error => {
-          console.error('getCustomerAfterSales错误:', error);
-          console.error('错误响应:', error.response);
-          throw error;
-        });
-    },
-    // 客户查询售后详情
-    getAfterSalesDetail: (serviceId) => api.get(`/customers/after-sales/${serviceId}`),
-    // 客户取消售后
-    cancelAfterSales: (serviceId, data) => api.post(`/customers/after-sales/${serviceId}/cancel`, data),
-    // 客户填写退货物流信息
-    returnShip: (serviceId, data) => api.post(`/customers/after-sales/${serviceId}/return-ship`, data),
-    // 卖家查询售后列表
-    getSellerAfterSales: (params) => api.get('/seller/after-sales', { params }),
-    // 卖家查询售后详情
-    getSellerAfterSalesDetail: (serviceId) => api.get(`/seller/after-sales/${serviceId}`),
-    // 卖家处理售后
-    handleAfterSales: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/handle`, data),
-    // 卖家确认收货
-    confirmReturn: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/confirm-return`, data)
 }
 
 export default api

@@ -1,4 +1,4 @@
-<!-- language: vue -->
+```vue
 <template>
   <div class="product-detail">
     <el-container>
@@ -115,39 +115,11 @@
                   <div class="actions">
                     <el-button
                         type="primary"
-                        :disabled="!canBuy"
+                        :disabled="product.product_status !== 'online' || (product.stock_quantity != null && product.stock_quantity <= 0)"
                         @click="showPurchaseDialog = true"
                     >
                       {{ getButtonText(product.product_status) }}
                     </el-button>
-
-                    <el-button
-                        type="success"
-                        plain
-                        :disabled="!canFavorite"
-                        @click="addFavorite"
-                    >
-                      添加收藏
-                    </el-button>
-
-                    <div class="cart-row">
-                      <el-input-number
-                          v-model="quantity"
-                          :min="1"
-                          :max="product.stock_quantity || 999999"
-                          size="small"
-                          class="cart-qty-input"
-                      />
-                      <el-button
-                          type="warning"
-                          plain
-                          :disabled="!canAddCart"
-                          @click="addCart"
-                          class="cart-btn"
-                      >
-                        加入购物车
-                      </el-button>
-                    </div>
 
                     <el-button type="default" @click="$router.push({ path: '/seller', query: {} })" plain>联系卖家</el-button>
                   </div>
@@ -192,10 +164,9 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { productAPI, favoritesAPI, cartAPI } from '@/api'
+import { productAPI } from '@/api'
 import PurchaseDialog from '@/components/buyer/PurchaseDialog.vue'
 import DOMPurify from 'dompurify'
-import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const product = ref(null)
@@ -203,8 +174,7 @@ const loading = ref(true)
 const showPurchaseDialog = ref(false)
 const showImageDialog = ref(false)
 const currentImageIndex = ref(0)
-const submitLoading = ref(false)
-const quantity = ref(1)
+
 const productId = computed(() => route.params.id)
 
 let DeltaToHtmlConverter = null
@@ -228,12 +198,12 @@ const handlePurchaseSuccess = () => {
 }
 
 const getStatusType = (status) => {
-  const types = { online: 'success', frozen: 'warning', sold: 'info', outOfStock: 'danger' }
+  const types = { online: 'success', frozen: 'warning', sold: 'info' }
   return types[status] || 'info'
 }
 
 const getStatusText = (status) => {
-  const texts = { online: '在售', frozen: '交易中', sold: '已售出', outOfStock: '无库存' }
+  const texts = { online: '在售', frozen: '交易中', sold: '已售出' }
   return texts[status] || status
 }
 
@@ -241,8 +211,7 @@ const getButtonText = (status) => {
   const texts = {
     online: '立即购买',
     frozen: '商品交易中',
-    sold: '商品已售出',
-    outOfStock: '库存不足'
+    sold: '商品已售出'
   }
   return texts[status] || '暂不可用'
 }
@@ -251,6 +220,7 @@ const formatTime = (time) => {
   return time ? new Date(time).toLocaleString('zh-CN') : ''
 }
 
+// 图片列表优先 product.images -> image_url
 const imageList = computed(() => {
   if (!product.value) return []
   if (Array.isArray(product.value.images) && product.value.images.length) {
@@ -262,10 +232,12 @@ const imageList = computed(() => {
   return product.value.image_url ? [product.value.image_url] : []
 })
 
+// 是否有媒体
 const hasMedia = computed(() => {
   return !!(product.value && Array.isArray(product.value.media_resources) && product.value.media_resources.length)
 })
 
+// 媒体类型判断
 const isImage = (m) => {
   if (!m) return false
   const t = (m.media_type || m.mime_type || '').toLowerCase()
@@ -282,6 +254,7 @@ const isAudio = (m) => {
   return t.startsWith('audio') || t === 'audio' || (m.media_url && /\.(mp3|wav|ogg)(\?.*)?$/.test(m.media_url))
 }
 
+// 富媒体描述转换与清理（复用已有逻辑）
 const escapeHtml = (s) => {
   return String(s)
       .replace(/&/g, '&amp;')
@@ -328,6 +301,7 @@ const safeDescription = computed(() => {
   return convertDescToHtml(product.value?.product_desc)
 })
 
+// 缩略图切换与弹大图
 const showImage = (idx) => {
   if (idx >= 0 && idx < imageList.value.length) {
     currentImageIndex.value = idx
@@ -338,92 +312,6 @@ const openImageDialog = (idx) => {
   showImageDialog.value = true
 }
 
-/* 客户身份与按钮可用状态 */
-const getCurrentCustomerId = () => {
-  try {
-    const raw = localStorage.getItem('customer_info')
-    if (!raw) return null
-    const info = JSON.parse(raw)
-    return info?.customer_id ?? null
-  } catch {
-    return null
-  }
-}
-
-const canOnline = computed(() => product.value?.product_status === 'online')
-const hasStock = computed(() => (product.value?.stock_quantity ?? 0) > 0)
-const canBuy = computed(() => canOnline.value && hasStock.value)
-const canFavorite = computed(() => canOnline.value) // 收藏不强制库存
-const canAddCart = computed(() => canOnline.value && hasStock.value)
-
-/* 添加收藏 */
-const addFavorite = async () => {
-  const customerId = getCurrentCustomerId()
-  if (!customerId) {
-    ElMessage.error('请先登录客户账号')
-    return
-  }
-  if (!product.value?.product_id) {
-    ElMessage.error('商品信息不完整')
-    return
-  }
-  submitLoading.value = true
-  try {
-    const payload = { customer_id: customerId, product_id: product.value.product_id }
-    const res = await favoritesAPI.addToFavorites(payload)
-    const data = res?.data?.data ?? null
-    ElMessage.success(data ? '收藏成功' : '已收藏或收藏成功')
-  } catch (e) {
-    console.error('添加收藏失败:', e)
-    ElMessage.error(e?.response?.data?.message || '添加收藏失败')
-  } finally {
-    submitLoading.value = false
-  }
-}
-
-/* 加入购物车（数量默认1） */
-const addCart = async () => {
-  const customerId = getCurrentCustomerId()
-  if (!customerId) {
-    ElMessage.error('请先登录客户账号')
-    return
-  }
-  if (!product.value?.product_id) {
-    ElMessage.error('商品信息不完整')
-    return
-  }
-  if (!canAddCart.value) {
-    ElMessage.warning('当前不可加入购物车')
-    return
-  }
-  if (!quantity.value || quantity.value <= 0) {
-    ElMessage.warning('数量必须大于 0')
-    return
-  }
-
-  submitLoading.value = true
-  try {
-    const payload = {
-      customer_id: Number(customerId),
-      product_id: Number(product.value.product_id),
-      quantity: Number(quantity.value) // 新增字段
-    }
-    const res = await cartAPI.addToCart(payload)
-    const code = res?.data?.code
-    const msg = res?.data?.message
-
-    if (code === 200) {
-      ElMessage.success(msg || '已加入购物车')
-    } else {
-      ElMessage.error(msg || '加入购物车失败')
-    }
-  } catch (e) {
-    console.error('加入购物车异常:', e)
-    ElMessage.error(e?.response?.data?.message || '网络异常，稍后重试')
-  } finally {
-    submitLoading.value = false
-  }
-}
 onMounted(async () => {
   try {
     const mod = await import('quill-delta-to-html')
@@ -480,22 +368,6 @@ onMounted(async () => {
 
 .loading-state, .error-state { display:flex; justify-content:center; align-items:center; min-height:320px; }
 
-
-.cart-qty-input :deep(.el-input__wrapper),
-.cart-qty-input :deep(.el-input-number__decrease),
-.cart-qty-input :deep(.el-input-number__increase) {
-  height:32px;          /* 和默认按钮高度一致 */
-}
-.cart-row {
-  display: inline-flex;   /* 让这一行宽度随内容，而不是占满父容器 */
-  align-items: center;
-  gap: 8px;
-}
-.cart-btn {
-  flex:1;              /* 占用剩余空间 */
-  height:32px;
-  padding:0 12px;
-}
 .dialog-image-wrap { display:flex; justify-content:center; align-items:center; padding:12px 6px; background:#111; }
 @media (max-width: 768px) {
   .main-image { height:320px; }
