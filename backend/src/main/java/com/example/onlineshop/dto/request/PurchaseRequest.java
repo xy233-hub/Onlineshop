@@ -4,9 +4,11 @@ package com.example.onlineshop.dto.request;
 public class PurchaseRequest {
 
     private Integer product_id;
+    private Integer customer_id;
     private String customer_name;
     private String customer_phone;
     private String customer_address;
+    private Integer quantity = 1;
 
     // Getters and Setters
     public Integer getProduct_id() {
@@ -15,6 +17,14 @@ public class PurchaseRequest {
 
     public void setProduct_id(Integer product_id) {
         this.product_id = product_id;
+    }
+
+    public Integer getCustomer_id() {
+        return customer_id;
+    }
+
+    public void setCustomer_id(Integer customer_id) {
+        this.customer_id = customer_id;
     }
 
     public String getCustomer_name() {
@@ -39,5 +49,13 @@ public class PurchaseRequest {
 
     public void setCustomer_address(String customer_address) {
         this.customer_address = customer_address;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
     }
 }
