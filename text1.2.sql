@@ -115,13 +115,105 @@ CREATE TABLE `purchase_intents` (
   CONSTRAINT `fk_intent_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '购买意向记录表';
 
+
+
+-- 8. 创建商品收藏表
+CREATE TABLE favorites (
+    favorite_id INT NOT NULL AUTO_INCREMENT COMMENT '收藏记录唯一ID',
+    customer_id INT NOT NULL COMMENT '客户ID（外键关联customers表）',
+    product_id INT NOT NULL COMMENT '商品ID（外键关联products表）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+
+    PRIMARY KEY (favorite_id),
+    UNIQUE KEY uk_customer_product (customer_id, product_id) COMMENT '同一客户不能重复收藏同一商品',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询收藏的索引',
+    KEY idx_product_id (product_id) COMMENT '按商品查询收藏的索引',
+
+    CONSTRAINT fk_favorite_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE CASCADE,
+    CONSTRAINT fk_favorite_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '商品收藏表';
+
+-- 9. 创建购物车表
+CREATE TABLE shopping_cart (
+    cart_item_id INT NOT NULL AUTO_INCREMENT COMMENT '购物车项目唯一ID',
+    customer_id INT NOT NULL COMMENT '客户ID（外键关联customers表）',
+    product_id INT NOT NULL COMMENT '商品ID（外键关联products表）',
+    quantity INT NOT NULL DEFAULT 1 COMMENT '商品数量',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '添加到购物车的时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+
+    PRIMARY KEY (cart_item_id),
+    UNIQUE KEY uk_customer_product (customer_id, product_id) COMMENT '同一客户不能重复添加同一商品到购物车',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询购物车项目的索引',
+    KEY idx_product_id (product_id) COMMENT '按商品查询购物车项目的索引',
+
+    CONSTRAINT fk_cart_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE CASCADE,
+    CONSTRAINT fk_cart_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '购物车表';
+
+-- 10. 创建购买意向商品项表
+CREATE TABLE purchase_intent_items (
+    item_id INT NOT NULL AUTO_INCREMENT COMMENT '购买意向商品项唯一ID',
+    purchase_id INT NOT NULL COMMENT '购买意向ID（外键关联purchase_intents表）',
+    product_id INT NOT NULL COMMENT '商品ID（外键关联products表）',
+    product_name VARCHAR(100) NOT NULL COMMENT '下单时的商品名称（快照）',
+    product_price DECIMAL(10,2) NOT NULL COMMENT '下单时的商品单价（快照）',
+    quantity INT NOT NULL DEFAULT 1 COMMENT '购买数量',
+    subtotal DECIMAL(10,2) NOT NULL COMMENT '小计金额',
+
+    PRIMARY KEY (item_id),
+    KEY idx_purchase_id (purchase_id) COMMENT '按购买意向查询商品项的索引',
+    KEY idx_product_id (product_id) COMMENT '按商品查询购买意向项的索引',
+
+    CONSTRAINT fk_item_purchase_intent FOREIGN KEY (purchase_id)
+        REFERENCES purchase_intents (purchase_id) ON DELETE CASCADE,
+    CONSTRAINT fk_item_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '购买意向商品项表';
+
 -- 插入初始数据
-INSERT INTO `seller` (`username`, `password`) 
+INSERT INTO `seller` (`username`, `password`)
 VALUES (
-  'admin', 
-  '$2a$12$ycJEdpJ1TYxBzDCmuGju2eUbTP.vm0yNYYyFpK3ahxsCLq9d2Iq32'
-);
+           'admin',
+           '$2a$12$ycJEdpJ1TYxBzDCmuGju2eUbTP.vm0yNYYyFpK3ahxsCLq9d2Iq32'
+       );
 
 
 ALTER TABLE media_resources
     MODIFY COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+-- 步骤1：添加新字段
+ALTER TABLE purchase_intents
+    ADD COLUMN cancel_reason VARCHAR(100) DEFAULT NULL COMMENT '取消原因',
+ADD COLUMN cancel_notes VARCHAR(255) DEFAULT NULL COMMENT '取消备注';
+
+-- 步骤2：修改 purchase_status 字段的ENUM定义
+ALTER TABLE purchase_intents
+    MODIFY COLUMN purchase_status ENUM(
+    'CUSTOMER_ORDERED',
+    'SELLER_CONFIRMED',
+    'STOCK_PREPARED',
+    'SHIPPING_STARTED',
+    'COMPLETED',
+    'CUSTOMER_CANCELLED',
+    'SELLER_CANCELLED'
+    ) NOT NULL DEFAULT 'CUSTOMER_ORDERED' COMMENT '交易状态：CUSTOMER_ORDERED=客户下单, SELLER_CONFIRMED=商家确认, STOCK_PREPARED=备货完成, SHIPPING_STARTED=开始发货, COMPLETED=交易完成, CUSTOMER_CANCELLED=客户取消订单, SELLER_CANCELLED=商家取消订单';
+
+-- 步骤3：数据迁移 - 更新现有状态值
+UPDATE purchase_intents
+SET purchase_status = 'CUSTOMER_ORDERED'
+WHERE purchase_status = 'pending';
+
+UPDATE purchase_intents
+SET purchase_status = 'COMPLETED'
+WHERE purchase_status = 'success';
+
+-- 对于失败的订单，需要根据具体情况区分取消方
+-- 这里假设所有原failed状态都是客户取消（实际情况可能需要业务逻辑判断）
+UPDATE purchase_intents
+SET purchase_status = 'CUSTOMER_CANCELLED'
+WHERE purchase_status = 'failed';
