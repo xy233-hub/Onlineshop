@@ -53,6 +53,10 @@ public class ProductDetailResponse {
         this.category = cat == null ? null : new CategoryItem(cat);
     }
 
+    public String getStatus() {
+        return product_status;
+    }
+
     public static class ProductImageItem {
         public Integer image_id;
         public String image_url;
