@@ -57,11 +57,6 @@ public interface ShoppingCartMapper {
     @Select("SELECT cart_item_id FROM shopping_cart WHERE cart_item_id = #{cartItemId} AND customer_id = #{customerId} LIMIT 1")
     Integer findIdByIdAndCustomer(@Param("cartItemId") Integer cartItemId, @Param("customerId") Integer customerId);
 
-    // 新增：按 cart_item_id + customer 查询完整购物车项
-    @Select("SELECT cart_item_id, customer_id, product_id, quantity, created_at, updated_at " +
-            "FROM shopping_cart WHERE cart_item_id = #{cartItemId} AND customer_id = #{customerId} LIMIT 1")
-    ShoppingCartItem findByIdAndCustomer(@Param("cartItemId") Integer cartItemId, @Param("customerId") Integer customerId);
-
     @Delete("DELETE FROM shopping_cart WHERE cart_item_id = #{cartItemId}")
     int deleteById(@Param("cartItemId") Integer cartItemId);
 
@@ -74,30 +69,5 @@ public interface ShoppingCartMapper {
             "</script>"
     })
     int deleteByIds(@Param("customerId") Integer customerId, @Param("ids") List<Integer> ids);
-
-
-    // 新增：按 cart_item_id 列表查询并关联产品信息
-    @Select({
-            "<script>",
-            "SELECT sc.cart_item_id, sc.product_id, sc.quantity, sc.created_at, p.product_name, p.price, p.product_status, p.stock_quantity",
-            "FROM shopping_cart sc",
-            "LEFT JOIN products p ON sc.product_id = p.product_id",
-            "WHERE sc.customer_id = #{customerId} AND sc.cart_item_id IN",
-            "<foreach item='id' collection='ids' open='(' separator=',' close=')'>",
-            "#{id}",
-            "</foreach>",
-            "</script>"
-    })
-    @Results({
-            @Result(column = "cart_item_id", property = "cartItemId"),
-            @Result(column = "product_id", property = "productId"),
-            @Result(column = "product_name", property = "productName"),
-            @Result(column = "quantity", property = "quantity"),
-            @Result(column = "price", property = "unitPrice"),
-            @Result(column = "created_at", property = "createdAt"),
-            @Result(column = "product_status", property = "productStatus"),
-            @Result(column = "stock_quantity", property = "stockQuantity")
-    })
-    List<CartItemResponse> listByCustomerAndIds(@Param("customerId") Integer customerId, @Param("ids") List<Integer> ids);
 }
 

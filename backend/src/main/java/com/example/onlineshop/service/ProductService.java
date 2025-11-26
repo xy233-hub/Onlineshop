@@ -80,4 +80,19 @@ public class ProductService {
         return new ProductDetailResponse(p, imgs, medias, cat);
     }
 
+    public boolean isProductOnline(Integer productId) {
+        if (productId == null) return false;
+        Product p = productMapper.selectProductById(productId);
+        if (p == null) return false;
+        String status = p.getProductStatus();
+        return status != null && "online".equalsIgnoreCase(status.trim());
+    }
+
+    public Integer getProductStock(Integer productId) {
+        if (productId == null) return 0;
+        Product p = productMapper.selectProductById(productId);
+        if (p == null) return 0;
+        Integer qty = p.getStockQuantity();
+        return qty != null ? qty : 0;
+    }
 }
