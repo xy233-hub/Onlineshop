@@ -18,11 +18,12 @@ public interface FavoriteMapper {
     @Select({
             "<script>",
             "SELECT f.favorite_id, f.customer_id, f.product_id, f.created_at,",
-            " p.product_name, p.product_desc, p.price, pi.image_url",
+            " p.product_name, p.product_desc, p.price, MAX(pi.image_url) AS image_url",
             "FROM favorites f",
             "LEFT JOIN products p ON f.product_id = p.product_id",
             "LEFT JOIN product_images pi ON pi.product_id = p.product_id AND pi.image_order = 0",
             "WHERE f.customer_id = #{customerId}",
+            "GROUP BY f.favorite_id, f.customer_id, f.product_id, f.created_at, p.product_name, p.product_desc, p.price",
             "ORDER BY f.created_at DESC",
             "LIMIT #{limit} OFFSET #{offset}",
             "</script>"
