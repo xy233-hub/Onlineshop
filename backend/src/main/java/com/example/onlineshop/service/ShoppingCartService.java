@@ -9,9 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.Collections;
+import java.util.*;
 
 @Service
 public class ShoppingCartService {
@@ -101,5 +99,43 @@ public class ShoppingCartService {
                         "deleted_cart_item_ids", deleted > 0 ? cartItemIds.subList(0, deleted) : List.of()
                 )
         );
+    }
+
+    /**
+     * 根据 customerId 和 cart_item_id 列表查询购物车项并返回通用 Map 结构（供 controller 使用）
+     * 返回列表按输入 cartItemIds 顺序排列（不存在或不属于该客户的 id 会被忽略）
+     */
+    public List<Map<String, Object>> getItemsByIds(Integer customerId, List<Integer> cartItemIds) {
+        if (customerId == null || cartItemIds == null || cartItemIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 从 mapper 批量查询（仅返回属于该 customer 的项）
+        List<CartItemResponse> items = cartMapper.listByCustomerAndIds(customerId, cartItemIds);
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 建立 id -> map 映射
+        Map<Integer, Map<String, Object>> idToMap = new HashMap<>();
+        for (CartItemResponse it : items) {
+            Map<String, Object> m = new HashMap<>();
+            m.put("cart_item_id", it.getCartItemId());
+            m.put("product_id", it.getProductId());
+            m.put("product_name", it.getProductName());
+            m.put("quantity", it.getQuantity());
+            m.put("unit_price", it.getUnitPrice());
+            m.put("stock_quantity", it.getStockQuantity());
+            m.put("product_status", it.getProductStatus());
+            idToMap.put(it.getCartItemId(), m);
+        }
+
+        // 按输入顺序组织返回结果，忽略不存在的 id
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Integer id : cartItemIds) {
+            Map<String, Object> entry = idToMap.get(id);
+            if (entry != null) result.add(entry);
+        }
+        return result;
     }
 }
