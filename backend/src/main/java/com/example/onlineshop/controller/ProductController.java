@@ -3,6 +3,7 @@ package com.example.onlineshop.controller;
 
 import com.example.onlineshop.dto.request.PurchaseIntentRequest;
 import com.example.onlineshop.dto.request.PurchaseRequest;
+import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.Product;
 import com.example.onlineshop.entity.PurchaseIntent;
@@ -95,26 +96,14 @@ public class ProductController {
     @PostMapping("/purchase-intents")
     public Object createPurchaseIntent(@RequestBody PurchaseIntentRequest req) {
         try {
-            if (req.getProductId() == null) {
-                return ResponseUtil.custom(400, "product_id 必填", null);
-            }
-            Integer qty = req.getQuantity() == null ? 1 : req.getQuantity();
-            if (qty <= 0) {
-                return ResponseUtil.custom(400, "quantity 必须大于 0", null);
-            }
-            if (req.getCustomerId() == null) {
-                return ResponseUtil.custom(400, "customer_id 必填", null);
-            }
-
             PurchaseIntent created = purchaseIntentService.createPurchaseIntent(req);
-            if (created == null) {
-                return ResponseUtil.error("提交失败");
-            }
-            return ResponseUtil.success("提交成功", created);
-        } catch (IllegalArgumentException iae) {
-            return ResponseUtil.custom(400, iae.getMessage(), null);
+            return new ApiResponse(200, "创建购买意向成功", created);
+        } catch (IllegalArgumentException e) {
+            return new ApiResponse(400, e.getMessage(), null);
+        } catch (IllegalStateException e) {
+            return new ApiResponse(500, e.getMessage(), null);
         } catch (Exception e) {
-            return ResponseUtil.error("提交失败: " + e.getMessage());
+            return new ApiResponse(500, "服务器错误", null);
         }
     }
 }

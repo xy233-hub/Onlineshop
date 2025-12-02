@@ -57,6 +57,11 @@ public interface ShoppingCartMapper {
     @Select("SELECT cart_item_id FROM shopping_cart WHERE cart_item_id = #{cartItemId} AND customer_id = #{customerId} LIMIT 1")
     Integer findIdByIdAndCustomer(@Param("cartItemId") Integer cartItemId, @Param("customerId") Integer customerId);
 
+    // 新增：按 cart_item_id + customer 查询完整购物车项
+    @Select("SELECT cart_item_id, customer_id, product_id, quantity, created_at, updated_at " +
+            "FROM shopping_cart WHERE cart_item_id = #{cartItemId} AND customer_id = #{customerId} LIMIT 1")
+    ShoppingCartItem findByIdAndCustomer(@Param("cartItemId") Integer cartItemId, @Param("customerId") Integer customerId);
+
     @Delete("DELETE FROM shopping_cart WHERE cart_item_id = #{cartItemId}")
     int deleteById(@Param("cartItemId") Integer cartItemId);
 

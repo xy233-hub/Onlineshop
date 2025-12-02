@@ -57,6 +57,20 @@ public class ShoppingCartController {
         return cartService.deleteItems(customerId, ids);
     }
 
+    // 处理批量下单接口：POST /api/customers/cart/batch-purchase
+    @PostMapping("/batch-purchase")
+    public Map<String, Object> batchPurchase(@RequestBody Map<String, Object> body) {
+        Integer customerId = (Integer) body.get("customer_id");
+        List<Integer> cartItemIds = (List<Integer>) body.get("cart_item_ids");
+        String contactName = (String) body.get("contact_name");
+        String contactPhone = (String) body.get("contact_phone");
+        String deliveryAddress = (String) body.get("delivery_address");
+        String note = (String) body.get("note");
+
+        return cartService.batchPurchase(customerId, cartItemIds, contactName, contactPhone, deliveryAddress, note);
+    }
+
+
     // 辅助方法：安全解析 Integer（支持 Number / String）
     private Integer parseInteger(Object obj) {
         if (obj == null) return null;
