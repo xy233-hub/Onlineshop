@@ -208,12 +208,33 @@ UPDATE purchase_intents
 SET purchase_status = 'CUSTOMER_ORDERED'
 WHERE purchase_status = 'pending';
 
-UPDATE purchase_intents
+UPDATE purchase_intent
 SET purchase_status = 'COMPLETED'
 WHERE purchase_status = 'success';
 
 -- 对于失败的订单，需要根据具体情况区分取消方
 -- 这里假设所有原failed状态都是客户取消（实际情况可能需要业务逻辑判断）
-UPDATE purchase_intents
-SET purchase_status = 'CUSTOMER_CANCELLED'
-WHERE purchase_status = 'failed';
+
+START TRANSACTION;
+
+-- 1) 将 purchase_intents 中存在的 product_id 数据迁移为 purchase_intent_items（仅当还没有对应 item 时）
+INSERT INTO purchase_intent_items (purchase_id, product_id, product_name, product_price, quantity, subtotal)
+SELECT pi.purchase_id,
+       pi.product_id,
+       COALESCE(p.product_name, '') AS product_name,
+       COALESCE(p.price, 0.00) AS product_price,
+       COALESCE(pi.quantity, 1) AS quantity,
+       COALESCE(pi.total_amount, COALESCE(p.price,0.00) * COALESCE(pi.quantity,1)) AS subtotal
+FROM purchase_intents pi
+         LEFT JOIN purchase_intent_items pii ON pi.purchase_id = pii.purchase_id
+         LEFT JOIN products p ON p.product_id = pi.product_id
+WHERE pi.product_id IS NOT NULL
+  AND pii.item_id IS NULL;
+
+-- 2) 删除外键约束（约束名按现有库中实际名称调整）
+ALTER TABLE purchase_intents DROP FOREIGN KEY fk_intent_product;
+
+-- 3) 删除冗余列
+ALTER TABLE purchase_intents DROP COLUMN product_id;
+
+COMMIT;

@@ -17,10 +17,10 @@
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId" keyColumn="purchase_id">
+    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent"
+            useGeneratedKeys="true" keyProperty="purchaseId" keyColumn="purchase_id">
         INSERT INTO purchase_intents
-        (product_id,
-         customer_id,
+        (customer_id,
          customer_name,
          customer_phone,
          customer_address,
@@ -31,8 +31,7 @@
          created_at,
          updated_at)
         VALUES
-            (#{productId},
-             #{customerId},
+            (#{customerId},
              #{customerName},
              #{customerPhone},
              #{customerAddress},
