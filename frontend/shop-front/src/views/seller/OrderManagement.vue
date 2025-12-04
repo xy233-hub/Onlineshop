@@ -45,7 +45,7 @@
               v-if="row.purchase_status === 'CUSTOMER_ORDERED'"
               size="small"
               type="success"
-              @click="updateOrderStatus(row, 'SELLER_CONFIRMED')"
+              @click="confirmUpdateOrderStatus(row, 'SELLER_CONFIRMED', '确认订单')"
           >
             确认订单
           </el-button>
@@ -55,7 +55,7 @@
               v-if="row.purchase_status === 'SELLER_CONFIRMED'"
               size="small"
               type="success"
-              @click="updateOrderStatus(row, 'STOCK_PREPARED')"
+              @click="confirmUpdateOrderStatus(row, 'STOCK_PREPARED', '备货完成')"
           >
             备货完成
           </el-button>
@@ -65,7 +65,7 @@
               v-if="row.purchase_status === 'STOCK_PREPARED'"
               size="small"
               type="success"
-              @click="updateOrderStatus(row, 'SHIPPING_STARTED')"
+              @click="confirmUpdateOrderStatus(row, 'SHIPPING_STARTED', '开始发货')"
           >
             开始发货
           </el-button>
@@ -171,6 +171,21 @@ const fetchOrders = async () => {
   }
 }
 
+// 添加确认弹窗功能
+const confirmUpdateOrderStatus = async (order, newStatus, actionText) => {
+  try {
+    await ElMessageBox.confirm(`是否确认执行"${actionText}"操作？`, '确认操作', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await updateOrderStatus(order, newStatus)
+  } catch (error) {
+    // 用户取消操作或出现错误
+    console.log('用户取消操作或出现错误:', error)
+  }
+}
+
 const updateOrderStatus = async (order, newStatus) => {
   try {
     let sellerNotes = null;
@@ -204,6 +219,7 @@ const updateOrderStatus = async (order, newStatus) => {
     await fetchOrders();
   }
 };
+
 const handleUpdateStatus = async (order, newStatus, sellerNotes = null) => {
   try {
     const payload = { new_status: newStatus }
