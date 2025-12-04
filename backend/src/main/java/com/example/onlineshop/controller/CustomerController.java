@@ -3,6 +3,7 @@ package com.example.onlineshop.controller;
 
 import com.example.onlineshop.dto.request.CustomerLoginRequest;
 import com.example.onlineshop.dto.request.CustomerRegisterRequest;
+import com.example.onlineshop.dto.request.CustomerCancelOrderRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.entity.Customer;
 import com.example.onlineshop.entity.PurchaseIntent;
@@ -25,6 +26,7 @@ public class CustomerController {
     private CustomerService customerService;
     @Autowired
     private PurchaseIntentService purchaseIntentService;
+
     // 客户注册
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@RequestBody CustomerRegisterRequest request) {
@@ -136,6 +138,67 @@ public class CustomerController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse(500, "查询失败: " + e.getMessage(), null));
+        }
+    }
+
+    // 客户取消订单
+    @PostMapping("/{customer_id}/purchase-intents/{purchase_id}/cancel")
+    public ResponseEntity<ApiResponse> customerCancelOrder(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("customer_id") Integer customerId,
+            @PathVariable("purchase_id") Integer purchaseId,
+            @RequestBody CustomerCancelOrderRequest request) {
+        // 鉴权校验
+        Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
+        if (customerIdFromToken == null) {
+            return ResponseEntity.status(401)
+                    .body(new ApiResponse(401, "未授权", null));
+        }
+
+        // 验证路径参数customerId与token中的customerId是否一致
+        if (!customerIdFromToken.equals(customerId)) {
+            return ResponseEntity.status(403)
+                    .body(new ApiResponse(403, "无权操作其他客户的订单", null));
+        }
+
+        try {
+            ApiResponse response = purchaseIntentService.customerCancelOrder(
+                    purchaseId, request.getCancelReason(), request.getCancelNotes(), customerId);
+            return ResponseEntity.status(response.getCode()).body(response);
+        } catch (Exception e) {
+            e.printStackTrace(); // 打印详细异常信息
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse(500, "取消订单失败: " + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 客户确认收货
+     */
+    @PostMapping("/{customer_id}/purchase-intents/{purchase_id}/confirm-received")
+    public ResponseEntity<ApiResponse> customerConfirmReceived(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("customer_id") Integer customerId,
+            @PathVariable("purchase_id") Integer purchaseId) {
+        // 鉴权校验
+        Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
+        if (customerIdFromToken == null) {
+            return ResponseEntity.status(401)
+                    .body(new ApiResponse(401, "未授权", null));
+        }
+
+        // 验证路径参数customerId与token中的customerId是否一致
+        if (!customerIdFromToken.equals(customerId)) {
+            return ResponseEntity.status(403)
+                    .body(new ApiResponse(403, "无权操作其他客户的订单", null));
+        }
+
+        try {
+            ApiResponse response = purchaseIntentService.customerConfirmReceived(purchaseId, customerId);
+            return ResponseEntity.status(response.getCode()).body(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse(500, "确认收货失败: " + e.getMessage(), null));
         }
     }
 }
