@@ -5,6 +5,9 @@ import com.example.onlineshop.entity.PurchaseIntentItem;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 @Mapper
 public interface PurchaseIntentItemMapper {
@@ -13,4 +16,8 @@ public interface PurchaseIntentItemMapper {
             "VALUES(#{purchaseId}, #{productId}, #{productName}, #{productPrice}, #{quantity}, #{subtotal})")
     @Options(useGeneratedKeys = true, keyProperty = "itemId", keyColumn = "item_id")
     int insert(PurchaseIntentItem item);
+
+    @Select("SELECT item_id, purchase_id, product_id, product_name, product_price, quantity, subtotal " +
+            "FROM purchase_intent_items WHERE purchase_id = #{purchaseId}")
+    List<PurchaseIntentItem> findByPurchaseId(Integer purchaseId);
 }

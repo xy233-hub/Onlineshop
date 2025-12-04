@@ -18,8 +18,38 @@
 
       <h4 style="margin-top:20px">购买历史</h4>
       <el-table :data="purchaseHistory" stripe style="margin-top:8px">
-        <el-table-column prop="purchase_id" label="购买ID" width="100" />
-        <el-table-column prop="product_id" label="商品ID" width="100" />
+        <el-table-column prop="purchase_id" label="购买ID" />
+        <el-table-column prop="product_id" label="商品ID" >
+          <template #default="{ row }">
+            <div v-if="row.items && row.items.length">
+        <span
+            v-for="(it, idx) in row.items"
+            :key="it.item_id ?? `${row.purchase_id}-${idx}`"
+            style="display:inline-flex; align-items:center; gap:8px; margin-right:8px;"
+        >
+          <el-link
+              v-if="it.product_id"
+              type="primary"
+              @click="$router.push({ path: `/product/${it.product_id}` })"
+          >
+            {{ it.product_id }}
+          </el-link>
+          <el-text v-else size="small">-</el-text>
+          <span v-if="idx < row.items.length - 1" style="color:#999">,</span>
+        </span>
+            </div>
+
+            <div v-else-if="row.product_id">
+              <el-link type="primary" @click="$router.push({ path: `/product/${row.product_id}` })">
+                {{ row.product_id }}
+              </el-link>
+            </div>
+
+            <div v-else>
+              <el-text type="info" size="small">无</el-text>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="quantity" label="数量" width="80" />
         <el-table-column prop="total_amount" label="金额" width="120" />
         <el-table-column prop="purchase_status" label="状态" width="120" />

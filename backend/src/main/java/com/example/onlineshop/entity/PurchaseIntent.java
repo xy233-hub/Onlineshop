@@ -5,6 +5,7 @@ import lombok.*;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 购买意向记录
@@ -31,4 +32,5 @@ public class PurchaseIntent implements Serializable {
     private String sellerNotes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private List<PurchaseIntentItem> items;
 }
