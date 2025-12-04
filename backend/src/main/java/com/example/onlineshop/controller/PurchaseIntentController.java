@@ -23,12 +23,8 @@ import com.example.onlineshop.dto.request.PurchaseRequest;
 import com.example.onlineshop.util.ResponseUtil;
 
 /**
- * 卖家端的采购意向控制器
- * 提供查询所有采购意向和更新采购意向状态的 HTTP 接口
- * 主要职责：
- * - 从请求头解析 token 并校验卖家身份
- * - 调用 PurchaseIntentService 完成具体业务
- * - 在异常情况下记录完整日志并返回规范化的 ApiResponse
+ * 卖家端的采购意向控制器 提供查询所有采购意向和更新采购意向状态的 HTTP 接口 主要职责： - 从请求头解析 token 并校验卖家身份 - 调用
+ * PurchaseIntentService 完成具体业务 - 在异常情况下记录完整日志并返回规范化的 ApiResponse
  */
 @RestController
 @RequestMapping("/api/seller/purchase-intents")
@@ -46,14 +42,9 @@ public class PurchaseIntentController {
     private PurchaseIntentService purchaseIntentService;
 
     /**
-     * GET /
-     * 获取所有采购意向列表（供卖家查看）
-     * 请求头：
-     * - Authorization: 包含 JWT，用于解析并验证卖家身份
-     * 返回：
-     * - 401 未授权（当 token 无效或无法解析 sellerId 时）
-     * - 200 成功，body 为 ApiResponse 包含数据列表
-     * - 500 出错，记录完整异常并返回带有 fallback 消息的错误响应
+     * GET / 获取所有采购意向列表（供卖家查看） 请求头： - Authorization: 包含 JWT，用于解析并验证卖家身份 返回： -
+     * 401 未授权（当 token 无效或无法解析 sellerId 时） - 200 成功，body 为 ApiResponse 包含数据列表 -
+     * 500 出错，记录完整异常并返回带有 fallback 消息的错误响应
      */
     @GetMapping("")
     public ResponseEntity<ApiResponse> getAllPurchaseIntents(
@@ -79,18 +70,10 @@ public class PurchaseIntentController {
     }
 
     /**
-     * PUT /{purchase_id}/status
-     * 更新指定采购意向的处理状态（例如：接受、拒绝、已完成等）
-     * 路径参数：
-     * - purchase_id: 采购意向的唯一标识
-     * 请求体：
-     * - PurchaseIntentStatusRequest 包含更新所需字段（如新状态、备注等）
-     * 请求头：
-     * - Authorization: 用于校验卖家身份
-     * 返回：
-     * - 401 未授权（token 无效）
-     * - 根据服务层返回的 ApiResponse 使用对应的 HTTP 状态码和内容
-     * - 500 出错时记录异常并返回带描述的错误响应
+     * PUT /{purchase_id}/status 更新指定采购意向的处理状态（例如：接受、拒绝、已完成等） 路径参数： -
+     * purchase_id: 采购意向的唯一标识 请求体： - PurchaseIntentStatusRequest
+     * 包含更新所需字段（如新状态、备注等） 请求头： - Authorization: 用于校验卖家身份 返回： - 401 未授权（token 无效）
+     * - 根据服务层返回的 ApiResponse 使用对应的 HTTP 状态码和内容 - 500 出错时记录异常并返回带描述的错误响应
      */
     @PutMapping("/{purchase_id}/status")
     public ResponseEntity<ApiResponse> updateIntentStatus(
@@ -115,6 +98,5 @@ public class PurchaseIntentController {
                     .body(new ApiResponse(500, "处理失败: " + msg, null));
         }
     }
-
 
 }
