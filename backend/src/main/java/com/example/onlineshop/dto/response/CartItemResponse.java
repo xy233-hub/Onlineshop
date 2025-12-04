@@ -2,6 +2,8 @@
 package com.example.onlineshop.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 
@@ -40,6 +42,69 @@ public class CartItemResponse {
         this.note = note;
         this.createdAt = createdAt != null ? createdAt.format(FMT) : null;
         this.productStatus = productStatus;
+        this.stockQuantity = stockQuantity;
+    }
+    public Integer getCartItemId() {
+        return cartItemId;
+    }
+
+    public void setCartItemId(Integer cartItemId) {
+        this.cartItemId = cartItemId;
+    }
+
+    public Integer getProductId() {
+        return productId;
+    }
+
+    public void setProductId(Integer productId) {
+        this.productId = productId;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+
+    public Double getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(Double unitPrice) {
+        this.unitPrice = unitPrice;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(String createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getProductStatus() {
+        return productStatus;
+    }
+
+    public void setProductStatus(String productStatus) {
+        this.productStatus = productStatus;
+    }
+
+    public Integer getStockQuantity() {
+        return stockQuantity;
+    }
+
+    public void setStockQuantity(Integer stockQuantity) {
         this.stockQuantity = stockQuantity;
     }
 }

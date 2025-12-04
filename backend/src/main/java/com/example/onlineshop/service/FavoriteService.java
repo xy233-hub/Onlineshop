@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class FavoriteService {
@@ -73,5 +73,39 @@ public class FavoriteService {
         if (found == null) return false;
         int rows = favoriteMapper.deleteById(favoriteId);
         return rows > 0;
+    }
+
+    @Transactional
+    public Map<String, Object> batchAddFavorites(Integer customerId, List<Integer> productIds) {
+        if (productIds == null) productIds = Collections.emptyList();
+
+        List<Map<String, Object>> converted = new ArrayList<>();
+        List<Map<String, Object>> failed = new ArrayList<>();
+
+        for (Integer pid : productIds) {
+            try {
+                FavoriteResponse fr = addFavorite(customerId, pid);
+                Map<String, Object> item = new HashMap<>();
+                item.put("favorite_id", fr.getFavoriteId());
+                item.put("product_id", fr.getProductId());
+                if (fr.getProductInfo() != null) {
+                    item.put("product_name", fr.getProductInfo().getProductName());
+                }
+                item.put("favorited_at", fr.getFavoritedAt());
+                converted.add(item);
+            } catch (Exception e) {
+                Map<String, Object> fail = new HashMap<>();
+                fail.put("product_id", pid);
+                fail.put("reason", e.getMessage());
+                failed.add(fail);
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("converted_count", converted.size());
+        result.put("failed_count", failed.size());
+        result.put("converted_favorites", converted);
+        result.put("failed_items", failed);
+        return result;
     }
 }
