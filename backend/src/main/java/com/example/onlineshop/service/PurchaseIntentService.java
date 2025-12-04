@@ -35,6 +35,27 @@ public class PurchaseIntentService {
     @Autowired
     private CustomerService customerService;
 
+
+    /**
+     * 根据 purchaseId 回查购买意向并回填商品项
+     */
+    public PurchaseIntent getPurchaseIntentById(Integer purchaseId) {
+        PurchaseIntent intent = purchaseIntentMapper.findById(purchaseId);
+        if (intent == null) {
+            return null;
+        }
+        List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+        intent.setItems(items);
+        return intent;
+    }
+
+    /**
+     * 直接根据 purchaseId 获取商品项列表
+     */
+    public List<PurchaseIntentItem> getItemsByPurchaseIntentId(Integer purchaseId) {
+        return purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+    }
+
     /**
      * 创建购买意向：不再把 productId 写入 purchase_intents，
      * 而是插入一条 purchase_intents（订单层），然后为每个商品插入 purchase_intent_items（商品项层）。
@@ -119,12 +140,20 @@ public class PurchaseIntentService {
     }
 
     public List<PurchaseIntent> getPurchaseIntentsByCustomerId(Integer customerId) {
-        return purchaseIntentMapper.findByCustomerId(customerId);
+        List<PurchaseIntent> intents = purchaseIntentMapper.findByCustomerId(customerId);
+        if (intents == null || intents.isEmpty()) {
+            return intents;
+        }
+        for (PurchaseIntent intent : intents) {
+            if (intent != null && intent.getPurchaseId() != null) {
+                List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(intent.getPurchaseId());
+                intent.setItems(items);
+            }
+        }
+        return intents;
     }
 
-    public PurchaseIntent getPurchaseIntentById(Integer purchaseId) {
-        return purchaseIntentMapper.findById(purchaseId);
-    }
+
 
     /**
      * 更新购买意向状态：支持新的订单状态流程
@@ -146,12 +175,18 @@ public class PurchaseIntentService {
         }
 
         // 检查卖家权限：该意向对应商品必须属于当前 seller
-        Product product = productMapper.findById(intent.getProductId());
-        if (product == null) {
+        List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+        if (items == null || items.isEmpty()) {
             return new ApiResponse(404, "关联商品不存在", null);
         }
-        if (!product.getSellerId().equals(sellerId)) {
-            return new ApiResponse(403, "无权处理该购买意向", null);
+        for (PurchaseIntentItem piItem : items) {
+            Product product = productMapper.findById(piItem.getProductId());
+            if (product == null) {
+                return new ApiResponse(404, "关联商品不存在", null);
+            }
+            if (product.getSellerId() == null || !product.getSellerId().equals(sellerId)) {
+                return new ApiResponse(403, "无权处理该购买意向", null);
+            }
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -264,29 +299,43 @@ public class PurchaseIntentService {
             return new ApiResponse(400, "当前订单状态不允许客户确认收货", null);
         }
 
-        // 执行确认收货操作
-        purchaseIntentMapper.updateStatus(purchaseId, "COMPLETED", LocalDateTime.now());
-
-        // 减少商品库存
-        try {
-            int productId = intent.getProductId();
-            int quantity = intent.getQuantity();
-
-            // 使用原子操作扣减库存
-            int updatedRows = productMapper.deductStockIfEnough(productId, quantity, LocalDateTime.now());
-
-            if (updatedRows <= 0) {
-                // 库存不足，回滚状态更新（由于使用了@Transactional，会自动回滚）
-                throw new RuntimeException("商品库存不足，无法完成订单");
-            }
-        } catch (Exception e) {
-            // 如果扣减库存失败，回滚确认收货操作
-            purchaseIntentMapper.updateStatus(purchaseId, "SHIPPING_STARTED", LocalDateTime.now());
-            return new ApiResponse(500, "确认收货失败: " + e.getMessage(), null);
+        // 查询该购买意向的所有商品项
+        List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+        if (items == null || items.isEmpty()) {
+            return new ApiResponse(404, "关联商品不存在", null);
         }
 
-        PurchaseIntent updated = purchaseIntentMapper.findById(purchaseId);
-        return new ApiResponse(200, "订单已完成，库存已更新", updated);
+        try {
+            LocalDateTime now = LocalDateTime.now();
+
+            // 逐个商品扣减库存（在事务中，任一失败抛出异常则回滚）
+            for (PurchaseIntentItem item : items) {
+                Integer productId = item.getProductId();
+                Integer quantity = item.getQuantity() == null ? 0 : item.getQuantity();
+
+                if (productId == null || quantity <= 0) {
+                    throw new RuntimeException("关联商品信息不完整");
+                }
+
+                int updatedRows = productMapper.deductStockIfEnough(productId, quantity, now);
+                if (updatedRows <= 0) {
+                    throw new RuntimeException("商品库存不足，productId=" + productId);
+                }
+            }
+
+            // 全部扣减成功后更新订单状态为 COMPLETED
+            purchaseIntentMapper.updateStatus(purchaseId, "COMPLETED", LocalDateTime.now());
+
+            PurchaseIntent updated = purchaseIntentMapper.findById(purchaseId);
+            // 回填 items 以保证返回结果包含商品项
+            List<PurchaseIntentItem> updatedItems = purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+            updated.setItems(updatedItems);
+
+            return new ApiResponse(200, "订单已完成，库存已更新", updated);
+        } catch (Exception e) {
+            // 事务会回滚，无需手动恢复状态
+            return new ApiResponse(500, "确认收货失败: " + e.getMessage(), null);
+        }
     }
 
     /**
@@ -332,7 +381,17 @@ public class PurchaseIntentService {
     }
 
     public List<PurchaseIntent> getAllPurchaseIntents() {
-        return purchaseIntentMapper.findAll();
+        List<PurchaseIntent> intents = purchaseIntentMapper.findAll();
+        if (intents == null || intents.isEmpty()) {
+            return intents;
+        }
+        for (PurchaseIntent intent : intents) {
+            if (intent != null && intent.getPurchaseId() != null) {
+                List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(intent.getPurchaseId());
+                intent.setItems(items);
+            }
+        }
+        return intents;
     }
 
     public void markOtherIntentsFailed(Integer productId, Integer excludePurchaseId) {
@@ -340,7 +399,17 @@ public class PurchaseIntentService {
     }
 
     public List<PurchaseIntent> getPurchaseIntentsByCondition(Map<String, Object> params) {
-        return purchaseIntentMapper.findByCondition(params);
+        List<PurchaseIntent> intents = purchaseIntentMapper.findByCondition(params);
+        if (intents == null || intents.isEmpty()) {
+            return intents;
+        }
+        for (PurchaseIntent intent : intents) {
+            if (intent != null && intent.getPurchaseId() != null) {
+                List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(intent.getPurchaseId());
+                intent.setItems(items);
+            }
+        }
+        return intents;
     }
 
     public int countPurchaseIntentsByCondition(Map<String, Object> params) {

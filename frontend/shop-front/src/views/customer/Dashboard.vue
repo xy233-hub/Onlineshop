@@ -45,7 +45,7 @@
                     {{ getOrderStatusText(row.purchase_status) }}
                   </el-tag>
                   <div class="actions">
-                    <el-button size="small" type="primary" @click="goToProduct(row.product_id)">查看商品</el-button>
+                    <el-button size="small" type="primary" @click="showProductIds(row)">查看商品</el-button>
                     <el-button size="small" @click="viewDetail(row)">详情</el-button>
 
                     <!-- 客户取消订单按钮 -->
@@ -56,6 +56,7 @@
                         @click="showCancelDialog(row)">
                       取消订单
                     </el-button>
+
 
                     <!-- 客户确认收货按钮 -->
                     <el-button
@@ -118,6 +119,22 @@
         </span>
       </template>
     </el-dialog>
+    <el-dialog v-model="productIdsDialogVisible" title="关联商品" width="520px">
+      <div v-if="!productIdsList.length" style="padding:12px 0;">无可显示的商品ID</div>
+      <div v-else>
+        <div v-for="(id, idx) in productIdsList" :key="`${id}-${idx}`" style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f3f3f3;">
+          <div>{{ idx + 1 }}. {{ id }}</div>
+          <div>
+            <el-button size="small" type="primary" @click="() => { productIdsDialogVisible = false; goToProduct(id) }">查看商品</el-button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+    <span class="dialog-footer">
+      <el-button @click="productIdsDialogVisible = false">关闭</el-button>
+    </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -133,7 +150,8 @@ const size = ref(10)
 const total = ref(0)
 const items = ref([])
 const loading = ref(false)
-
+const productIdsDialogVisible = ref(false)
+const productIdsList = ref([])
 // 取消订单相关
 const cancelDialogVisible = ref(false)
 const cancelForm = ref({
@@ -186,16 +204,35 @@ const fetchItems = async (p = page.value, s = size.value) => {
     else list = []
 
     // 简单规范化常用字段（兼容不同后端返回）
-    items.value = list.map(it => ({
-      purchase_id: it.purchase_id ?? it.id,
-      product_id: it.product_id ?? it.productId ?? it.product?.product_id,
-      product_name: it.product_name ?? it.product?.product_name ?? it.product?.name,
-      product_image: it.product_image ?? it.product?.image_url ?? it.product?.image,
-      quantity: it.quantity ?? it.qty ?? 1,
-      total_amount: it.total_amount ?? it.total ?? it.amount,
-      purchase_status: it.purchase_status ?? it.status,
-      created_at: it.created_at ?? it.createdAt ?? it.created
-    }))
+    items.value = list.map(it => {
+      // 规范化行内的 items（兼容不同后端字段名）
+      const rawItems = it.items ?? it.itemList ?? it.purchase_items ?? [];
+      const normItems = Array.isArray(rawItems) ? rawItems.map(item => ({
+        item_id: item.item_id ?? item.id,
+        purchase_id: item.purchase_id ?? item.purchaseId ?? it.purchase_id,
+        product_id: item.product_id ?? item.productId ?? (item.product && (item.product.product_id ?? item.product.id)) ?? null,
+        product_name: item.product_name ?? item.product?.product_name ?? item.product?.name ?? null,
+        product_price: item.product_price ?? item.price ?? item.product?.price ?? null,
+        quantity: item.quantity ?? item.qty ?? 1,
+        subtotal: item.subtotal ?? null
+      })) : [];
+
+      // 如果顶层 product_id 为空，尝试使用第一个 item 的 product_id 回退
+      const fallbackProductId = it.product_id ?? it.productId ?? (normItems[0] && normItems[0].product_id) ?? (it.product && (it.product.product_id ?? it.product.id)) ?? null;
+
+      return {
+        purchase_id: it.purchase_id ?? it.id,
+        product_id: fallbackProductId,
+        product_name: it.product_name ?? it.product?.product_name ?? it.product?.name ?? (normItems[0] && normItems[0].product_name) ?? null,
+        product_image: it.product_image ?? it.product?.image_url ?? it.product?.image ?? null,
+        quantity: it.quantity ?? it.qty ?? it.total_quantity ?? 1,
+        total_amount: it.total_amount ?? it.total ?? it.amount ?? 0,
+        purchase_status: it.purchase_status ?? it.status,
+        created_at: it.created_at ?? it.createdAt ?? it.created,
+        // 关键：回填规范化后的 items，供 showProductIds 使用
+        items: normItems
+      }
+    })
 
     total.value = Number(payload?.total ?? items.value.length ?? 0)
     page.value = p
@@ -352,6 +389,20 @@ const confirmReceived = async (row) => {
       await fetchItems()
     }
   }
+}
+
+/* 新增的方法：显示购买意向关联的商品 ID 列表 */
+const showProductIds = (row) => {
+  const ids = (row.items && Array.isArray(row.items) && row.items.length)
+      ? row.items.map(it => it.product_id ?? it.productId).filter(Boolean)
+      : (row.product_id ? [row.product_id] : [])
+
+  if (!ids.length) {
+    return ElMessage.warning('无可显示的商品ID')
+  }
+
+  productIdsList.value = ids
+  productIdsDialogVisible.value = true
 }
 
 onMounted(() => {
