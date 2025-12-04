@@ -99,7 +99,11 @@ export const purchaseAPI = {
     createPurchaseIntent: (data) => api.post('/products/purchase-intents', data),
     getCustomerPurchaseIntents: (customerId, params) => api.get(`/customers/${customerId}/purchase-intents`, { params }),
     getSellerPurchaseIntents: (params) => api.get('/seller/purchase-intents', { params }),
-    updatePurchaseIntentStatus: (purchaseId, payload) => api.put(`/seller/purchase-intents/${purchaseId}/status`, payload)
+    updatePurchaseIntentStatus: (purchaseId, payload) => api.put(`/seller/purchase-intents/${purchaseId}/status`, payload),
+    // 客户取消订单
+    customerCancelOrder: (customerId, purchaseId, payload) => api.post(`/customers/${customerId}/purchase-intents/${purchaseId}/cancel`, payload),
+    // 客户确认收货
+    customerConfirmReceived: (customerId, purchaseId) => api.post(`/customers/${customerId}/purchase-intents/${purchaseId}/confirm-received`)
 }
 
 /**
