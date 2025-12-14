@@ -107,6 +107,35 @@ export const purchaseAPI = {
 }
 
 /**
+ * 购物车相关接口（已按接口文档统一为 /customers/cart/items）
+ * - 获取购物车商品：GET /api/customers/cart/items
+ * - 添加商品到购物车（单）：POST /api/customers/cart/items
+ * - 更新购物车商品数量：PUT /api/customers/cart/items/{cart_item_id}
+ * - 从购物车移除商品：DELETE /api/customers/cart/items/{cart_item_id}
+ * - 批量移除购物车商品：DELETE /api/customers/cart/items （请求体包含 customer_id 与 cart_item_ids）
+ */
+export const cartAPI = {
+    // 现保持同一路径，后端已改为与收藏同体：{ customer_id, product_id }
+    addToCart: (data) => api.post('/customers/cart/items', data),
+    getCartItems: (params) => api.get('/customers/cart/items', { params }),
+    updateCartItem: (cartItemId, data) => api.put(`/customers/cart/items/${cartItemId}`, data),
+    removeCartItem: (cartItemId) => api.delete(`/customers/cart/items/${cartItemId}`),
+    removeCartItems: (payload) => api.delete('/customers/cart/items', { data: payload }),
+    batchPurchase: (payload) => api.post('/customers/cart/batch-purchase', payload),
+    batchConvertToFavorites: (payload) => api.post('/customers/cart/batch-convert-favorite', payload)
+}
+/**
+ * 收藏夹相关接口（与接口文档一致）
+ * - 获取收藏商品：GET /api/customers/favorites  (支持 params: customer_id, page, size, sort_by, order)
+ * - 添加商品到收藏：POST /api/customers/favorites
+ * - 从收藏移除商品：DELETE /api/customers/favorites/{favorite_id}
+ */
+export const favoritesAPI = {
+    getFavorites: (params) => api.get('/customers/favorites', { params }),
+    addToFavorites: (data) => api.post('/customers/favorites', data),
+    removeFavorite: (favoriteId, params) => api.delete(`/customers/favorites/${favoriteId}`, { params })
+}
+/**
  * 客户相关认证（文档：POST /api/customers/register, POST /api/customers/login）
  */
 export const customerAuthAPI = {

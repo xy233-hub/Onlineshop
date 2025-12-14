@@ -21,10 +21,16 @@ const routes = [
     { path: '/product/:id', name: 'ProductDetail', component: ProductDetail, props: true },
     { path: '/seller', name: 'SellerLogin', component: SellerLogin, meta: { guestOnly: true } },
     {
-        path: '/dashboard',
+        path: '/customer/dashboard',
         name: 'CustomerDashboard',
         component: () => import('@/views/customer/Dashboard.vue'),
-        meta: { requiresAuth: true }
+        meta: { requiresAuth: true },
+        children: [
+            { path: '', redirect: '/customer/dashboard/orders' },
+            { path: 'orders', name: 'DashboardOrders', component: () => import('@/views/customer/OrdersHistory.vue'), meta: { requiresAuth: true } },
+            { path: 'favorites', name: 'DashboardFavorites', component: () => import('@/views/customer/Favorites.vue'), meta: { requiresAuth: true } },
+            { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } }
+        ]
     },
     {
         path: '/seller/dashboard',

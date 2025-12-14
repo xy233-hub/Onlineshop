@@ -13,7 +13,7 @@
             <el-button type="primary" @click="goSellerLogin">卖家登录</el-button>
           </template>
           <template v-else>
-            <el-button type="primary" @click="goDashboard">历史下单</el-button>
+            <el-button type="primary" @click="goDashboard">我的中心</el-button>
             <el-button type="warning" @click="logout">退出登录</el-button>
           </template>
         </div>
@@ -194,7 +194,7 @@ const goSellerLogin = () => {
   router.push('/seller').catch(() => {})
 }
 const goDashboard = () => {
-  router.push('/dashboard').catch(() => {})
+  router.push('/customer/dashboard').catch(() => {})
 }
 const logout = () => {
   customerStore.logout()
