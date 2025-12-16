@@ -208,7 +208,7 @@ UPDATE purchase_intents
 SET purchase_status = 'CUSTOMER_ORDERED'
 WHERE purchase_status = 'pending';
 
-UPDATE purchase_intent
+UPDATE purchase_intents
 SET purchase_status = 'COMPLETED'
 WHERE purchase_status = 'success';
 
