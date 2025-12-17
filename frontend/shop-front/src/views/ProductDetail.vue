@@ -122,12 +122,12 @@
                     </el-button>
 
                     <el-button
-                        type="success"
+                        :type="isFavorited ? 'info' : 'success'"
                         plain
-                        :disabled="!canFavorite"
+                        :disabled="!canFavorite || isFavorited"
                         @click="addFavorite"
                     >
-                      添加收藏
+                      {{ isFavorited ? '已收藏' : '添加收藏' }}
                     </el-button>
 
                     <div class="cart-row">
@@ -355,7 +355,17 @@ const hasStock = computed(() => (product.value?.stock_quantity ?? 0) > 0)
 const canBuy = computed(() => canOnline.value && hasStock.value)
 const canFavorite = computed(() => canOnline.value) // 收藏不强制库存
 const canAddCart = computed(() => canOnline.value && hasStock.value)
-
+const isFavorited = computed(() => {
+  if (!product.value) return false
+  return !!(
+      product.value.is_favorited ||
+      product.value.is_favorite ||
+      product.value.favorited ||
+      product.value.favorite_id ||
+      product.value.favorite || // 额外兼容
+      product.value.favorited_by_current_customer
+  )
+})
 /* 添加收藏 */
 const addFavorite = async () => {
   const customerId = getCurrentCustomerId()
@@ -367,12 +377,30 @@ const addFavorite = async () => {
     ElMessage.error('商品信息不完整')
     return
   }
+  if (isFavorited.value) {
+    ElMessage.info('已收藏')
+    return
+  }
+
   submitLoading.value = true
   try {
     const payload = { customer_id: customerId, product_id: product.value.product_id }
     const res = await favoritesAPI.addToFavorites(payload)
-    const data = res?.data?.data ?? null
-    ElMessage.success(data ? '收藏成功' : '已收藏或收藏成功')
+    const data = res?.data?.data ?? res?.data ?? null
+
+    // 根据返回更新本地标记（若后端返回 favorite id，则存入）
+    if (data) {
+      // 如果返回包含 favorite id，保存；否则至少把标记设为 true
+      if (data.favorite_id || data.id) {
+        product.value.favorite_id = data.favorite_id || data.id
+      }
+      product.value.is_favorited = true
+      ElMessage.success('收藏成功')
+    } else {
+      // 可能已存在或返回为空
+      product.value.is_favorited = true
+      ElMessage.success('已收藏')
+    }
   } catch (e) {
     console.error('添加收藏失败:', e)
     ElMessage.error(e?.response?.data?.message || '添加收藏失败')
