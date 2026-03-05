@@ -208,7 +208,7 @@ UPDATE purchase_intents
 SET purchase_status = 'CUSTOMER_ORDERED'
 WHERE purchase_status = 'pending';
 
-UPDATE purchase_intent
+UPDATE purchase_intents
 SET purchase_status = 'COMPLETED'
 WHERE purchase_status = 'success';
 
@@ -238,3 +238,58 @@ ALTER TABLE purchase_intents DROP FOREIGN KEY fk_intent_product;
 ALTER TABLE purchase_intents DROP COLUMN product_id;
 
 COMMIT;
+
+
+-- 11. 创建支付记录表
+CREATE TABLE payments (
+    payment_id INT NOT NULL AUTO_INCREMENT COMMENT '支付记录唯一 ID',
+    purchase_id INT NOT NULL COMMENT '关联的购买意向 ID（外键关联 purchase_intents 表）',
+    customer_id INT NOT NULL COMMENT '客户 ID（外键关联 customers 表）',
+    payment_method ENUM('BANK_CARD', 'CREDIT_CARD', 'ALIPAY', 'WECHAT_PAY') NOT NULL COMMENT '支付方式：BANK_CARD=银行卡，CREDIT_CARD=信用卡，ALIPAY=支付宝，WECHAT_PAY=微信支付',
+    payment_amount DECIMAL(10,2) NOT NULL COMMENT '支付金额',
+    payment_status ENUM('PENDING', 'PAID', 'FAILED', 'REFUNDING', 'REFUNDED') NOT NULL DEFAULT 'PENDING' COMMENT '支付状态：PENDING=待支付，PAID=已支付，FAILED=支付失败，REFUNDING=退款中，REFUNDED=已退款',
+    transaction_id VARCHAR(100) COMMENT '第三方支付交易号',
+    payment_time DATETIME COMMENT '支付成功时间',
+    refund_time DATETIME COMMENT '退款时间',
+    refund_amount DECIMAL(10,2) COMMENT '退款金额',
+    refund_reason VARCHAR(255) COMMENT '退款原因',
+    payment_expiry DATETIME NOT NULL COMMENT '支付过期时间（订单创建后 30 分钟）',
+    payment_notes VARCHAR(500) COMMENT '支付备注',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (payment_id),
+    UNIQUE KEY uk_purchase_id (purchase_id) COMMENT '一个购买意向对应一个支付记录',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询支付的索引',
+    KEY idx_payment_status (payment_status) COMMENT '按支付状态筛选的索引',
+    KEY idx_payment_method (payment_method) COMMENT '按支付方式筛选的索引',
+    KEY idx_transaction_id (transaction_id) COMMENT '按第三方交易号查询的索引',
+    KEY idx_payment_expiry (payment_expiry) COMMENT '支付过期时间索引',
+    
+    CONSTRAINT fk_payment_purchase_intent FOREIGN KEY (purchase_id)
+        REFERENCES purchase_intents (purchase_id) ON DELETE CASCADE,
+    CONSTRAINT fk_payment_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '支付记录表';
+
+-- 12. 在 purchase_intents 表中添加支付状态字段
+ALTER TABLE purchase_intents
+    ADD COLUMN payment_status ENUM('UNPAID', 'PAID', 'REFUNDING', 'REFUNDED') DEFAULT 'UNPAID' COMMENT '支付状态：UNPAID=未支付，PAID=已支付，REFUNDING=退款中，REFUNDED=已退款',
+    ADD COLUMN payment_verify_token VARCHAR(100) COMMENT '支付结果校验令牌';
+
+-- 插入示例支付数据
+INSERT INTO `payments` (`purchase_id`, `customer_id`, `payment_method`, `payment_amount`, `payment_status`, `payment_expiry`)
+SELECT 
+    pi.purchase_id,
+    pi.customer_id,
+    'ALIPAY',
+    pi.total_amount,
+    CASE 
+        WHEN pi.purchase_status IN ('COMPLETED', 'SHIPPING_STARTED', 'STOCK_PREPARED', 'SELLER_CONFIRMED') THEN 'PAID'
+        ELSE 'PENDING'
+    END,
+    DATE_ADD(pi.created_at, INTERVAL 30 MINUTE)
+FROM purchase_intents pi
+WHERE NOT EXISTS (
+    SELECT 1 FROM payments p WHERE p.purchase_id = pi.purchase_id
+);

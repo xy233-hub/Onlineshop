@@ -5,9 +5,11 @@ import com.example.onlineshop.dto.request.PurchaseIntentRequest;
 import com.example.onlineshop.dto.request.PurchaseIntentStatusRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.entity.Customer;
+import com.example.onlineshop.entity.Payment;
 import com.example.onlineshop.entity.Product;
 import com.example.onlineshop.entity.PurchaseIntent;
 import com.example.onlineshop.entity.PurchaseIntentItem;
+import com.example.onlineshop.mapper.PaymentMapper;
 import com.example.onlineshop.mapper.ProductMapper;
 import com.example.onlineshop.mapper.PurchaseIntentItemMapper;
 import com.example.onlineshop.mapper.PurchaseIntentMapper;
@@ -34,6 +36,9 @@ public class PurchaseIntentService {
 
     @Autowired
     private CustomerService customerService;
+
+    @Autowired
+    private PaymentMapper paymentMapper;
 
 
     /**
@@ -139,6 +144,7 @@ public class PurchaseIntentService {
         return purchaseIntentMapper.findByProductId(productId);
     }
 
+
     public List<PurchaseIntent> getPurchaseIntentsByCustomerId(Integer customerId) {
         List<PurchaseIntent> intents = purchaseIntentMapper.findByCustomerId(customerId);
         if (intents == null || intents.isEmpty()) {
@@ -146,12 +152,25 @@ public class PurchaseIntentService {
         }
         for (PurchaseIntent intent : intents) {
             if (intent != null && intent.getPurchaseId() != null) {
+                // 获取商品项列表
                 List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(intent.getPurchaseId());
                 intent.setItems(items);
+                
+                // 获取支付状态
+                Payment payment = paymentMapper.findByPurchaseId(intent.getPurchaseId());
+                if (payment != null) {
+                    intent.setPaymentStatus(payment.getPaymentStatus());
+                    intent.setPaymentVerifyToken(payment.getTransactionId());
+                } else {
+                    // 如果没有支付记录，默认为 UNPAID
+                    intent.setPaymentStatus("UNPAID");
+                }
             }
         }
         return intents;
     }
+
+
 
 
 
@@ -398,7 +417,7 @@ public class PurchaseIntentService {
         purchaseIntentMapper.markOtherIntentsFailed(productId, excludePurchaseId);
     }
 
-    public List<PurchaseIntent> getPurchaseIntentsByCondition(Map<String, Object> params) {
+     public List<PurchaseIntent> getPurchaseIntentsByCondition(Map<String, Object> params) {
         List<PurchaseIntent> intents = purchaseIntentMapper.findByCondition(params);
         if (intents == null || intents.isEmpty()) {
             return intents;

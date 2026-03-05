@@ -305,9 +305,10 @@ const getStatusType = (status) => {
   return types[status] || 'info'
 }
 
+
 const getStatusText = (status) => {
   const texts = {
-    'CUSTOMER_ORDERED': '客户下单',
+    'CUSTOMER_ORDERED': '待支付',
     'SELLER_CONFIRMED': '商家确认',
     'STOCK_PREPARED': '备货完成',
     'SHIPPING_STARTED': '开始发货',
@@ -317,6 +318,7 @@ const getStatusText = (status) => {
   }
   return texts[status] || (status || '')
 }
+
 
 onMounted(() => {
   fetchOrders()

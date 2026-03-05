@@ -32,5 +32,8 @@ public class PurchaseIntent implements Serializable {
     private String sellerNotes;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    // 支付相关字段（从 payments 表关联查询）
+    private String paymentStatus;
+    private String paymentVerifyToken;
     private List<PurchaseIntentItem> items;
 }
