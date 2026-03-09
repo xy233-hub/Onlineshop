@@ -12,33 +12,38 @@
         <result property="quantity" column="quantity"/>
         <result property="totalAmount" column="total_amount"/>
         <result property="purchaseStatus" column="purchase_status"/>
+        <result property="cancelReason" column="cancel_reason"/>
+        <result property="cancelNotes" column="cancel_notes"/>
         <result property="sellerNotes" column="seller_notes"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent" useGeneratedKeys="true" keyProperty="purchaseId" keyColumn="purchase_id">
+    <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent"
+            useGeneratedKeys="true" keyProperty="purchaseId" keyColumn="purchase_id">
         INSERT INTO purchase_intents
-        (product_id,
-         customer_id,
+        (customer_id,
          customer_name,
          customer_phone,
          customer_address,
          quantity,
          total_amount,
          purchase_status,
+         cancel_reason,
+         cancel_notes,
          seller_notes,
          created_at,
          updated_at)
         VALUES
-            (#{productId},
-             #{customerId},
+            (#{customerId},
              #{customerName},
              #{customerPhone},
              #{customerAddress},
              #{quantity},
              #{totalAmount},
              #{purchaseStatus},
+             #{cancelReason},
+             #{cancelNotes},
              #{sellerNotes},
              #{createdAt},
              #{updatedAt})
@@ -57,7 +62,7 @@
     </select>
 
     <update id="updateStatus">
-        UPDATE purchase_intents SET purchase_status = #{status}, updated_at = NOW() WHERE purchase_id = #{purchaseId}
+        UPDATE purchase_intents SET purchase_status = #{status}, updated_at = #{updatedAt} WHERE purchase_id = #{purchaseId}
     </update>
 
     <select id="findAll" resultMap="PurchaseIntentMap">
@@ -110,6 +115,15 @@
         UPDATE purchase_intents
         SET purchase_status = #{status},
             seller_notes = #{sellerNotes},
+            updated_at = #{updatedAt}
+        WHERE purchase_id = #{purchaseId}
+    </update>
+
+    <update id="updateStatusWithCancelInfo" parameterType="map">
+        UPDATE purchase_intents
+        SET purchase_status = #{status},
+            cancel_reason = #{cancelReason},
+            cancel_notes = #{cancelNotes},
             updated_at = #{updatedAt}
         WHERE purchase_id = #{purchaseId}
     </update>
