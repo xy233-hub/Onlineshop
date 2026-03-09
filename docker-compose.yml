@@ -8,7 +8,7 @@ services:
       MYSQL_USER: shopuser
       MYSQL_PASSWORD: shoppass
     ports:
-      - "3307:3306"
+      - "3306:3306"
     volumes:
       - ./mysql_data:/var/lib/mysql
       - ./text1.2.sql:/docker-entrypoint-initdb.d/init.sql
