@@ -17,7 +17,7 @@ services:
     build: ./backend
     container_name: onlineshop-backend
     ports:
-      - "8082:8080"
+      - "8081:8080"
     depends_on:
       - db
     environment:
@@ -25,7 +25,7 @@ services:
       SPRING_DATASOURCE_USERNAME: shopuser
       SPRING_DATASOURCE_PASSWORD: shoppass
       MEDIA_UPLOAD_DIR: /app/uploads
-      MEDIA_BASE_URL: http://120.55.249.112:8082/media
+      MEDIA_BASE_URL: http://120.55.249.112:8081/media
     volumes:
       - ./uploads:/app/uploads
   frontend:

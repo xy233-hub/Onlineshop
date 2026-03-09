@@ -30,7 +30,7 @@ pipeline {
                     branches: [[name: '*/test']],  // 要拉取的分支
                     userRemoteConfigs: [[
                         url: 'git@github.com:xy233-hub/Onlineshop.git',  // 仓库URL
-                        credentialsId: 'jenkins-ssh'  // 你在Jenkins中创建的凭证ID
+                        credentialsId: 'jenkins-SSH'  // 你在Jenkins中创建的凭证ID
                     ]],
                 ])
             }
