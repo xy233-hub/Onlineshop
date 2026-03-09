@@ -25,7 +25,7 @@ services:
       SPRING_DATASOURCE_USERNAME: shopuser
       SPRING_DATASOURCE_PASSWORD: shoppass
       MEDIA_UPLOAD_DIR: /app/uploads
-      MEDIA_BASE_URL: http://120.55.249.112:8081/media
+      MEDIA_BASE_URL: http://120.55.249.112:8082/media
     volumes:
       - ./uploads:/app/uploads
   frontend:
