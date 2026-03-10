@@ -14,6 +14,7 @@ services:
       - ./text1.2.sql:/docker-entrypoint-initdb.d/init.sql
 
   backend:
+    image: onlineshop-backend-test:latest
     container_name: onlineshop-backend-test
     ports:
       - "8082:8080"
@@ -28,6 +29,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
   frontend:
+    image: onlineshop-frontend:latest
     container_name: onlineshop-frontend-test
     ports:
       - "81:80"
