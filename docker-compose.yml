@@ -1,7 +1,7 @@
 services:
   db:
     image: mysql:8.0
-    container_name: onlineshop-mysql-test
+    container_name: onlineshop-mysql
     environment:
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: onlineshop
@@ -14,8 +14,8 @@ services:
       - ./text1.2.sql:/docker-entrypoint-initdb.d/init.sql
 
   backend:
-    image: onlineshop-backend:latest
-    container_name: onlineshop-backend-test
+    build: ./backend
+    container_name: onlineshop-backend
     ports:
       - "8081:8080"
     depends_on:
@@ -29,8 +29,8 @@ services:
     volumes:
       - ./uploads:/app/uploads
   frontend:
-    image: onlineshop-frontend:latest
-    container_name: onlineshop-frontend-test
+    build: ./frontend/shop-front
+    container_name: onlineshop-frontend
     ports:
       - "80:80"
     depends_on:
