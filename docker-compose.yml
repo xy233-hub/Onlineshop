@@ -1,7 +1,7 @@
 services:
   db:
     image: mysql:8.0
-    container_name: onlineshop-mysql
+    container_name: onlineshop-mysql-test
     environment:
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: onlineshop
@@ -15,7 +15,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: onlineshop-backend
+    container_name: onlineshop-backend-test
     ports:
       - "8082:8080"
     depends_on:
@@ -30,7 +30,7 @@ services:
       - ./uploads:/app/uploads
   frontend:
     build: ./frontend/shop-front
-    container_name: onlineshop-frontend
+    container_name: onlineshop-frontend-test
     ports:
       - "81:80"
     depends_on:
