@@ -29,7 +29,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
   frontend:
-    image: onlineshop-frontend:latest
+    image: onlineshop-frontend-test:latest
     container_name: onlineshop-frontend-test
     ports:
       - "81:80"
