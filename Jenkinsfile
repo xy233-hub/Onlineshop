@@ -4,14 +4,14 @@ pipeline {
     // 定义环境变量
     environment {
         // 镜像名称 (不需要仓库前缀，直接本地用)
-        IMAGE_BACKEND = 'onlineshop-backend-test'
-        IMAGE_FRONTEND = 'onlineshop-frontend-test'
+        IMAGE_BACKEND = 'onlineshop-backend'
+        IMAGE_FRONTEND = 'onlineshop-frontend'
         // 镜像标签
         IMAGE_TAG = "${BUILD_NUMBER}"
 
         // 项目在服务器上的部署目录
         // Jenkins 会把 docker-compose.yml 复制到这里并执行
-        DEPLOY_PATH = '/data/onlineshop-test'
+        DEPLOY_PATH = '/data/onlineshop'
     }
 
     tools {

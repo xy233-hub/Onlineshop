@@ -8,16 +8,16 @@ services:
       MYSQL_USER: shopuser
       MYSQL_PASSWORD: shoppass
     ports:
-      - "3308:3306"
+      - "3307:3306"
     volumes:
       - ./mysql_data:/var/lib/mysql
       - ./text1.2.sql:/docker-entrypoint-initdb.d/init.sql
 
   backend:
-    image: onlineshop-backend-test:latest
+    image: onlineshop-backend:latest
     container_name: onlineshop-backend-test
     ports:
-      - "8082:8080"
+      - "8081:8080"
     depends_on:
       - db
     environment:
@@ -25,13 +25,13 @@ services:
       SPRING_DATASOURCE_USERNAME: shopuser
       SPRING_DATASOURCE_PASSWORD: shoppass
       MEDIA_UPLOAD_DIR: /app/uploads
-      MEDIA_BASE_URL: http://120.55.249.112:8082/media
+      MEDIA_BASE_URL: http://120.55.249.112:8081/media
     volumes:
       - ./uploads:/app/uploads
   frontend:
-    image: onlineshop-frontend-test:latest
+    image: onlineshop-frontend:latest
     container_name: onlineshop-frontend-test
     ports:
-      - "81:80"
+      - "80:80"
     depends_on:
       - backend
