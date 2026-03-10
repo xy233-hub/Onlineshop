@@ -78,12 +78,7 @@ pipeline {
                 script {
                     // 确保部署目录存在
                     sh "mkdir -p ${DEPLOY_PATH}"
-                    // 清空临时上传目录：/data/onlineshop/uploads/temp
-                    sh """
-                        if [ -d ${DEPLOY_PATH}/uploads/temp ]; then
-                          rm -rf ${DEPLOY_PATH}/uploads/temp/*
-                        fi
-                    """
+
                     // 将 docker-compose.yml 复制到部署目录
                     // 注意：这里假设 docker-compose.yml 在项目根目录
                     sh "cp docker-compose.yml ${DEPLOY_PATH}/"
