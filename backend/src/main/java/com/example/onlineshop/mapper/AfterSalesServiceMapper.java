@@ -17,7 +17,7 @@ public interface AfterSalesServiceMapper {
     List<AfterSalesService> selectByCustomerId(@Param("customerId") Integer customerId,
                                                @Param("serviceStatus") String serviceStatus,
                                                @Param("offset") Integer offset,
-                                               @Param("size") Integer size);
+                                               @Param("limit") Integer limit);
     
     List<AfterSalesService> selectBySellerId(@Param("sellerId") Integer sellerId,
                                              @Param("serviceStatus") String serviceStatus,

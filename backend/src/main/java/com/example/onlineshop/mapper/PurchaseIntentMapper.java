@@ -47,5 +47,8 @@ public interface PurchaseIntentMapper {
      /**
      * 更新支付相关信息
      */
-    int updatePaymentInfo(Map<String, Object> params);
+    int updatePaymentInfo(Map<String, Object> params);   
+    int updateLogisticsInfo(@Param("purchaseId") Integer purchaseId, 
+                           @Param("logisticsProviderId") Integer logisticsProviderId, 
+                           @Param("trackingNo") String trackingNo);
 }

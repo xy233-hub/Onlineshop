@@ -7,9 +7,15 @@ import com.example.onlineshop.dto.request.ProductIdRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.Customer;
+import com.example.onlineshop.entity.LogisticsProvider;
 import com.example.onlineshop.entity.Product;
 import com.example.onlineshop.entity.PurchaseIntent;
+import com.example.onlineshop.entity.PurchaseIntentItem;
+import com.example.onlineshop.entity.LogisticsProvider;
+import com.example.onlineshop.entity.LogisticsTrack;
 import com.example.onlineshop.service.*;
+import com.example.onlineshop.mapper.PurchaseIntentItemMapper;
+import com.example.onlineshop.util.JwtUtil;
 import com.example.onlineshop.util.ResponseUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +44,15 @@ public class SellerProductController {
 
     @Autowired
     private PurchaseIntentService purchaseIntentService;
+
+    @Autowired
+    private LogisticsProviderService logisticsProviderService;
+
+    @Autowired
+    private LogisticsTrackService logisticsTrackService;
+
+    @Autowired
+    private PurchaseIntentItemMapper purchaseIntentItemMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -282,6 +297,138 @@ public class SellerProductController {
         result.put("purchase_history", purchaseIntents);
 
         return new ApiResponse(200, "查询成功", result);
+    }
+    /**
+     * 47. 卖家发货（填写物流信息）
+     */
+      @PostMapping("/purchase-intents/{purchase_id}/ship")
+   public ApiResponse shipOrder(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("purchase_id") Integer purchaseId,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+            if (sellerId == null) {
+                return new ApiResponse(401, "未授权", null);
+            }
+
+            PurchaseIntent intent = purchaseIntentService.getById(purchaseId);
+            if (intent == null) {
+                return new ApiResponse(400, "购买意向不存在", null);
+            }
+
+            List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+            if (items == null || items.isEmpty()) {
+                return new ApiResponse(404, "关联商品不存在", null);
+            }
+            
+            PurchaseIntentItem firstItem = items.get(0);
+            Product product = productService.getProductById(firstItem.getProductId());
+            if (product == null || !product.getSellerId().equals(sellerId)) {
+                return new ApiResponse(403, "无权操作该订单", null);
+            }
+
+            Integer logisticsProviderId = null;
+            String trackingNo = null;
+
+            if (body != null) {
+                Object lpId = body.get("logistics_provider_id");
+                if (lpId instanceof Number) {
+                    logisticsProviderId = ((Number) lpId).intValue();
+                } else if (lpId instanceof String && !((String) lpId).isBlank()) {
+                    logisticsProviderId = Integer.valueOf((String) lpId);
+                }
+
+                trackingNo = body.containsKey("tracking_no") ? String.valueOf(body.get("tracking_no")) : null;
+            }
+
+            if (logisticsProviderId == null || trackingNo == null) {
+                return new ApiResponse(400, "缺少必填参数：logistics_provider_id 或 tracking_no", null);
+            }
+
+            LogisticsProvider provider = logisticsProviderService.getProviderById(logisticsProviderId);
+            if (provider == null) {
+                return new ApiResponse(400, "物流公司不存在", null);
+            }
+
+           purchaseIntentService.shipOrder(purchaseId, logisticsProviderId, trackingNo);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("purchase_id", intent.getPurchaseId());
+            result.put("purchase_status", "SHIPPING_STARTED");
+            result.put("logistics_provider_id", logisticsProviderId);
+            result.put("logistics_provider_name", provider.getProviderName());
+            result.put("tracking_no", trackingNo);
+            result.put("shipped_at", intent.getUpdatedAt());
+            result.put("updated_at", intent.getUpdatedAt());
+
+            return new ApiResponse(200, "发货成功", result);
+        } catch (Exception e) {
+            return new ApiResponse(500, "发货失败：" + e.getMessage(), null);
+        }
+    }
+
+    /**
+     * 49. 卖家手动添加物流轨迹
+     */
+    @PostMapping("/orders/{purchase_id}/logistics/tracks")
+   public ApiResponse addLogisticsTrack(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("purchase_id") Integer purchaseId,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+            if (sellerId == null) {
+                return new ApiResponse(401, "未授权", null);
+            }
+
+            PurchaseIntent intent = purchaseIntentService.getById(purchaseId);
+            if (intent == null) {
+                return new ApiResponse(400, "订单不存在", null);
+            }
+
+            List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(purchaseId);
+            if (items == null || items.isEmpty()) {
+                return new ApiResponse(404, "关联商品不存在", null);
+            }
+            
+            PurchaseIntentItem firstItem = items.get(0);
+            Product product = productService.getProductById(firstItem.getProductId());
+            if (product == null || !product.getSellerId().equals(sellerId)) {
+                return new ApiResponse(403, "无权操作该订单", null);
+            }
+
+            String trackContent = null;
+            String trackLocation = null;
+            String trackStatus = null;
+
+            if (body != null) {
+                trackContent = body.containsKey("track_content") ? String.valueOf(body.get("track_content")) : null;
+                trackLocation = body.containsKey("track_location") ? String.valueOf(body.get("track_location")) : null;
+                trackStatus = body.containsKey("track_status") ? String.valueOf(body.get("track_status")) : null;
+            }
+
+            if (trackContent == null || trackContent.isBlank()) {
+                return new ApiResponse(400, "track_content 必填", null);
+            }
+
+            logisticsTrackService.addManualTrack(purchaseId, trackContent, trackLocation, trackStatus);
+
+            List<LogisticsTrack> allTracks = logisticsTrackService.getTracksByPurchaseId(purchaseId);
+            LogisticsTrack latestTrack = allTracks.get(allTracks.size() - 1);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("track_id", latestTrack.getTrackId());
+            result.put("purchase_id", purchaseId);
+            result.put("track_time", latestTrack.getTrackTime());
+            result.put("track_content", latestTrack.getTrackContent());
+            result.put("track_location", latestTrack.getTrackLocation());
+            result.put("track_status", latestTrack.getTrackStatus());
+
+            return new ApiResponse(200, "物流轨迹添加成功", result);
+        } catch (Exception e) {
+            return new ApiResponse(500, "添加失败：" + e.getMessage(), null);
+        }
     }
 }
 

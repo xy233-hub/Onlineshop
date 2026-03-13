@@ -134,4 +134,13 @@
             updated_at = COALESCE(#{updatedAt}, NOW())
         WHERE purchase_id = #{purchaseId}
     </update>
+    <update id="updateLogisticsInfo">
+        UPDATE purchase_intents
+        SET logistics_provider_id = #{logisticsProviderId},
+            tracking_no = #{trackingNo},
+            shipped_at = NOW(),
+            purchase_status = 'SHIPPING_STARTED',
+            updated_at = NOW()
+        WHERE purchase_id = #{purchaseId}
+    </update>
 </mapper>

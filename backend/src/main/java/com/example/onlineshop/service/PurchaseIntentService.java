@@ -13,6 +13,7 @@ import com.example.onlineshop.mapper.PaymentMapper;
 import com.example.onlineshop.mapper.ProductMapper;
 import com.example.onlineshop.mapper.PurchaseIntentItemMapper;
 import com.example.onlineshop.mapper.PurchaseIntentMapper;
+import com.example.onlineshop.mapper.LogisticsTrackMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,9 @@ public class PurchaseIntentService {
 
     @Autowired
     private PaymentMapper paymentMapper;
+
+    @Autowired
+    private LogisticsTrackMapper logisticsTrackMapper;
 
 
     /**
@@ -416,6 +420,9 @@ public class PurchaseIntentService {
     public void markOtherIntentsFailed(Integer productId, Integer excludePurchaseId) {
         purchaseIntentMapper.markOtherIntentsFailed(productId, excludePurchaseId);
     }
+     public PurchaseIntent getById(Integer purchaseId) {
+        return purchaseIntentMapper.findById(purchaseId);
+    }
 
      public List<PurchaseIntent> getPurchaseIntentsByCondition(Map<String, Object> params) {
         List<PurchaseIntent> intents = purchaseIntentMapper.findByCondition(params);
@@ -433,5 +440,19 @@ public class PurchaseIntentService {
 
     public int countPurchaseIntentsByCondition(Map<String, Object> params) {
         return purchaseIntentMapper.countByCondition(params);
+    }
+     /**
+     * 卖家发货：更新物流信息并创建初始物流轨迹
+     */
+    @Transactional
+  public void shipOrder(Integer purchaseId, Integer logisticsProviderId, String trackingNo) {
+        PurchaseIntent intent = purchaseIntentMapper.findById(purchaseId);
+        if (intent == null) {
+            throw new IllegalArgumentException("购买意向不存在");
+        }
+
+      purchaseIntentMapper.updateLogisticsInfo(purchaseId, logisticsProviderId, trackingNo);
+
+        logisticsTrackMapper.insertInitialTrack(purchaseId, "订单已发货，物流单号：" + trackingNo);
     }
 }

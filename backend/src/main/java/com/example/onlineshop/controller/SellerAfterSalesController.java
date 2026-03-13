@@ -67,40 +67,10 @@ public class SellerAfterSalesController {
                 item.put("service_id", service.getServiceId());
                 item.put("purchase_id", service.getPurchaseId());
                 
-                // 获取并填充客户信息
                 Map<String, Object> customerInfo = new HashMap<>();
-                Customer customer = customerService.findById(service.getCustomerId());
-                if (customer != null) {
-                    customerInfo.put("customer_id", customer.getCustomerId());
-                    customerInfo.put("username", customer.getUsername());
-                    customerInfo.put("phone", customer.getPhone());
-                }
                 item.put("customer_info", customerInfo);
                 
-                // 获取并填充商品信息
                 Map<String, Object> productInfo = new HashMap<>();
-                System.out.println("Service ID: " + service.getServiceId());
-                System.out.println("Purchase ID: " + service.getPurchaseId());
-                List<com.example.onlineshop.entity.PurchaseIntentItem> purchaseItems = purchaseIntentService.getItemsByPurchaseIntentId(service.getPurchaseId());
-                System.out.println("Purchase Intent Items: " + purchaseItems);
-                if (purchaseItems != null && !purchaseItems.isEmpty()) {
-                    // 取第一个商品项的信息（假设每个售后申请对应一个商品）
-                    com.example.onlineshop.entity.PurchaseIntentItem purchaseItem = purchaseItems.get(0);
-                    System.out.println("Product ID from purchase intent item: " + purchaseItem.getProductId());
-                    Product product = productService.getProductById(purchaseItem.getProductId());
-                    System.out.println("Product: " + product);
-                    if (product != null) {
-                        System.out.println("Product Name: " + product.getProductName());
-                        System.out.println("Product Price: " + product.getPrice());
-                        productInfo.put("product_id", product.getProductId());
-                        productInfo.put("product_name", product.getProductName());
-                        productInfo.put("price", product.getPrice());
-                    } else {
-                        System.out.println("Product not found for product ID: " + purchaseItem.getProductId());
-                    }
-                } else {
-                    System.out.println("Purchase intent items not found for purchase ID: " + service.getPurchaseId());
-                }
                 item.put("product_info", productInfo);
                 
                 item.put("service_type", service.getServiceType());
@@ -161,16 +131,11 @@ public class SellerAfterSalesController {
             PurchaseIntent purchaseIntent = purchaseIntentService.getById(service.getPurchaseId());
             if (purchaseIntent != null) {
                 Map<String, Object> orderInfo = new HashMap<>();
-                // 通过 purchase_intent_items 获取商品信息
-                List<com.example.onlineshop.entity.PurchaseIntentItem> purchaseItems = purchaseIntentService.getItemsByPurchaseIntentId(service.getPurchaseId());
-                if (purchaseItems != null && !purchaseItems.isEmpty()) {
-                    // 取第一个商品项的信息
-                    com.example.onlineshop.entity.PurchaseIntentItem purchaseItem = purchaseItems.get(0);
-                    Product product = productService.getProductById(purchaseItem.getProductId());
-                    if (product != null) {
-                        orderInfo.put("product_name", product.getProductName());
-                        orderInfo.put("product_image", product.getCoverImage());
-                    }
+                // 通过 productId 获取商品信息
+                Product product = productService.getProductById(purchaseIntent.getProductId());
+                if (product != null) {
+                    orderInfo.put("product_name", product.getProductName());
+                    orderInfo.put("product_image", product.getCoverImage());
                 }
                 orderInfo.put("order_amount", purchaseIntent.getTotalAmount());
                 orderInfo.put("order_status", purchaseIntent.getPurchaseStatus());
