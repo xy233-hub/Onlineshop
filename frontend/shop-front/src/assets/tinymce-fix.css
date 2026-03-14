@@ -1,0 +1,5 @@
+.tox-tinymce-aux,
+.tox .tox-dialog,
+.tox-tinymce {
+    z-index: 200000 !important;
+}

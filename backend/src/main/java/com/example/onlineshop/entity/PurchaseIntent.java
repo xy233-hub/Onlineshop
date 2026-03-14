@@ -1,0 +1,43 @@
+// file: backend/src/main/java/com/example/onlineshop/entity/PurchaseIntent.java
+package com.example.onlineshop.entity;
+
+import lombok.*;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * 购买意向记录
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class PurchaseIntent implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    private Integer purchaseId;
+    private Integer productId;
+    private Integer customerId;
+    private String customerName;
+    private String customerPhone;
+    private String customerAddress;
+    private Integer quantity;
+    private BigDecimal totalAmount;
+    private String purchaseStatus;
+    private String cancelReason;
+    private String cancelNotes;
+    private String sellerNotes;
+    private Integer logisticsProviderId;
+    private String trackingNo;
+    private LocalDateTime shippedAt;
+    private LocalDateTime receivedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    // 支付相关字段（从 payments 表关联查询）
+    private String paymentStatus;
+    private String paymentVerifyToken;
+    private List<PurchaseIntentItem> items;
+}

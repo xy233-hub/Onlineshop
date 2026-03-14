@@ -1,0 +1,35 @@
+USE onlineshop;
+
+-- 创建售后申请表（after_sales_services）
+CREATE TABLE `after_sales_services` (
+  `service_id` INT NOT NULL AUTO_INCREMENT COMMENT '售后服务ID（自增主键）',
+  `purchase_id` INT NOT NULL COMMENT '关联的购买意向ID（外键）',
+  `product_id` INT NOT NULL COMMENT '关联的商品ID（外键）',
+  `customer_id` INT NOT NULL COMMENT '客户ID（外键关联customers表）',
+  `service_type` VARCHAR(50) NOT NULL COMMENT '售后类型：REFUND=退款, RETURN_REFUND=退货退款, EXCHANGE=换货, REPAIR=维修',
+  `service_title` VARCHAR(100) NOT NULL COMMENT '售后申请标题',
+  `problem_description` TEXT NOT NULL COMMENT '问题描述',
+  `evidence_images` TEXT COMMENT '凭证图片（JSON格式存储多个图片URL）',
+  `refund_amount` DECIMAL(10,2) NOT NULL COMMENT '退款金额',
+  `service_status` VARCHAR(50) NOT NULL DEFAULT 'PENDING' COMMENT '售后状态：PENDING=待处理, PROCESSING=处理中, COMPLETED=已完成, REJECTED=已拒绝, CANCELLED=已取消, RETURN_SHIPPED=已发货',
+  `seller_response` TEXT COMMENT '卖家回复',
+  `seller_decision` VARCHAR(50) COMMENT '卖家决定：APPROVE_REFUND=同意退款, APPROVE_RETURN_REFUND=同意退货退款, REJECT=拒绝售后',
+  `seller_decision_at` DATETIME COMMENT '卖家决策时间',
+  `return_tracking_no` VARCHAR(100) COMMENT '退货物流单号',
+  `return_logistics_provider` VARCHAR(100) COMMENT '退货物流公司',
+  `return_shipped_at` DATETIME COMMENT '退货发货时间',
+  `return_received_at` DATETIME COMMENT '退货收货时间',
+  `completed_at` DATETIME COMMENT '售后完成时间',
+  `cancelled_at` DATETIME COMMENT '售后取消时间',
+  `cancel_reason` VARCHAR(255) COMMENT '取消原因',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`service_id`),
+  KEY `idx_purchase_id` (`purchase_id`) COMMENT '按购买意向查询售后的索引',
+  KEY `idx_customer_id` (`customer_id`) COMMENT '按客户查询售后的索引',
+  KEY `idx_service_status` (`service_status`) COMMENT '按状态查询售后的索引',
+  KEY `idx_service_type` (`service_type`) COMMENT '按类型查询售后的索引',
+  CONSTRAINT `fk_after_sales_purchase` FOREIGN KEY (`purchase_id`) REFERENCES `purchase_intents` (`purchase_id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_after_sales_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_after_sales_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '售后申请表';
