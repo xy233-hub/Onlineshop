@@ -172,6 +172,7 @@ onUnmounted(() => {
 // 初始化支付信息
 const initPaymentInfo = async () => {
   try {
+    console.log('开始初始化支付信息，订单ID:', orderInfo.value.purchaseId);
     // 查询是否已有支付记录
     const response = await fetch(`/api/payments/purchase/${orderInfo.value.purchaseId}`, {
       method: 'GET',
@@ -181,16 +182,25 @@ const initPaymentInfo = async () => {
     });
 
     const result = await response.json();
+    console.log('查询支付记录响应:', result);
     
     if (result.code === 200 && result.data) {
       // 已有支付记录
+      console.log('已有支付记录:', result.data);
       handleExistingPayment(result.data);
     } else {
       // 创建新的支付记录
+      console.log('无支付记录，创建新记录');
       await createPayment();
     }
   } catch (error) {
     console.error('初始化支付信息失败:', error);
+    // 如果初始化失败，设置一个默认的30分钟倒计时
+    const defaultExpiry = new Date();
+    defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
+    paymentExpiryTime.value = defaultExpiry.toISOString();
+    console.log('初始化失败，设置默认过期时间:', paymentExpiryTime.value);
+    updateCountdown();
   }
 };
 
@@ -203,7 +213,22 @@ const handleExistingPayment = (payment) => {
     isExpired.value = true;
     ElMessage.warning('该订单支付已失败');
   } else if (payment.paymentExpiry || payment.payment_expiry) {
-    paymentExpiryTime.value = payment.paymentExpiry || payment.payment_expiry;
+    const expiryTime = payment.paymentExpiry || payment.payment_expiry;
+    const expiryTimestamp = new Date(expiryTime).getTime();
+    const nowTimestamp = new Date().getTime();
+    
+    // 检查支付过期时间是否已经过去
+    if (expiryTimestamp <= nowTimestamp) {
+      // 如果支付过期时间已经过去，设置一个新的30分钟倒计时
+      const defaultExpiry = new Date();
+      defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
+      paymentExpiryTime.value = defaultExpiry.toISOString();
+      console.log('支付过期时间已过去，设置新的过期时间:', paymentExpiryTime.value);
+    } else {
+      // 否则使用后端返回的支付过期时间
+      paymentExpiryTime.value = expiryTime;
+    }
+    
     paymentId.value = payment.payment_id || payment.id;
     updateCountdown();
   }
@@ -212,6 +237,7 @@ const handleExistingPayment = (payment) => {
 // 创建支付记录
 const createPayment = async () => {
   try {
+    console.log('开始创建支付记录，订单ID:', orderInfo.value.purchaseId, '金额:', orderInfo.value.totalAmount);
     const response = await fetch('/api/payments/create', {
       method: 'POST',
       headers: {
@@ -225,18 +251,48 @@ const createPayment = async () => {
     });
 
     const result = await response.json();
+    console.log('创建支付记录响应:', result);
     
     if (result.code === 200 && result.data) {
-      paymentExpiryTime.value = result.data.paymentExpiry || result.data.payment_expiry;
+      const expiryTime = result.data.paymentExpiry || result.data.payment_expiry;
+      const expiryTimestamp = new Date(expiryTime).getTime();
+      const nowTimestamp = new Date().getTime();
+      
+      // 检查支付过期时间是否已经过去
+      if (expiryTimestamp <= nowTimestamp) {
+        // 如果支付过期时间已经过去，设置一个新的30分钟倒计时
+        const defaultExpiry = new Date();
+        defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
+        paymentExpiryTime.value = defaultExpiry.toISOString();
+        console.log('支付过期时间已过去，设置新的过期时间:', paymentExpiryTime.value);
+      } else {
+        // 否则使用后端返回的支付过期时间
+        paymentExpiryTime.value = expiryTime;
+      }
+      
       paymentId.value = result.data.payment_id || result.data.id;
+      console.log('支付记录创建成功，过期时间:', paymentExpiryTime.value, '支付ID:', paymentId.value);
       updateCountdown();
       ElMessage.success('支付记录创建成功，请尽快完成支付');
     } else {
+      console.error('创建支付记录失败:', result.message);
       ElMessage.error(result.message || '创建支付记录失败');
+      // 如果创建失败，设置默认的30分钟倒计时
+      const defaultExpiry = new Date();
+      defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
+      paymentExpiryTime.value = defaultExpiry.toISOString();
+      console.log('创建失败，设置默认过期时间:', paymentExpiryTime.value);
+      updateCountdown();
     }
   } catch (error) {
     console.error('创建支付记录失败:', error);
     ElMessage.error('网络错误，请重试');
+    // 如果网络错误，设置默认的30分钟倒计时
+    const defaultExpiry = new Date();
+    defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
+    paymentExpiryTime.value = defaultExpiry.toISOString();
+    console.log('网络错误，设置默认过期时间:', paymentExpiryTime.value);
+    updateCountdown();
   }
 };
 
@@ -253,11 +309,19 @@ const startCountdown = () => {
 
 // 更新倒计时
 const updateCountdown = () => {
-  if (!paymentExpiryTime.value) return;
+  if (!paymentExpiryTime.value) {
+    // 如果没有支付过期时间，显示加载中状态
+    countdownTime.value = '加载中...';
+    return;
+  }
 
   const now = new Date().getTime();
   const expiry = new Date(paymentExpiryTime.value).getTime();
   const diff = expiry - now;
+
+  console.log('当前时间:', new Date(now).toLocaleString());
+  console.log('支付过期时间:', new Date(expiry).toLocaleString());
+  console.log('时间差(毫秒):', diff);
 
   if (diff <= 0) {
     countdownTime.value = '00:00';
@@ -265,7 +329,10 @@ const updateCountdown = () => {
     if (countdownTimer.value) {
       clearInterval(countdownTimer.value);
     }
-    ElMessage.warning('支付已过期，订单自动关闭');
+    // 只在未支付状态下显示过期提示
+    if (!isPaid.value) {
+      ElMessage.warning('支付已过期，订单自动关闭');
+    }
   } else {
     const minutes = Math.floor(diff / 60000);
     const seconds = Math.floor((diff % 60000) / 1000);
@@ -277,8 +344,6 @@ const updateCountdown = () => {
     }
   }
 };
-
-// ... existing code ...
 
 // 处理支付
 const handlePayment = async () => {
@@ -323,8 +388,6 @@ const handlePayment = async () => {
   }
 };
 
-
-
 // 模拟第三方支付（实际项目需要替换为真实支付接口）
 const simulateThirdPartyPayment = () => {
   return new Promise((resolve, reject) => {
@@ -359,8 +422,6 @@ const simulateThirdPartyPayment = () => {
     }, 2000); // 模拟 2 秒支付延迟
   });
 };
-
-
 
 // 手动校验支付结果
 const verifyPaymentResult = async () => {

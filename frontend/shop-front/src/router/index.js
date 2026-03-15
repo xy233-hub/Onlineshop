@@ -32,7 +32,8 @@ const routes = [
             { path: 'orders', name: 'DashboardOrders', component: () => import('@/views/customer/OrdersHistory.vue'), meta: { requiresAuth: true } },
             { path: 'favorites', name: 'DashboardFavorites', component: () => import('@/views/customer/Favorites.vue'), meta: { requiresAuth: true } },
             { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } },
-            { path: 'after-sales', name: 'CustomerAfterSales', component: AfterSales, meta: { requiresAuth: true } }
+            { path: 'after-sales', name: 'CustomerAfterSales', component: AfterSales, meta: { requiresAuth: true } },
+            { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } }
         ]
     },
     {
