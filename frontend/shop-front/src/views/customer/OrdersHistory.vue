@@ -84,6 +84,14 @@
                         @click="confirmReceived(row)">
                       确认收货
                     </el-button>
+                    
+                    <!-- 查看物流轨迹按钮 -->
+                    <el-button
+                        v-if="row.purchase_status === 'SHIPPING_STARTED' && row.payment_status === 'PAID'"
+                        size="small"
+                        @click="viewLogistics(row)">
+                      查看物流
+                    </el-button>
                   </div>
                 </div>
               </div>
@@ -161,6 +169,13 @@
         </span>
       </template>
     </el-dialog>
+    
+    <!-- 物流轨迹对话框 -->
+    <LogisticsDialog
+      v-model="logisticsDialogVisible"
+      :order-id="currentOrderId"
+    />
+
   </div>
 </template>
 
@@ -170,6 +185,7 @@ import { ElMessageBox, ElMessage, ElLoading } from 'element-plus'
 import { purchaseAPI } from '@/api'
 import { useRouter } from 'vue-router'
 import PaymentDialog from '@/components/PaymentDialog.vue'
+import LogisticsDialog from '@/components/LogisticsDialog.vue'
 
 const router = useRouter()
 const page = ref(1)
@@ -189,6 +205,9 @@ const cancelForm = ref({
 // 支付相关
 const paymentDialogVisible = ref(false)
 const currentOrder = ref(null)
+// 物流轨迹相关
+const logisticsDialogVisible = ref(false)
+const currentOrderId = ref(null)
 
 const extractData = (res) => res?.data?.data ?? res?.data ?? null
 
@@ -556,6 +575,12 @@ const verifyPayment = async (row) => {
     console.error('校验支付结果失败:', error);
     ElMessage.error('网络错误，请重试');
   }
+}
+
+// 查看物流轨迹
+const viewLogistics = (row) => {
+  currentOrderId.value = row.purchase_id;
+  logisticsDialogVisible.value = true;
 }
 
 /* 新增的方法：显示购买意向关联的商品 ID 列表 */

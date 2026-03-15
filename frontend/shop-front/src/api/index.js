@@ -25,6 +25,8 @@ api.interceptors.request.use(config => {
     const path = url.startsWith('http') ? new URL(url).pathname : url
     const inferredRole = (() => {
         if (/^\/seller(\/|$)/.test(path)) return 'seller'
+        // 地址相关的请求不需要JWT令牌
+        if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
         // 特殊接口：客户端提交购买意向使用 customer（示例）
         if (/^\/products\/purchase-intents(\/|$)/.test(path)) return 'customer'

@@ -20,7 +20,8 @@ const form = ref({
   customer_name: '',
   customer_phone: '',
   customer_address: '',
-  remark: ''
+  remark: '',
+  logistics_provider_id: null
 })
 
 // 简单校验规则
@@ -119,7 +120,8 @@ const handleSubmit = async () => {
         customer_name: form.value.customer_name || undefined,
         customer_phone: form.value.customer_phone || undefined,
         customer_address: form.value.customer_address || undefined,
-        note: form.value.remark || undefined
+        note: form.value.remark || undefined,
+        logistics_provider_id: form.value.logistics_provider_id === 'null' ? null : form.value.logistics_provider_id
       }
       if (customerId) payload.customer_id = customerId
 
@@ -209,6 +211,16 @@ const handleSubmit = async () => {
             maxlength="255"
             show-word-limit
         />
+      </el-form-item>
+
+      <el-form-item label="配送方式">
+        <el-select v-model="form.logistics_provider_id" placeholder="请选择配送方式">
+          <el-option label="线下配送" value="null"></el-option>
+          <el-option label="顺丰速运" value="1"></el-option>
+          <el-option label="中通快递" value="2"></el-option>
+          <el-option label="韵达快递" value="3"></el-option>
+          <el-option label="圆通快递" value="4"></el-option>
+        </el-select>
       </el-form-item>
 
       <el-form-item label="备注">
