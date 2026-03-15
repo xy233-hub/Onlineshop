@@ -497,12 +497,39 @@ public class CustomerController {
         }
 
         try {
-            Integer purchaseId = (Integer) request.get("purchase_id");
-            Integer productId = (Integer) request.get("product_id");
+            Integer purchaseId = null;
+            Object purchaseIdObj = request.get("purchase_id");
+            if (purchaseIdObj != null) {
+                if (purchaseIdObj instanceof String) {
+                    purchaseId = Integer.parseInt((String) purchaseIdObj);
+                } else if (purchaseIdObj instanceof Number) {
+                    purchaseId = ((Number) purchaseIdObj).intValue();
+                }
+            }
+            
+            Integer productId = null;
+            Object productIdObj = request.get("product_id");
+            if (productIdObj != null) {
+                if (productIdObj instanceof String) {
+                    productId = Integer.parseInt((String) productIdObj);
+                } else if (productIdObj instanceof Number) {
+                    productId = ((Number) productIdObj).intValue();
+                }
+            }
+            
             String serviceType = (String) request.get("service_type");
             String serviceTitle = (String) request.get("service_title");
             String problemDescription = (String) request.get("problem_description");
-            Double refundAmount = ((Number) request.get("refund_amount")).doubleValue();
+            
+            Double refundAmount = null;
+            Object refundAmountObj = request.get("refund_amount");
+            if (refundAmountObj != null) {
+                if (refundAmountObj instanceof String) {
+                    refundAmount = Double.parseDouble((String) refundAmountObj);
+                } else if (refundAmountObj instanceof Number) {
+                    refundAmount = ((Number) refundAmountObj).doubleValue();
+                }
+            }
             
             List<String> evidenceImages = (List<String>) request.get("evidence_images");
             String evidenceImagesJson = null;
@@ -554,18 +581,18 @@ public class CustomerController {
             @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
             @RequestParam(value = "size", required = false, defaultValue = "10") Integer size,
             @RequestParam(value = "service_status", required = false) String serviceStatus) {
-        Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
-        if (customerIdFromToken == null) {
-            return ResponseEntity.status(401)
-                    .body(new ApiResponse(401, "未授权", null));
-        }
-
-        if (!customerIdFromToken.equals(customerId)) {
-            return ResponseEntity.status(403)
-                    .body(new ApiResponse(403, "无权查询其他客户的售后", null));
-        }
-
         try {
+            Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
+            if (customerIdFromToken == null) {
+                return ResponseEntity.status(401)
+                        .body(new ApiResponse(401, "未授权", null));
+            }
+
+            if (!customerIdFromToken.equals(customerId)) {
+                return ResponseEntity.status(403)
+                        .body(new ApiResponse(403, "无权查询其他客户的售后", null));
+            }
+
             List<AfterSalesService> services = afterSalesServiceService.getAfterSalesServicesByCustomerId(
                     customerId, serviceStatus, page, size);
             int total = afterSalesServiceService.countAfterSalesServicesByCustomerId(customerId, serviceStatus);
@@ -582,6 +609,14 @@ public class CustomerController {
                 
                 Map<String, Object> productInfo = new HashMap<>();
                 productInfo.put("product_id", service.getProductId());
+                
+                // 加载商品信息
+                Product product = productService.getProductById(service.getProductId());
+                if (product != null) {
+                    productInfo.put("product_name", product.getProductName());
+                    productInfo.put("price", product.getPrice());
+                }
+                
                 item.put("product_info", productInfo);
                 
                 item.put("service_type", service.getServiceType());
@@ -599,6 +634,7 @@ public class CustomerController {
 
             return ResponseEntity.ok(new ApiResponse(200, "查询成功", result));
         } catch (Exception e) {
+            e.printStackTrace(); // 打印详细异常信息
             return ResponseEntity.status(500)
                     .body(new ApiResponse(500, "查询失败：" + e.getMessage(), null));
         }
