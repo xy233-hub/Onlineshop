@@ -75,6 +75,7 @@ com\example\onlineshop\service\impl\LogisticsProviderServiceImpl.class
 com\example\onlineshop\service\CustomerService.class
 com\example\onlineshop\service\PaymentService.class
 com\example\onlineshop\config\CorsConfig.class
+com\example\onlineshop\controller\SellerAfterSalesController.class
 com\example\onlineshop\entity\LogisticsProvider.class
 com\example\onlineshop\entity\Product$ProductBuilder.class
 com\example\onlineshop\controller\ProductController.class
