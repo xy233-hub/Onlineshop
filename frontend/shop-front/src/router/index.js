@@ -14,7 +14,6 @@ import CustomerLogin from '@/views/customer/Login.vue'
 import CategoryManagement from '@/views/seller/CategoryManagement.vue'
 import CustomerList from '@/views/seller/CustomerList.vue'
 import CustomerDetail from '@/views/seller/CustomerDetail.vue'
-import AfterSales from '@/views/customer/AfterSales.vue'
 
 const routes = [
     { path: '/', name: 'Home', component: Home },
@@ -30,9 +29,13 @@ const routes = [
             { path: '', redirect: '/customer/dashboard/orders' },
             { path: 'orders', name: 'DashboardOrders', component: () => import('@/views/customer/OrdersHistory.vue'), meta: { requiresAuth: true } },
             { path: 'favorites', name: 'DashboardFavorites', component: () => import('@/views/customer/Favorites.vue'), meta: { requiresAuth: true } },
+<<<<<<< HEAD
+            { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } }
+=======
             { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } },
             { path: 'after-sales', name: 'CustomerAfterSales', component: AfterSales, meta: { requiresAuth: true } },
             { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } }
+>>>>>>> 1278bea (修复无法添加收货地址的问题)
         ]
     },
     {
