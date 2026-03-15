@@ -199,4 +199,40 @@ export const dashboardAPI = {
     getStats: () => api.get('/dashboard/stats')
 }
 
+/**
+ * 售后相关接口
+ */
+export const afterSalesAPI = {
+    // 客户提交售后申请
+    createAfterSales: (data) => api.post('/customers/after-sales', data),
+    // 客户查询售后列表
+    getCustomerAfterSales: (params) => {
+      console.log('调用getCustomerAfterSales，参数:', params);
+      return api.get('/customers/after-sales', { params })
+        .then(response => {
+          console.log('getCustomerAfterSales响应:', response);
+          return response;
+        })
+        .catch(error => {
+          console.error('getCustomerAfterSales错误:', error);
+          console.error('错误响应:', error.response);
+          throw error;
+        });
+    },
+    // 客户查询售后详情
+    getAfterSalesDetail: (serviceId) => api.get(`/customers/after-sales/${serviceId}`),
+    // 客户取消售后
+    cancelAfterSales: (serviceId, data) => api.post(`/customers/after-sales/${serviceId}/cancel`, data),
+    // 客户填写退货物流信息
+    returnShip: (serviceId, data) => api.post(`/customers/after-sales/${serviceId}/return-ship`, data),
+    // 卖家查询售后列表
+    getSellerAfterSales: (params) => api.get('/seller/after-sales', { params }),
+    // 卖家查询售后详情
+    getSellerAfterSalesDetail: (serviceId) => api.get(`/seller/after-sales/${serviceId}`),
+    // 卖家处理售后
+    handleAfterSales: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/handle`, data),
+    // 卖家确认收货
+    confirmReturn: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/confirm-return`, data)
+}
+
 export default api
