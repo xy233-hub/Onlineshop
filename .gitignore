@@ -1,0 +1,11 @@
+# 忽略target目录
+target/
+
+# 忽略Desktop目录
+Desktop/
+
+# 忽略mysql_data目录
+mysql_data/
+
+# 忽略commit_notes.txt文件
+commit_notes.txt
