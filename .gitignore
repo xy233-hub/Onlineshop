@@ -1,0 +1,23 @@
+# 忽略数据库数据目录
+mysql_data/
+
+# 忽略后端构建产物
+backend/target/
+
+# 忽略前端构建产物
+frontend/shop-front/dist/
+frontend/shop-front/node_modules/
+frontend/shop-front/.vite/
+
+# 忽略 IDE 配置文件
+.idea/
+.vscode/
+
+# 忽略系统文件
+.DS_Store
+Thumbs.db
+
+# 忽略日志文件
+*.log
+
+# 忽略环境变量文件
