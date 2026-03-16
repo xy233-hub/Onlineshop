@@ -208,7 +208,7 @@ UPDATE purchase_intents
 SET purchase_status = 'CUSTOMER_ORDERED'
 WHERE purchase_status = 'pending';
 
-UPDATE purchase_intent
+UPDATE purchase_intents
 SET purchase_status = 'COMPLETED'
 WHERE purchase_status = 'success';
 
@@ -238,3 +238,182 @@ ALTER TABLE purchase_intents DROP FOREIGN KEY fk_intent_product;
 ALTER TABLE purchase_intents DROP COLUMN product_id;
 
 COMMIT;
+
+
+-- 11. 创建支付记录表
+CREATE TABLE payments (
+    payment_id INT NOT NULL AUTO_INCREMENT COMMENT '支付记录唯一 ID',
+    purchase_id INT NOT NULL COMMENT '关联的购买意向 ID（外键关联 purchase_intents 表）',
+    customer_id INT NOT NULL COMMENT '客户 ID（外键关联 customers 表）',
+    payment_method ENUM('BANK_CARD', 'CREDIT_CARD', 'ALIPAY', 'WECHAT_PAY') NOT NULL COMMENT '支付方式：BANK_CARD=银行卡，CREDIT_CARD=信用卡，ALIPAY=支付宝，WECHAT_PAY=微信支付',
+    payment_amount DECIMAL(10,2) NOT NULL COMMENT '支付金额',
+    payment_status ENUM('PENDING', 'PAID', 'FAILED', 'REFUNDING', 'REFUNDED') NOT NULL DEFAULT 'PENDING' COMMENT '支付状态：PENDING=待支付，PAID=已支付，FAILED=支付失败，REFUNDING=退款中，REFUNDED=已退款',
+    transaction_id VARCHAR(100) COMMENT '第三方支付交易号',
+    payment_time DATETIME COMMENT '支付成功时间',
+    refund_time DATETIME COMMENT '退款时间',
+    refund_amount DECIMAL(10,2) COMMENT '退款金额',
+    refund_reason VARCHAR(255) COMMENT '退款原因',
+    payment_expiry DATETIME NOT NULL COMMENT '支付过期时间（订单创建后 30 分钟）',
+    payment_notes VARCHAR(500) COMMENT '支付备注',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (payment_id),
+    UNIQUE KEY uk_purchase_id (purchase_id) COMMENT '一个购买意向对应一个支付记录',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询支付的索引',
+    KEY idx_payment_status (payment_status) COMMENT '按支付状态筛选的索引',
+    KEY idx_payment_method (payment_method) COMMENT '按支付方式筛选的索引',
+    KEY idx_transaction_id (transaction_id) COMMENT '按第三方交易号查询的索引',
+    KEY idx_payment_expiry (payment_expiry) COMMENT '支付过期时间索引',
+    
+    CONSTRAINT fk_payment_purchase_intent FOREIGN KEY (purchase_id)
+        REFERENCES purchase_intents (purchase_id) ON DELETE CASCADE,
+    CONSTRAINT fk_payment_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '支付记录表';
+
+-- 12. 在 purchase_intents 表中添加支付状态字段
+ALTER TABLE purchase_intents
+    ADD COLUMN payment_status ENUM('UNPAID', 'PAID', 'REFUNDING', 'REFUNDED') DEFAULT 'UNPAID' COMMENT '支付状态：UNPAID=未支付，PAID=已支付，REFUNDING=退款中，REFUNDED=已退款',
+    ADD COLUMN payment_verify_token VARCHAR(100) COMMENT '支付结果校验令牌';
+
+-- 插入示例支付数据
+INSERT INTO `payments` (`purchase_id`, `customer_id`, `payment_method`, `payment_amount`, `payment_status`, `payment_expiry`)
+SELECT 
+    pi.purchase_id,
+    pi.customer_id,
+    'ALIPAY',
+    pi.total_amount,
+    CASE 
+        WHEN pi.purchase_status IN ('COMPLETED', 'SHIPPING_STARTED', 'STOCK_PREPARED', 'SELLER_CONFIRMED') THEN 'PAID'
+        ELSE 'PENDING'
+    END,
+    DATE_ADD(pi.created_at, INTERVAL 30 MINUTE)
+FROM purchase_intents pi
+WHERE NOT EXISTS (
+    SELECT 1 FROM payments p WHERE p.purchase_id = pi.purchase_id
+);
+ALTER TABLE payments MODIFY COLUMN payment_method ENUM('BANK_CARD', 'CREDIT_CARD', 'ALIPAY', 'WECHAT_PAY') NULL COMMENT '支付方式：BANK_CARD=银行卡，CREDIT_CARD=信用卡，ALIPAY=支付宝，WECHAT_PAY=微信支付';
+
+-- 13. 创建收货地址表
+CREATE TABLE customer_addresses (
+    address_id INT NOT NULL AUTO_INCREMENT COMMENT '地址唯一 ID',
+    customer_id INT NOT NULL COMMENT '客户 ID（外键关联 customers 表）',
+    recipient_name VARCHAR(50) NOT NULL COMMENT '收货人姓名',
+    recipient_phone VARCHAR(20) NOT NULL COMMENT '收货人联系电话',
+    province VARCHAR(50) NOT NULL COMMENT '省份/直辖市',
+    city VARCHAR(50) NOT NULL COMMENT '城市',
+    district VARCHAR(50) NOT NULL COMMENT '区/县',
+    detail_address VARCHAR(255) NOT NULL COMMENT '详细地址（街道、门牌号等）',
+    is_default BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否为默认地址（true=默认）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (address_id),
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询地址的索引',
+    KEY idx_is_default (is_default) COMMENT '默认地址索引',
+    
+    CONSTRAINT fk_address_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '客户收货地址表';
+
+-- 14. 创建物流配置表
+CREATE TABLE logistics_providers (
+    provider_id INT NOT NULL AUTO_INCREMENT COMMENT '物流商唯一 ID',
+    provider_name VARCHAR(100) NOT NULL COMMENT '物流商名称（如：顺丰速运、中通快递）',
+    provider_code VARCHAR(50) NOT NULL COMMENT '物流商编码（用于对接第三方物流 API）',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否启用',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序顺序（数字越小越靠前）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    
+    PRIMARY KEY (provider_id),
+    UNIQUE KEY uk_provider_code (provider_code) COMMENT '物流商编码唯一',
+    KEY idx_enabled (enabled) COMMENT '启用状态索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '物流服务商配置表';
+
+-- 15. 在 purchase_intents 表中添加物流相关字段
+ALTER TABLE purchase_intents
+    ADD COLUMN logistics_provider_id INT COMMENT '物流商 ID（外键关联 logistics_providers 表）',
+    ADD COLUMN logistics_type ENUM('OFFLINE', 'EXPRESS') NOT NULL DEFAULT 'EXPRESS' COMMENT '配送方式：OFFLINE=线下配送，EXPRESS=快递配送',
+    ADD COLUMN tracking_no VARCHAR(100) COMMENT '物流单号',
+    ADD COLUMN shipped_at DATETIME COMMENT '发货时间',
+    ADD COLUMN received_at DATETIME COMMENT '客户确认收货时间';
+
+-- 添加外键约束
+ALTER TABLE purchase_intents
+    ADD CONSTRAINT fk_intent_logistics FOREIGN KEY (logistics_provider_id)
+        REFERENCES logistics_providers (provider_id) ON DELETE SET NULL;
+
+-- 16. 创建物流轨迹表
+CREATE TABLE logistics_tracks (
+    track_id INT NOT NULL AUTO_INCREMENT COMMENT '物流轨迹唯一 ID',
+    purchase_id INT NOT NULL COMMENT '购买意向 ID（外键关联 purchase_intents 表）',
+    track_time DATETIME NOT NULL COMMENT '轨迹发生时间',
+    track_content VARCHAR(500) NOT NULL COMMENT '轨迹内容描述',
+    track_location VARCHAR(255) COMMENT '轨迹发生地点',
+    track_status VARCHAR(50) COMMENT '当前物流状态（如：运输中、已签收、派送中）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+    
+    PRIMARY KEY (track_id),
+    KEY idx_purchase_id (purchase_id) COMMENT '按订单查询物流轨迹的索引',
+    KEY idx_track_time (track_time) COMMENT '轨迹时间索引',
+    
+    CONSTRAINT fk_track_purchase FOREIGN KEY (purchase_id)
+        REFERENCES purchase_intents (purchase_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '物流轨迹记录表';
+
+-- 17. 创建售后服务表
+CREATE TABLE after_sales_services (
+    service_id INT NOT NULL AUTO_INCREMENT COMMENT '售后服务单唯一 ID',
+    purchase_id INT NOT NULL COMMENT '关联的购买意向 ID（外键关联 purchase_intents 表）',
+    product_id INT NOT NULL COMMENT '商品 ID（外键关联 products 表）',
+    customer_id INT NOT NULL COMMENT '客户 ID（外键关联 customers 表）',
+    service_type ENUM('REFUND_ONLY', 'RETURN_AND_REFUND', 'EXCHANGE') NOT NULL COMMENT '售后类型：REFUND_ONLY=仅退款，RETURN_AND_REFUND=退货退款，EXCHANGE=换货',
+    service_title VARCHAR(200) NOT NULL COMMENT '售后标题',
+    problem_description TEXT NOT NULL COMMENT '问题描述（富文本）',
+    evidence_images JSON COMMENT '凭证图片 URL 数组',
+    refund_amount DECIMAL(10,2) NOT NULL COMMENT '申请退款金额',
+    service_status ENUM('PENDING', 'NEGOTIATING', 'AGREED', 'REJECTED', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING' COMMENT '售后状态：PENDING=待处理，NEGOTIATING=协商中，AGREED=同意，REJECTED=拒绝，COMPLETED=已完成，CANCELLED=已取消',
+    seller_response TEXT COMMENT '商家回复',
+    seller_decision ENUM('AGREE_REFUND', 'AGREE_RETURN_REFUND', 'AGREE_EXCHANGE', 'REJECT') COMMENT '商家处理决定',
+    seller_decision_at DATETIME COMMENT '商家处理决定时间',
+    return_tracking_no VARCHAR(100) COMMENT '客户退货物流单号',
+    return_logistics_provider VARCHAR(100) COMMENT '客户退货物流公司',
+    return_shipped_at DATETIME COMMENT '客户退货发货时间',
+    return_received_at DATETIME COMMENT '商家确认收货时间',
+    completed_at DATETIME COMMENT '售后完成时间',
+    cancelled_at DATETIME COMMENT '售后取消时间',
+    cancel_reason VARCHAR(255) COMMENT '取消原因',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (service_id),
+    KEY idx_purchase_id (purchase_id) COMMENT '按订单查询售后的索引',
+    KEY idx_product_id (product_id) COMMENT '按商品查询售后的索引',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询售后的索引',
+    KEY idx_service_status (service_status) COMMENT '售后状态索引',
+    
+    CONSTRAINT fk_after_sales_purchase FOREIGN KEY (purchase_id)
+        REFERENCES purchase_intents (purchase_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_after_sales_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_after_sales_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '售后服务表';
+
+-- 插入初始物流商数据
+INSERT INTO `logistics_providers` (`provider_name`, `provider_code`, `enabled`, `sort_order`) VALUES
+('顺丰速运', 'SF', TRUE, 1),
+('京东物流', 'JD', TRUE, 2),
+('中通快递', 'ZTO', TRUE, 3),
+('圆通速递', 'YTO', TRUE, 4),
+('申通快递', 'STO', TRUE, 5),
+('韵达速递', 'YD', TRUE, 6),
+('邮政 EMS', 'EMS', TRUE, 7),
+('线下配送', 'OFFLINE', TRUE, 8);
+
+-- 在 payments 表中添加售后相关字段
+ALTER TABLE payments
+    ADD COLUMN after_sales_service_id INT COMMENT '关联的售后服务单 ID',
+    ADD CONSTRAINT fk_payment_after_sales FOREIGN KEY (after_sales_service_id)
+        REFERENCES after_sales_services (service_id) ON DELETE SET NULL;
