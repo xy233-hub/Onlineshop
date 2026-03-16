@@ -30,7 +30,14 @@ public class PurchaseIntent implements Serializable {
     private String cancelReason;
     private String cancelNotes;
     private String sellerNotes;
+    private Integer logisticsProviderId;
+    private String trackingNo;
+    private LocalDateTime shippedAt;
+    private LocalDateTime receivedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    // 支付相关字段（从 payments 表关联查询）
+    private String paymentStatus;
+    private String paymentVerifyToken;
     private List<PurchaseIntentItem> items;
 }

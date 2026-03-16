@@ -84,14 +84,15 @@
             备货完成
           </el-button>
 
+
           <!-- 开始发货 -->
           <el-button
               v-if="row.purchase_status === 'STOCK_PREPARED'"
               size="small"
               type="success"
-              @click="updateOrderStatus(row, 'SHIPPING_STARTED')"
+              @click="openShipDialog(row)"
           >
-            开始发货
+            填写物流并发货
           </el-button>
 
           <!-- 商家取消订单 -->
@@ -103,6 +104,16 @@
           >
             取消订单
           </el-button>
+
+          <el-button
+              v-if="row.purchase_status === 'SHIPPING_STARTED' "
+              type="warning"
+              size="small"
+              @click="openAddTrackDialog(row)"
+          >
+            添加物流轨迹
+          </el-button>
+
         </template>
       </el-table-column>
     </el-table>
@@ -146,14 +157,109 @@
         </span>
       </template>
     </el-dialog>
+
+    <el-dialog
+        v-model="shipDialogVisible"
+        title="填写物流并发货"
+        width="520px"
+        :close-on-click-modal="false"
+    >
+      <el-form
+          ref="shipFormRef"
+          :model="shipForm"
+          :rules="shipRules"
+          label-width="110px"
+      >
+        <el-form-item label="订单ID">
+          <el-input v-model="shipForm.purchase_id" disabled />
+        </el-form-item>
+
+        <el-form-item label="物流商" prop="logistics_provider_id">
+          <el-select v-model="shipForm.logistics_provider_id" placeholder="请选择物流商" filterable>
+            <el-option
+                v-for="p in logisticsProviders"
+                :key="p.provider_id"
+                :label="p.provider_name"
+                :value="p.provider_id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="运单号" prop="tracking_no">
+          <el-input v-model="shipForm.tracking_no" placeholder="请输入运单号" />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="shipDialogVisible = false" :disabled="shippingSubmitting">取消</el-button>
+        <el-button type="primary" @click="submitShip" :loading="shippingSubmitting">
+          确认发货
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+        v-model="addTrackDialogVisible"
+        title="添加物流轨迹"
+        width="520px"
+        destroy-on-close
+    >
+      <el-form
+          ref="addTrackFormRef"
+          :model="addTrackForm"
+          :rules="addTrackRules"
+          label-width="110px"
+          @submit.prevent
+      >
+        <el-form-item label="订单ID">
+          <el-input v-model="addTrackForm.purchase_id" disabled />
+        </el-form-item>
+
+        <el-form-item label="轨迹内容" prop="track_content">
+          <el-input
+              v-model="addTrackForm.track_content"
+              type="textarea"
+              :rows="3"
+              maxlength="200"
+              show-word-limit
+              placeholder="例如：快件已从杭州集散中心发出，下一站北京"
+          />
+        </el-form-item>
+
+        <el-form-item label="发生地点" prop="track_location">
+          <el-input
+              v-model="addTrackForm.track_location"
+              maxlength="50"
+              placeholder="例如：杭州市"
+          />
+        </el-form-item>
+
+        <el-form-item label="物流状态" prop="track_status">
+          <el-select v-model="addTrackForm.track_status" placeholder="请选择">
+            <el-option label="已揽收" value="已揽收" />
+            <el-option label="运输中" value="运输中" />
+            <el-option label="派送中" value="派送中" />
+            <el-option label="已签收" value="已签收" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="addTrackDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addTrackSubmitting" @click="submitAddTrack">
+          提交
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { purchaseAPI } from '@/api'
+import {  logisticsAPI,purchaseAPI } from '@/api'
 import { formatTime } from '@/utils'
+
 
 const orders = ref([])
 const loading = ref(false)
@@ -169,7 +275,141 @@ const cancelForm = ref({
   cancelNotes: ''
 })
 
+const shipDialogVisible = ref(false)
+const shippingSubmitting = ref(false)
+const shipFormRef = ref(null)
+
+const logisticsProviders = ref([])
+
+const shipForm = reactive({
+  purchase_id: null,
+  logistics_provider_id: null,
+  tracking_no: ''
+})
+
+const shipRules = {
+  logistics_provider_id: [{ required: true, message: '请选择物流商', trigger: 'change' }],
+  tracking_no: [{ required: true, message: '请输入运单号', trigger: 'blur' }]
+}
+
+// 你可以按后端状态约束调整：比如仅允许卖家在某些状态下发货
+const canShip = (row) => {
+  const s = row?.purchase_status
+  return !!row?.purchase_id && (s === 'PAID' || s === 'PENDING' || s === 'CONFIRMED' || s === 'SUCCESS')
+}
+
+const openShipDialog = (row) => {
+  shipForm.purchase_id = row.purchase_id
+  shipForm.logistics_provider_id = null
+  shipForm.tracking_no = ''
+  shipDialogVisible.value = true
+  updateOrderStatus(row, 'SHIPPING_STARTED')
+}
+
+const loadProviders = async () => {
+  // 接口 46：GET /api/logistics/providers
+  const res = await logisticsAPI.getProviders({ type: 'EXPRESS' })
+  logisticsProviders.value = Array.isArray(res?.data?.data) ? res.data.data : []
+}
+
+const submitShip = async () => {
+  if (!shipFormRef.value) return
+  await shipFormRef.value.validate()
+
+  shippingSubmitting.value = true
+  try {
+    const purchaseId = shipForm.purchase_id
+    const payload = {
+      logistics_provider_id: shipForm.logistics_provider_id,
+      tracking_no: shipForm.tracking_no
+    }
+
+    // 接口 47：POST /api/seller/purchase-intents/{purchase_id}/ship
+    const res = await logisticsAPI.shipOrder(purchaseId, payload)
+
+    ElMessage.success(res?.data?.message || '发货成功')
+    shipDialogVisible.value = false
+
+    // 刷新订单列表：用你现有的加载方法替换即可
+    // await fetchOrders()
+  } catch (e) {
+    const msg = e?.response?.data?.message || '发货失败'
+    ElMessage.error(msg)
+  } finally {
+    shippingSubmitting.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    await loadProviders()
+  } catch (e) {
+    // 物流商列表加载失败不阻塞发货弹窗打开，只提示
+  }
+})
 const extractData = (res) => res?.data?.data ?? null
+
+const addTrackDialogVisible = ref(false)
+const addTrackSubmitting = ref(false)
+const addTrackFormRef = ref()
+
+const addTrackForm = reactive({
+  purchase_id: null,
+  track_content: '',
+  track_location: '',
+  track_status: '运输中'
+})
+
+const addTrackRules = {
+  track_content: [{ required: true, message: '请填写轨迹内容', trigger: 'blur' }]
+}
+
+// 打开弹窗（表格行点击）
+function openAddTrackDialog(row) {
+  addTrackForm.purchase_id = row?.purchase_id ?? row?.id ?? null
+  addTrackForm.track_content = ''
+  addTrackForm.track_location = ''
+  addTrackForm.track_status = '运输中'
+
+  addTrackDialogVisible.value = true
+
+  nextTick(() => {
+    addTrackFormRef.value?.clearValidate?.()
+  })
+}
+
+// 提交：调用 49 接口 /api/seller/orders/{purchase_id}/logistics/tracks
+async function submitAddTrack() {
+  if (!addTrackForm.purchase_id) {
+    ElMessage.error('订单ID无效')
+    return
+  }
+
+  await addTrackFormRef.value?.validate?.()
+
+  addTrackSubmitting.value = true
+  try {
+    const payload = {
+      track_content: addTrackForm.track_content,
+      track_location: addTrackForm.track_location || null,
+      track_status: addTrackForm.track_status || null
+    }
+
+    await logisticsAPI.addLogisticsTrack(addTrackForm.purchase_id, payload)
+
+    ElMessage.success('物流轨迹添加成功')
+    addTrackDialogVisible.value = false
+
+    // 这里按你的页面实际逻辑刷新：
+    // 1) 如果你有刷新订单列表的方法：await fetchOrders()
+    // 2) 或者你有打开物流详情的方法：await loadOrderLogistics(addTrackForm.purchase_id)
+  } catch (e) {
+    const msg = e?.response?.data?.message || '添加失败'
+    ElMessage.error(msg)
+  } finally {
+    addTrackSubmitting.value = false
+  }
+}
 
 const fetchOrders = async () => {
   loading.value = true
@@ -204,8 +444,6 @@ const updateOrderStatus = async (order, newStatus) => {
       sellerNotes = '商家已确认订单';
     } else if (newStatus === 'STOCK_PREPARED') {
       sellerNotes = '备货已完成';
-    } else if (newStatus === 'SHIPPING_STARTED') {
-      sellerNotes = '已开始发货';
     }
 
     const payload = { new_status: newStatus };
@@ -244,6 +482,10 @@ const handleUpdateStatus = async (order, newStatus, sellerNotes = null) => {
     ElMessage.error('更新失败')
   }
 }
+
+
+
+
 
 // 显示商家取消订单对话框
 const showSellerCancelDialog = (row) => {
@@ -305,9 +547,10 @@ const getStatusType = (status) => {
   return types[status] || 'info'
 }
 
+
 const getStatusText = (status) => {
   const texts = {
-    'CUSTOMER_ORDERED': '客户下单',
+    'CUSTOMER_ORDERED': '待支付',
     'SELLER_CONFIRMED': '商家确认',
     'STOCK_PREPARED': '备货完成',
     'SHIPPING_STARTED': '开始发货',
@@ -317,6 +560,7 @@ const getStatusText = (status) => {
   }
   return texts[status] || (status || '')
 }
+
 
 onMounted(() => {
   fetchOrders()

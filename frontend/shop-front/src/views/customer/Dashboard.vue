@@ -11,6 +11,8 @@
           <el-menu-item index="/customer/dashboard/orders">历史下单</el-menu-item>
           <el-menu-item index="/customer/dashboard/favorites">我的收藏</el-menu-item>
           <el-menu-item index="/customer/dashboard/cart">我的购物车</el-menu-item>
+          <el-menu-item index="/customer/dashboard/after-sales">售后申请</el-menu-item>
+          <el-menu-item index="/customer/dashboard/addresses">地址管理</el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -33,6 +35,7 @@ const activeKey = computed(() => {
   const p = route.path
   if (p.startsWith('/dashboard/favorites')) return '/dashboard/favorites'
   if (p.startsWith('/dashboard/cart')) return '/dashboard/cart'
+  if (p.startsWith('/dashboard/after-sales')) return '/dashboard/after-sales'
   return '/dashboard/orders'
 })
 

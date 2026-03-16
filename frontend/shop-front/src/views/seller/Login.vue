@@ -74,6 +74,7 @@ const loginRules = {
 const handleLogin = async () => {
   loading.value = true
   try {
+    console.log('[auth.login] submitting:', loginForm.value)
     const response = await authAPI.login(loginForm.value)
     console.log('[auth.login] response:', response)
 
@@ -85,6 +86,9 @@ const handleLogin = async () => {
     const token = payload?.token ?? payload?.data?.token ?? root?.token ?? null
     const seller = payload?.seller ?? payload?.seller_info ?? payload?.seller_info ?? payload?.customer_info ?? null
 
+    console.log('[auth.login] token:', token)
+    console.log('[auth.login] seller:', seller)
+
     if (!token) {
       console.error('[auth.login] token not found, full payload:', payload)
       ElMessage.error('登录成功但未返回 token，无法鉴权')
@@ -94,14 +98,17 @@ const handleLogin = async () => {
     // 规范化 token 并写入 localStorage（拦截器读取 seller_token）
     const normToken = (typeof token === 'string' ? token.trim() : String(token)).replace(/^Bearer\s+/i, '')
     localStorage.setItem('seller_token', normToken)
+    console.log('[auth.login] token stored:', normToken)
 
     // 调用 store（若 store 也会写 localStorage，则无害）
     sellerStore.login(normToken, seller)
 
     ElMessage.success('登录成功')
+    console.log('[auth.login] redirecting to dashboard')
     await router.push('/seller/dashboard')
   } catch (error) {
     console.error('[auth.login] error:', error)
+    console.error('[auth.login] error.response:', error.response)
     ElMessage.error('登录失败，请检查用户名和密码')
   } finally {
     loading.value = false
