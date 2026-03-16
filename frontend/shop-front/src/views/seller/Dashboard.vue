@@ -37,6 +37,10 @@
             <el-icon><Folder /></el-icon>
             <span>顾客详情</span>
           </el-menu-item>
+          <el-menu-item index="/seller/dashboard/after-sales">
+            <el-icon><Folder /></el-icon>
+            <span>售后管理</span>
+          </el-menu-item>
         </el-menu>
 
       </el-aside>

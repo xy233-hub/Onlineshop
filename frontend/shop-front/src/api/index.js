@@ -19,18 +19,16 @@ api.interceptors.request.use(config => {
     const sellerToken = sanitizeToken(localStorage.getItem('seller_token'))
     const customerToken = sanitizeToken(localStorage.getItem('customer_token'))
 
-    // 1. 优先查看是否由调用方显式指定角色（例如：{ headers: { 'X-Auth-Role': 'seller' } }）
     const explicitRole = (config.headers && (config.headers['X-Auth-Role'] || config.headers['x-auth-role'])) || null
 
-    // 2. 根据 URL 推断角色（路径以 /seller 开头则使用 seller token）
     const url = (config.url || '')
     const path = url.startsWith('http') ? new URL(url).pathname : url
     const inferredRole = (() => {
         if (/^\/seller(\/|$)/.test(path)) return 'seller'
+        // \*\*删除：地址相关的请求不需要JWT令牌\*\*
+        // if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
-        // 特殊接口：客户端提交购买意向使用 customer（示例）
         if (/^\/products\/purchase-intents(\/|$)/.test(path)) return 'customer'
-        // 其它情况不强制，可回退
         return null
     })()
 
@@ -39,14 +37,13 @@ api.interceptors.request.use(config => {
     else if (explicitRole === 'customer') tokenToUse = customerToken
     else if (inferredRole === 'seller') tokenToUse = sellerToken
     else if (inferredRole === 'customer') tokenToUse = customerToken
-    else tokenToUse = sellerToken || customerToken // 兼容旧逻辑
+    else tokenToUse = sellerToken || customerToken
 
     if (tokenToUse) {
         config.headers = config.headers || {}
         config.headers.Authorization = `Bearer ${tokenToUse}`
     }
 
-    // 清理自定义头，避免泄露给后端（如不想传递可注释掉）
     if (config.headers) {
         delete config.headers['X-Auth-Role']
         delete config.headers['x-auth-role']
@@ -56,15 +53,29 @@ api.interceptors.request.use(config => {
 }, error => Promise.reject(error))
 
 // 响应拦截器保留原样...
-api.interceptors.response.use(response => response, error => {
-    if (error.response && error.response.status === 401) {
-        localStorage.removeItem('seller_token')
-        localStorage.removeItem('customer_token')
-        try { window.location.href = '/seller' } catch (e) {}
+api.interceptors.response.use(
+    response => response,
+    error => {
+        const status = error?.response?.status
+        const url = error?.config?.url || ''
+
+        // 规范化到 path，兼容绝对/相对 url
+        const path = url.startsWith('http') ? new URL(url).pathname : url
+
+        // 登录接口：401 交给页面处理，不做整页跳转
+        const isLoginApi =
+            /^\/seller\/login(\/|$)/.test(path) ||
+            /^\/customers\/login(\/|$)/.test(path)
+
+        if (status === 401 && !isLoginApi) {
+            localStorage.removeItem('seller_token')
+            localStorage.removeItem('customer_token')
+            try { window.location.href = '/seller' } catch (e) {}
+        }
+
         return Promise.reject(error)
     }
-    return Promise.reject(error)
-})
+)
 
 /**
  * 公共商品接口（文档：GET /api/products, GET /api/products/{product_id}）
@@ -197,6 +208,61 @@ export const sellerCustomerAPI = {
  */
 export const dashboardAPI = {
     getStats: () => api.get('/dashboard/stats')
+}
+
+/**
+ * 物流（46-49）
+ */
+export const logisticsAPI = {
+    getProviders: params => api.get('/logistics/providers', { params }),
+
+    // 47. 卖家发货
+    shipOrder: (purchaseId, data) =>
+        api.post(`/seller/purchase-intents/${purchaseId}/ship`, data),
+
+    // 48. 客户查询订单物流轨迹
+    getOrderLogistics: purchaseId => api.get(`/customer/orders/${purchaseId}/logistics`),
+
+    // 49. 卖家手动添加物流轨迹
+    addLogisticsTrack: (purchaseId, data) =>
+        api.post(`/seller/orders/${purchaseId}/logistics/tracks`, data)
+}
+
+
+/**
+ * 售后相关接口
+ */
+export const afterSalesAPI = {
+    // 客户提交售后申请
+    createAfterSales: (data) => api.post('/customers/after-sales', data),
+    // 客户查询售后列表
+    getCustomerAfterSales: (params) => {
+      console.log('调用getCustomerAfterSales，参数:', params);
+      return api.get('/customers/after-sales', { params })
+        .then(response => {
+          console.log('getCustomerAfterSales响应:', response);
+          return response;
+        })
+        .catch(error => {
+          console.error('getCustomerAfterSales错误:', error);
+          console.error('错误响应:', error.response);
+          throw error;
+        });
+    },
+    // 客户查询售后详情
+    getAfterSalesDetail: (serviceId) => api.get(`/customers/after-sales/${serviceId}`),
+    // 客户取消售后
+    cancelAfterSales: (serviceId, data) => api.post(`/customers/after-sales/${serviceId}/cancel`, data),
+    // 客户填写退货物流信息
+    returnShip: (serviceId, data) => api.post(`/customers/after-sales/${serviceId}/return-ship`, data),
+    // 卖家查询售后列表
+    getSellerAfterSales: (params) => api.get('/seller/after-sales', { params }),
+    // 卖家查询售后详情
+    getSellerAfterSalesDetail: (serviceId) => api.get(`/seller/after-sales/${serviceId}`),
+    // 卖家处理售后
+    handleAfterSales: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/handle`, data),
+    // 卖家确认收货
+    confirmReturn: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/confirm-return`, data)
 }
 
 export default api

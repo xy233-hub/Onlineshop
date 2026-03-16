@@ -22,77 +22,82 @@
       <!-- 主要内容：搜索（含分类弹出） + 商品列表 -->
       <el-main class="main-content">
         <div class="search-wrap">
-          <div class="search-bar">
-            <!-- 搜索输入在前 -->
-            <el-input
-                v-model="q"
-                placeholder="按关键词搜索商品"
-                clearable
-                @keyup.enter.native="handleSearch"
-                class="search-input"
-            />
+          <div class="search-box">
+            <!-- 左：分类 -->
+            <div class="search-left">
+              <el-popover
+                  v-model:visible="showCategoryPopover"
+                  placement="bottom-start"
+                  :width="320"
+                  trigger="click"
+                  popper-class="category-popover"
+              >
+                <template #reference>
+                  <button class="category-button" type="button">
+                    <span class="cat-label">
+                      {{ currentCategoryName || '全部分类' }}
+                    </span>
+                    <span class="caret" :class="{ open: showCategoryPopover }">▼</span>
+                  </button>
+                </template>
 
-            <!-- 分类弹出按钮 -->
-            <el-popover
-                v-model:visible="showCategoryPopover"
-                placement="bottom-start"
-                width="340"
-                trigger="click"
-            >
-              <div class="category-popover">
                 <div class="popover-header">
-                  <div style="font-weight:600">选择分类</div>
-                  <div style="display:flex; gap:8px; align-items:center;">
-                    <el-button type="text" size="small" @click="clearCategory">全部</el-button>
-                    <el-button type="text" size="small" @click="showCategoryPopover = false">关闭</el-button>
-                  </div>
+                  <div style="font-weight:600;">选择分类</div>
+                  <el-button size="small" text type="primary" @click="clearCategory">清除</el-button>
                 </div>
 
-                <el-scrollbar style="max-height:360px;">
+                <el-scrollbar max-height="260px">
                   <el-menu
-                      class="category-menu"
-                      :default-active="String(categoryId ?? '')"
+                      :default-active="categoryId ? String(categoryId) : ''"
                       @select="onSelectCategoryFromPopover"
-                      :router="false"
                   >
-                    <template v-for="c in categories" :key="`p-${c.category_id}`">
-                      <el-sub-menu v-if="c.children && c.children.length" :index="`p-${c.category_id}`">
-                        <template #title>
-                          <span>{{ c.category_name }}</span>
-                        </template>
+                    <el-menu-item index="">全部分类</el-menu-item>
+
+                    <!-- 兼容树形分类（children） -->
+                    <template v-for="c in categories" :key="c.category_id">
+                      <el-sub-menu
+                          v-if="c.children && c.children.length"
+                          :index="String(c.category_id)"
+                      >
+                        <template #title>{{ c.category_name }}</template>
                         <el-menu-item
-                            v-for="child in c.children"
-                            :key="child.category_id"
-                            :index="String(child.category_id)"
+                            v-for="cc in c.children"
+                            :key="cc.category_id"
+                            :index="String(cc.category_id)"
                         >
-                          {{ child.category_name }}
+                          {{ cc.category_name }}
                         </el-menu-item>
                       </el-sub-menu>
 
-                      <el-menu-item v-else :key="c.category_id" :index="String(c.category_id)">
+                      <el-menu-item
+                          v-else
+                          :index="String(c.category_id)"
+                      >
                         {{ c.category_name }}
                       </el-menu-item>
                     </template>
                   </el-menu>
                 </el-scrollbar>
-              </div>
+              </el-popover>
+            </div>
 
-              <template #reference>
-                <button
-                    class="category-button"
-                    :aria-expanded="String(showCategoryPopover)"
-                    @click.stop
-                >
-                  <span class="cat-label">{{ currentCategoryName || '分类' }}</span>
-                  <i class="el-icon-menu" style="font-size:14px;"></i>
-                  <i class="caret el-icon-arrow-down" :class="{ open: showCategoryPopover }"></i>
-                </button>
-              </template>
-            </el-popover>
+            <!-- 中：搜索输入 -->
+            <div class="search-middle">
+              <el-input
+                  v-model="q"
+                  class="search-input"
+                  clearable
+                  placeholder="搜索商品名称"
+                  @keyup.enter="handleSearch"
+              />
+            </div>
 
-            <el-button type="primary" @click="handleSearch">搜索</el-button>
-
-            <div class="total-text">共 {{ total }} 条</div>
+            <!-- 右：搜索按钮 -->
+            <div class="search-right">
+              <el-button type="primary" class="search-btn" @click="handleSearch">
+                搜索
+              </el-button>
+            </div>
           </div>
         </div>
 
@@ -196,10 +201,35 @@ const goSellerLogin = () => {
 const goDashboard = () => {
   router.push('/customer/dashboard').catch(() => {})
 }
-const logout = () => {
-  customerStore.logout()
-  ElMessage.success('已退出登录')
-  router.push('/').catch(() => {})
+const LOGOUT_TOAST_KEY = 'post_reload_toast'
+
+const logout = async () => {
+  try {
+    // 1) 清理状态
+    if (typeof customerStore.logout === 'function') {
+      await customerStore.logout()
+    } else {
+      customerStore.token = ''
+      customerStore.customer = null
+      localStorage.removeItem('customer_info')
+      localStorage.removeItem('customer')
+      localStorage.removeItem('customer_id')
+      localStorage.removeItem('token')
+    }
+
+    // 2) 把提示“带过刷新”
+    sessionStorage.setItem(
+        LOGOUT_TOAST_KEY,
+        JSON.stringify({ type: 'success', message: '已退出登录', ts: Date.now() })
+    )
+
+    // 3) 跳转后刷新（让页面状态彻底重置）
+    await router.replace({ path: '/' })
+    window.location.reload()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('退出登录失败')
+  }
 }
 
 const extractData = (res) => res?.data?.data ?? res?.data ?? null
@@ -311,6 +341,22 @@ const getStatusText = (status) => {
 onMounted(() => {
   fetchCategories()
   fetchProducts()
+  try {
+    const raw = sessionStorage.getItem(LOGOUT_TOAST_KEY)
+    if (!raw) return
+    sessionStorage.removeItem(LOGOUT_TOAST_KEY)
+
+    const toast = JSON.parse(raw)
+    if (toast?.message) {
+      ElMessage({
+        type: toast.type || 'success',
+        message: toast.message,
+        duration: 2000
+      })
+    }
+  } catch {
+    // ignore
+  }
 })
 const stripHtml = (input) => {
   if (input === null || input === undefined) return ''
@@ -358,50 +404,103 @@ const stripHtml = (input) => {
   padding: 20px;
 }
 
-/* 搜索栏与分类弹出 */
-.search-wrap { margin-bottom: 12px; }
-.search-bar { display:flex; gap:8px; align-items:center; width:100%; }
-.search-input { flex:1; max-width:640px; }
+/* 搜索栏整体居中 */
+.search-wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 32px;
+  box-sizing: border-box;
+}
 
-/* 美化后的分类按钮 */
+/* 大框：三栏容器 */
+.search-box {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #e8eef6;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(16, 24, 40, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+/* 左\／中\／右三栏 */
+.search-left {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+.search-middle {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.search-right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* 输入框撑满中间 */
+.search-input {
+  width: 100%;
+}
+
+/* 右侧按钮固定宽度 */
+.search-btn {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+
+/* 分类按钮 */
 .category-button {
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:6px 12px;
-  border-radius:20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
   background: #f4f8ff;
   color: #2b7cff;
   border: 1px solid #dbeeff;
-  box-shadow: 0 1px 0 rgba(66,133,244,0.04);
   cursor: pointer;
-  height:36px;
-  font-size:14px;
+  height: 36px;
+  font-size: 14px;
   outline: none;
 }
 .category-button .cat-label {
-  max-width:160px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  display:inline-block;
-  vertical-align:middle;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
 }
 .category-button .caret {
-  transition: transform .18s ease;
-  font-size:12px;
+  transition: transform 0.18s ease;
+  font-size: 12px;
 }
 .category-button .caret.open {
   transform: rotate(180deg);
 }
 
-/* total 文本放右侧 */
-.total-text { margin-left:auto; color:#666; }
 
-/* popover 内的分类 */
-.category-popover { padding:8px; }
-.popover-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
 
+/* popover 内 */
+.category-popover {
+  padding: 8px;
+}
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
 /* 网格样式 */
 .products-grid {
   display: grid !important;
@@ -451,4 +550,5 @@ const stripHtml = (input) => {
 @media (max-width: 420px) {
   .products-grid { grid-template-columns: repeat(1, minmax(140px, 1fr)) !important; }
 }
+
 </style>
