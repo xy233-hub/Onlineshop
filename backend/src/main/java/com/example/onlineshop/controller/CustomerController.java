@@ -236,10 +236,12 @@ public class CustomerController {
      */
     @PostMapping("/addresses")
     public ResponseEntity<ApiResponse> addAddress(
-            @RequestBody CustomerAddressRequest request) {
+            @RequestBody CustomerAddressRequest request,
+            @RequestParam("customer_id") Integer customerId) {
         try {
+            System.out.println(customerId);
             CustomerAddress address = CustomerAddress.builder()
-                    .customerId(1) // 使用默认值1
+                    .customerId(customerId)
                     .recipientName(request.getRecipientName())
                     .recipientPhone(request.getRecipientPhone())
                     .province(request.getProvince())
@@ -359,9 +361,9 @@ public class CustomerController {
      * 44. 客户查询收货地址列表
      */
     @GetMapping("/addresses")
-    public ResponseEntity<ApiResponse> getAddresses() {
+    public ResponseEntity<ApiResponse> getAddresses(@RequestParam("customer_id") Integer customerId) {
         try {
-            List<CustomerAddress> addresses = customerAddressService.getAddressesByCustomerId(1); // 使用默认值1
+            List<CustomerAddress> addresses = customerAddressService.getAddressesByCustomerId(customerId); // 使用默认值1
 
             List<Map<String, Object>> result = addresses.stream().map(addr -> {
                 Map<String, Object> map = new HashMap<>();
@@ -390,21 +392,32 @@ public class CustomerController {
      */
     @PatchMapping("/addresses/{address_id}/default")
     public ResponseEntity<ApiResponse> setDefaultAddress(
+            @RequestHeader("Authorization") String token,
             @PathVariable("address_id") Integer addressId) {
+        Integer customerIdFromToken = JwtUtil.getCustomerIdFromToken(token);
+        if (customerIdFromToken == null) {
+            return ResponseEntity.status(401).body(new ApiResponse(401, "未授权", null));
+        }
+
         try {
             CustomerAddress existing = customerAddressService.getAddressById(addressId);
             if (existing == null) {
-                return ResponseEntity.badRequest()
-                        .body(new ApiResponse(400, "地址不存在", null));
+                return ResponseEntity.badRequest().body(new ApiResponse(400, "地址不存在", null));
+            }
+            // 防止越权：只能设置自己的地址为默认
+            if (!existing.getCustomerId().equals(customerIdFromToken)) {
+                return ResponseEntity.status(403).body(new ApiResponse(403, "无权操作其他客户的地址", null));
             }
 
-            CustomerAddress updated = customerAddressService.setDefaultAddress(addressId, 1); // 使用默认值1
+            CustomerAddress updated = customerAddressService.setDefaultAddress(addressId, customerIdFromToken);
+            if (updated == null) {
+                return ResponseEntity.badRequest().body(new ApiResponse(400, "默认地址设置失败", null));
+            }
 
             Map<String, Object> result = new HashMap<>();
             result.put("address_id", updated.getAddressId());
             result.put("is_default", updated.getIsDefault());
             result.put("updated_at", updated.getUpdatedAt());
-
             return ResponseEntity.ok(new ApiResponse(200, "默认地址设置成功", result));
         } catch (Exception e) {
             return ResponseEntity.status(500)
@@ -446,18 +459,18 @@ public class CustomerController {
 
             if (intent.getLogisticsProviderId() != null) {
                 LogisticsProvider provider = logisticsProviderService.getProviderById(intent.getLogisticsProviderId());
-                
+
                 Map<String, Object> logisticsInfo = new HashMap<>();
                 logisticsInfo.put("provider_id", provider.getProviderId());
                 logisticsInfo.put("provider_name", provider.getProviderName());
                 logisticsInfo.put("provider_code", provider.getProviderCode());
                 logisticsInfo.put("tracking_no", intent.getTrackingNo());
                 logisticsInfo.put("shipped_at", intent.getShippedAt());
-                
+
                 result.put("logistics_info", logisticsInfo);
 
                 List<LogisticsTrack> tracks = logisticsTrackService.getTracksByPurchaseId(purchaseId);
-                
+
                 List<Map<String, Object>> trackList = tracks.stream().map(track -> {
                     Map<String, Object> trackMap = new HashMap<>();
                     trackMap.put("track_id", track.getTrackId());
@@ -506,7 +519,7 @@ public class CustomerController {
                     purchaseId = ((Number) purchaseIdObj).intValue();
                 }
             }
-            
+
             Integer productId = null;
             Object productIdObj = request.get("product_id");
             if (productIdObj != null) {
@@ -516,11 +529,11 @@ public class CustomerController {
                     productId = ((Number) productIdObj).intValue();
                 }
             }
-            
+
             String serviceType = (String) request.get("service_type");
             String serviceTitle = (String) request.get("service_title");
             String problemDescription = (String) request.get("problem_description");
-            
+
             Double refundAmount = null;
             Object refundAmountObj = request.get("refund_amount");
             if (refundAmountObj != null) {
@@ -530,7 +543,7 @@ public class CustomerController {
                     refundAmount = ((Number) refundAmountObj).doubleValue();
                 }
             }
-            
+
             List<String> evidenceImages = (List<String>) request.get("evidence_images");
             String evidenceImagesJson = null;
             if (evidenceImages != null && !evidenceImages.isEmpty()) {
@@ -606,19 +619,19 @@ public class CustomerController {
                 Map<String, Object> item = new HashMap<>();
                 item.put("service_id", service.getServiceId());
                 item.put("purchase_id", service.getPurchaseId());
-                
+
                 Map<String, Object> productInfo = new HashMap<>();
                 productInfo.put("product_id", service.getProductId());
-                
+
                 // 加载商品信息
                 Product product = productService.getProductById(service.getProductId());
                 if (product != null) {
                     productInfo.put("product_name", product.getProductName());
                     productInfo.put("price", product.getPrice());
                 }
-                
+
                 item.put("product_info", productInfo);
-                
+
                 item.put("service_type", service.getServiceType());
                 item.put("service_title", service.getServiceTitle());
                 item.put("refund_amount", service.getRefundAmount());
@@ -626,7 +639,7 @@ public class CustomerController {
                 item.put("seller_response", service.getSellerResponse());
                 item.put("created_at", service.getCreatedAt());
                 item.put("updated_at", service.getUpdatedAt());
-                
+
                 return item;
             }).collect(Collectors.toList());
 
@@ -668,7 +681,7 @@ public class CustomerController {
             Map<String, Object> result = new HashMap<>();
             result.put("service_id", service.getServiceId());
             result.put("purchase_id", service.getPurchaseId());
-            
+
             // 获取并填充订单信息
             PurchaseIntent purchaseIntent = purchaseIntentService.getById(service.getPurchaseId());
             if (purchaseIntent != null) {
@@ -686,20 +699,20 @@ public class CustomerController {
             } else {
                 result.put("order_info", null);
             }
-            
+
             result.put("service_type", service.getServiceType());
-            
+
             result.put("service_type", service.getServiceType());
             result.put("service_title", service.getServiceTitle());
             result.put("problem_description", service.getProblemDescription());
-            
+
             List<String> evidenceImages = null;
             if (service.getEvidenceImages() != null && !service.getEvidenceImages().isEmpty()) {
                 ObjectMapper mapper = new ObjectMapper();
                 evidenceImages = mapper.readValue(service.getEvidenceImages(), List.class);
             }
             result.put("evidence_images", evidenceImages);
-            
+
             result.put("refund_amount", service.getRefundAmount());
             result.put("service_status", service.getServiceStatus());
             result.put("seller_response", service.getSellerResponse());
@@ -731,7 +744,7 @@ public class CustomerController {
 
         try {
             String cancelReason = request.get("cancel_reason");
-            
+
             AfterSalesService service = afterSalesServiceService.cancelAfterSalesService(
                     serviceId, customerIdFromToken, cancelReason);
 
@@ -766,7 +779,7 @@ public class CustomerController {
         try {
             String trackingNo = request.get("return_tracking_no");
             String logisticsProvider = request.get("return_logistics_provider");
-            
+
             AfterSalesService service = afterSalesServiceService.returnShipAfterSalesService(
                     serviceId, customerIdFromToken, trackingNo, logisticsProvider);
 
