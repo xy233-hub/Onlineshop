@@ -11,12 +11,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public class JwtInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 跳过地址相关的请求，不需要JWT令牌
-        String path = request.getRequestURI();
-        if (path.startsWith("/api/customers/addresses")) {
-            return true;
-        }
-        
         String token = request.getHeader("Authorization");
         if (token == null || !JwtUtil.verifyToken(token)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

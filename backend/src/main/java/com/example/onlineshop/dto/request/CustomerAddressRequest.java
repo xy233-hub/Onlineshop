@@ -6,6 +6,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CustomerAddressRequest {
+    private Integer customerId;
     private String recipientName;
     private String recipientPhone;
     private String province;
