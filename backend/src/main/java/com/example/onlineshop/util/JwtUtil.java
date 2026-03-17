@@ -53,44 +53,37 @@ public class JwtUtil {
     }
 
     /**
-     * 从Token中解析卖家ID
+     * 从 Token 中解析卖家 ID
      */
     public static Integer getSellerIdFromToken(String token) {
-        try {
-            // 去除Bearer前缀
-            if (token.startsWith("Bearer ")) {
-                token = token.substring(7);
-            }
-
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(getSecretKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-            return claims.get("sellerId", Integer.class);
-        } catch (Exception e) {
-            return null;  // Token无效时返回null
-        }
+        Claims claims = parseToken(token);
+        return claims != null ? claims.get("sellerId", Integer.class) : null;
     }
 
     /**
-     * 从Token中解析客户ID
+     * 从 Token 中解析客户 ID
      */
     public static Integer getCustomerIdFromToken(String token) {
+        Claims claims = parseToken(token);
+        return claims != null ? claims.get("customerId", Integer.class) : null;
+    }
+
+    /**
+     * 统一解析 Token
+     */
+    private static Claims parseToken(String token) {
         try {
-            // 去除Bearer前缀
             if (token.startsWith("Bearer ")) {
                 token = token.substring(7);
             }
 
-            Claims claims = Jwts.parserBuilder()
+            return Jwts.parserBuilder()
                     .setSigningKey(getSecretKey())
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
-            return claims.get("customerId", Integer.class);
         } catch (Exception e) {
-            return null;  // Token无效时返回null
+            return null;
         }
     }
 

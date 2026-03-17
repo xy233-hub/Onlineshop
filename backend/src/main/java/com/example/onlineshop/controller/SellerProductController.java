@@ -1,6 +1,7 @@
 // java
 package com.example.onlineshop.controller;
 
+import com.example.onlineshop.dto.request.ImageRequest;
 import com.example.onlineshop.dto.request.MediaResourceRequest;
 import com.example.onlineshop.dto.request.ProductRequest;
 import com.example.onlineshop.dto.request.ProductIdRequest;
@@ -19,8 +20,10 @@ import com.example.onlineshop.util.JwtUtil;
 import com.example.onlineshop.util.ResponseUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -182,7 +185,6 @@ public class SellerProductController {
             }
         }
     }
-
 
     // 其它接口不变...
     @GetMapping("/products")

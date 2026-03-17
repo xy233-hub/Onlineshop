@@ -446,18 +446,18 @@ public class CustomerController {
 
             if (intent.getLogisticsProviderId() != null) {
                 LogisticsProvider provider = logisticsProviderService.getProviderById(intent.getLogisticsProviderId());
-
+                
                 Map<String, Object> logisticsInfo = new HashMap<>();
                 logisticsInfo.put("provider_id", provider.getProviderId());
                 logisticsInfo.put("provider_name", provider.getProviderName());
                 logisticsInfo.put("provider_code", provider.getProviderCode());
                 logisticsInfo.put("tracking_no", intent.getTrackingNo());
                 logisticsInfo.put("shipped_at", intent.getShippedAt());
-
+                
                 result.put("logistics_info", logisticsInfo);
 
                 List<LogisticsTrack> tracks = logisticsTrackService.getTracksByPurchaseId(purchaseId);
-
+                
                 List<Map<String, Object>> trackList = tracks.stream().map(track -> {
                     Map<String, Object> trackMap = new HashMap<>();
                     trackMap.put("track_id", track.getTrackId());
@@ -506,7 +506,7 @@ public class CustomerController {
                     purchaseId = ((Number) purchaseIdObj).intValue();
                 }
             }
-
+            
             Integer productId = null;
             Object productIdObj = request.get("product_id");
             if (productIdObj != null) {
@@ -516,11 +516,11 @@ public class CustomerController {
                     productId = ((Number) productIdObj).intValue();
                 }
             }
-
+            
             String serviceType = (String) request.get("service_type");
             String serviceTitle = (String) request.get("service_title");
             String problemDescription = (String) request.get("problem_description");
-
+            
             Double refundAmount = null;
             Object refundAmountObj = request.get("refund_amount");
             if (refundAmountObj != null) {
@@ -530,7 +530,7 @@ public class CustomerController {
                     refundAmount = ((Number) refundAmountObj).doubleValue();
                 }
             }
-
+            
             List<String> evidenceImages = (List<String>) request.get("evidence_images");
             String evidenceImagesJson = null;
             if (evidenceImages != null && !evidenceImages.isEmpty()) {
@@ -606,19 +606,19 @@ public class CustomerController {
                 Map<String, Object> item = new HashMap<>();
                 item.put("service_id", service.getServiceId());
                 item.put("purchase_id", service.getPurchaseId());
-
+                
                 Map<String, Object> productInfo = new HashMap<>();
                 productInfo.put("product_id", service.getProductId());
-
+                
                 // 加载商品信息
                 Product product = productService.getProductById(service.getProductId());
                 if (product != null) {
                     productInfo.put("product_name", product.getProductName());
                     productInfo.put("price", product.getPrice());
                 }
-
+                
                 item.put("product_info", productInfo);
-
+                
                 item.put("service_type", service.getServiceType());
                 item.put("service_title", service.getServiceTitle());
                 item.put("refund_amount", service.getRefundAmount());
@@ -626,7 +626,7 @@ public class CustomerController {
                 item.put("seller_response", service.getSellerResponse());
                 item.put("created_at", service.getCreatedAt());
                 item.put("updated_at", service.getUpdatedAt());
-
+                
                 return item;
             }).collect(Collectors.toList());
 
@@ -668,7 +668,7 @@ public class CustomerController {
             Map<String, Object> result = new HashMap<>();
             result.put("service_id", service.getServiceId());
             result.put("purchase_id", service.getPurchaseId());
-
+            
             // 获取并填充订单信息
             PurchaseIntent purchaseIntent = purchaseIntentService.getById(service.getPurchaseId());
             if (purchaseIntent != null) {
@@ -686,20 +686,20 @@ public class CustomerController {
             } else {
                 result.put("order_info", null);
             }
-
+            
             result.put("service_type", service.getServiceType());
-
+            
             result.put("service_type", service.getServiceType());
             result.put("service_title", service.getServiceTitle());
             result.put("problem_description", service.getProblemDescription());
-
+            
             List<String> evidenceImages = null;
             if (service.getEvidenceImages() != null && !service.getEvidenceImages().isEmpty()) {
                 ObjectMapper mapper = new ObjectMapper();
                 evidenceImages = mapper.readValue(service.getEvidenceImages(), List.class);
             }
             result.put("evidence_images", evidenceImages);
-
+            
             result.put("refund_amount", service.getRefundAmount());
             result.put("service_status", service.getServiceStatus());
             result.put("seller_response", service.getSellerResponse());
@@ -731,7 +731,7 @@ public class CustomerController {
 
         try {
             String cancelReason = request.get("cancel_reason");
-
+            
             AfterSalesService service = afterSalesServiceService.cancelAfterSalesService(
                     serviceId, customerIdFromToken, cancelReason);
 
@@ -766,7 +766,7 @@ public class CustomerController {
         try {
             String trackingNo = request.get("return_tracking_no");
             String logisticsProvider = request.get("return_logistics_provider");
-
+            
             AfterSalesService service = afterSalesServiceService.returnShipAfterSalesService(
                     serviceId, customerIdFromToken, trackingNo, logisticsProvider);
 
