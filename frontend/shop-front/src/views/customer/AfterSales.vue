@@ -324,18 +324,74 @@ const afterSalesRules = {
   refundAmount: [{ required: true, message: '请输入退款金额', trigger: 'blur' }]
 }
 
-// 处理图片上传
+// 处理图片上传 
 const handleImageChange = async (file) => {
-  const formData = new FormData()
-  formData.append('file', file.raw)
-  
   try {
+    // 验证文件是否存在
+    if (!file || !file.raw) {
+      throw new Error('文件不存在')
+    }
+    
+    const formData = new FormData()
+    formData.append('file', file.raw || file)
+    formData.append('purpose', 'embedded')
+    
+    console.log('=== 开始上传图片 ===')
+    console.log('文件名:', file.name)
+    console.log('文件大小:', file.size)
+    console.log('文件类型:', file.type)
+    
     const response = await mediaAPI.upload(formData)
-    const imageUrl = response.data.data.url
-    file.url = imageUrl
-    afterSalesForm.evidenceImages.push(imageUrl)
+    
+    console.log('=== 上传响应 ===')
+    console.log('response.data:', response.data)
+    
+    // 确保返回的数据结构正确
+    if (response.data && response.data.data) {
+      const data = response.data.data
+      
+      // 注意：后端配置了 SNAKE_CASE 命名策略，所以 mediaUrl 会变成 media_url
+      const imageUrl = data.media_url || data.mediaUrl || data.url
+      
+      if (imageUrl) {
+        file.url = imageUrl
+        
+        // 添加到证据图片数组
+        afterSalesForm.evidenceImages.push(imageUrl)
+        
+        // 同时更新 fileList（如果需要）
+        if (!fileList.value.find(f => f.uid === file.uid)) {
+          fileList.value.push(file)
+        }
+        
+        ElMessage.success('图片上传成功')
+      } else {
+        console.error('响应中没有 media_url 或 mediaUrl 或 url 字段:', data)
+        throw new Error('上传响应格式不正确：缺少 media_url 字段')
+      }
+    } else {
+      console.error('响应格式不正确:', response)
+      throw new Error('上传响应格式不正确')
+    }
   } catch (error) {
-    ElMessage.error('图片上传失败')
+    console.error('=== 图片上传失败 ===')
+    console.error('错误对象:', error)
+    console.error('错误响应:', error.response)
+    console.error('错误数据:', error.response?.data)
+    console.error('错误状态码:', error.response?.status)
+    
+    const errorMsg = error.response?.data?.message || 
+                    error.response?.data || 
+                    error.message || 
+                    '请重试'
+    
+    ElMessage.error('图片上传失败：' + errorMsg)
+    
+    // 从 fileList 中移除失败的文件
+    const index = fileList.value.findIndex(f => f.uid === file.uid)
+    if (index !== -1) {
+      fileList.value.splice(index, 1)
+    }
   }
 }
 
@@ -345,23 +401,31 @@ const handlePictureCardPreview = (file) => {
   dialogVisible.value = true
 }
 
-// 移除图片
+// 移除图片 - 修改：同步移除两个数组中的数据
 const handleRemove = (file) => {
+  // 从 fileList 中移除
   const index = fileList.value.findIndex(item => item.uid === file.uid)
   if (index !== -1) {
     fileList.value.splice(index, 1)
-    const imageIndex = afterSalesForm.evidenceImages.findIndex(url => url === file.url)
-    if (imageIndex !== -1) {
-      afterSalesForm.evidenceImages.splice(imageIndex, 1)
-    }
+  }
+  
+  // 从 evidenceImages 中移除
+  const imageIndex = afterSalesForm.evidenceImages.findIndex(url => url === file.url)
+  if (imageIndex !== -1) {
+    afterSalesForm.evidenceImages.splice(imageIndex, 1)
   }
 }
-
-// 提交申请
+// 提交申请 - 修改：添加数据校验
 const handleSubmit = async () => {
   loading.value = true
+  
+  // 过滤掉 null、undefined 和空字符串
+  const validImages = afterSalesForm.evidenceImages.filter(url => 
+    url != null && url.toString().trim() !== ''
+  )
+  
   try {
-    // 提取订单ID中的数字部分，去除可能的前缀
+    // 提取订单 ID 中的数字部分，去除可能的前缀
     let purchaseId = afterSalesForm.purchaseId
     if (typeof purchaseId === 'string') {
       // 提取数字部分
@@ -371,7 +435,7 @@ const handleSubmit = async () => {
       }
     }
     
-    // 提取商品ID中的数字部分，去除可能的前缀
+    // 提取商品 ID 中的数字部分，去除可能的前缀
     let productId = afterSalesForm.productId
     if (typeof productId === 'string') {
       // 提取数字部分
@@ -381,6 +445,13 @@ const handleSubmit = async () => {
       }
     }
     
+    // 调试：打印提交的数据
+    console.log('=== 提交售后申请 ===')
+    console.log('purchase_id:', purchaseId)
+    console.log('product_id:', productId)
+    console.log('evidence_images:', validImages)
+    console.log('原始 evidenceImages:', afterSalesForm.evidenceImages)
+    
     const response = await afterSalesAPI.createAfterSales({
       purchase_id: purchaseId,
       product_id: productId,
@@ -388,16 +459,18 @@ const handleSubmit = async () => {
       service_title: afterSalesForm.serviceTitle,
       problem_description: afterSalesForm.problemDescription,
       refund_amount: afterSalesForm.refundAmount,
-      evidence_images: afterSalesForm.evidenceImages
+      evidence_images: validImages  // 使用过滤后的有效图片数组
     })
     ElMessage.success('售后申请提交成功')
     resetForm()
   } catch (error) {
+    console.error('提交失败:', error)
     ElMessage.error('提交失败：' + (error.response?.data?.message || '网络错误'))
   } finally {
     loading.value = false
   }
 }
+
 
 // 重置表单
 const resetForm = () => {
