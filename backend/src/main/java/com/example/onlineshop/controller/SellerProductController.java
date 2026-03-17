@@ -133,62 +133,56 @@ public class SellerProductController {
     @PostMapping("/products")
     public ApiResponse publishProduct(@RequestBody Map<String, Object> body) {
         try {
-
-            // 把 JSON 转成 ProductRequest 调用原有逻辑
             ProductRequest request = objectMapper.convertValue(body, ProductRequest.class);
             validateMediaResources(request.getMediaResources());
             ApiResponse resp = sellerService.publishProduct(request);
 
-            // 发布成功后，尝试从 resp.data 中更鲁棒地读取 product_id 并关联临时媒体
-            if (resp != null && resp.getCode() == 200) {
-                Integer productId = extractProductId(resp.getData());
-                if (productId != null) {
-                    // images（可能包含 temp_key）
-                    Object imgs = body.get("images");
-                    if (imgs instanceof Iterable) {
-                        for (Object o : (Iterable<?>) imgs) {
-                            if (o instanceof Map) {
-                                Map<?,?> m = (Map<?,?>) o;
-                                if (m.containsKey("temp_key")) {
-                                    String tempKey = String.valueOf(m.get("temp_key"));
-                                    try {
-                                        mediaService.associateTemporaryToProduct(tempKey, productId);
-                                    } catch (Exception ex) {
-                                        System.err.println("associateTemporaryToProduct failed: " + ex.getMessage());
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // media_resources（可能包含 temp_key）
-                    Object mrs = body.get("media_resources");
-                    if (mrs instanceof Iterable) {
-                        for (Object o : (Iterable<?>) mrs) {
-                            if (o instanceof Map) {
-                                Map<?,?> m = (Map<?,?>) o;
-                                if (m.containsKey("temp_key")) {
-                                    String tempKey = String.valueOf(m.get("temp_key"));
-                                    try {
-                                        mediaService.associateTemporaryToProduct(tempKey, productId);
-                                    } catch (Exception ex) {
-                                        System.err.println("associateTemporaryToProduct failed: " + ex.getMessage());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // 无法解析 productId，记录以便排查
-                    System.err.println("publishProduct: 无法从 resp.data 中解析 product_id, resp.data=" + resp.getData());
-                }
+            if (resp == null || resp.getCode() != 200) {
+                return resp;
             }
 
+            Integer productId = extractProductId(resp.getData());
+            if (productId == null) {
+                System.err.println("publishProduct: 无法从 resp.data 中解析 product_id, resp.data=" + resp.getData());
+                return resp;
+            }
+
+            associateTemporaryMedia(body, productId);
             return resp;
         } catch (Exception e) {
-            return ApiResponse.error(500, "查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+            return ApiResponse.error(500, "查询失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
+
+    private void associateTemporaryMedia(Map<String, Object> body, Integer productId) {
+        processTemporaryMediaList(body.get("images"), productId);
+        processTemporaryMediaList(body.get("media_resources"), productId);
+    }
+
+    private void processTemporaryMediaList(Object items, Integer productId) {
+        if (!(items instanceof Iterable)) {
+            return;
+        }
+
+        for (Object item : (Iterable<?>) items) {
+            if (!(item instanceof Map)) {
+                continue;
+            }
+
+            Map<?, ?> map = (Map<?, ?>) item;
+            if (!map.containsKey("temp_key")) {
+                continue;
+            }
+
+            String tempKey = String.valueOf(map.get("temp_key"));
+            try {
+                mediaService.associateTemporaryToProduct(tempKey, productId);
+            } catch (Exception ex) {
+                System.err.println("associateTemporaryToProduct failed: " + ex.getMessage());
+            }
+        }
+    }
+
 
     // 其它接口不变...
     @GetMapping("/products")
