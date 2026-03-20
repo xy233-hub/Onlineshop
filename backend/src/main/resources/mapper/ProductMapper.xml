@@ -233,6 +233,60 @@
         UPDATE products SET product_status = #{status} WHERE product_id = #{productId}
     </update>
 
+    <!-- 根据卖家 ID 查询商品（支持搜索、分类、状态过滤） -->
+    <select id="selectProductsBySellerId" parameterType="map" resultType="com.example.onlineshop.entity.Product">
+        SELECT p.*,
+        (SELECT pi.image_url
+        FROM product_images pi
+        WHERE pi.product_id = p.product_id
+        ORDER BY pi.image_order ASC, pi.image_id ASC
+        LIMIT 1) AS cover_image
+        FROM products p
+        WHERE p.seller_id = #{sellerId}
+        <if test="q != null and q != ''">
+            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+        </if>
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        <if test="status != null and status != ''">
+            AND product_status = #{status}
+        </if>
+
+        <choose>
+            <when test="sortBy != null and sortBy == 'price'">
+                ORDER BY price ${order}
+            </when>
+            <when test="sortBy != null and sortBy == 'stock_quantity'">
+                ORDER BY stock_quantity ${order}
+            </when>
+            <when test="sortBy != null and sortBy == 'created_at'">
+                ORDER BY created_at ${order}
+            </when>
+            <otherwise>
+                ORDER BY created_at ${order}
+            </otherwise>
+        </choose>
+
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 统计指定卖家的商品数量 -->
+    <select id="countProductsBySellerId" parameterType="map" resultType="int">
+        SELECT COUNT(1)
+        FROM products
+        WHERE seller_id = #{sellerId}
+        <if test="q != null and q != ''">
+            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+        </if>
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        <if test="status != null and status != ''">
+            AND product_status = #{status}
+        </if>
+    </select>
+
 
 </mapper>
 

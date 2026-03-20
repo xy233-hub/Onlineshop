@@ -6,6 +6,7 @@ import com.example.onlineshop.dto.request.CustomerRegisterRequest;
 import com.example.onlineshop.dto.request.CustomerAddressRequest;
 import com.example.onlineshop.dto.request.CustomerCancelOrderRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
+import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.Customer;
 import com.example.onlineshop.entity.CustomerAddress;
 import com.example.onlineshop.entity.LogisticsProvider;
@@ -795,6 +796,64 @@ public class CustomerController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse(500, "提交失败：" + e.getMessage(), null));
+        }
+    }
+
+    /**
+     * 买家查看自己发布的商品
+     * GET /api/customers/products/my-products
+     */
+    @GetMapping("/products/my-products")
+    public ResponseEntity<ApiResponse> getMyProducts(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "category_id", required = false) Integer categoryId,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @RequestParam(value = "size", defaultValue = "10") Integer size,
+            @RequestParam(value = "sort_by", required = false) String sortBy,
+            @RequestParam(value = "order", defaultValue = "desc") String order) {
+        
+        // 从 token 中解析 customerId
+        Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+        if (customerId == null) {
+            return ResponseEntity.status(401)
+                    .body(new ApiResponse(401, "未授权", null));
+        }
+
+        try {
+            if (page == null || page < 1) page = 1;
+            if (size == null || size < 1) size = 10;
+            int offset = (page - 1) * size;
+
+            // 如果调用方没有显式传 status，默认查询所有状态
+            if (status == null || status.trim().isEmpty()) {
+                status = null;
+            }
+
+            // 直接查询该买家发布的商品（将 customerId 作为 sellerId）
+            List<Product> products = productService.getProductsBySellerId(customerId, q, categoryId, status, offset, size, sortBy, order);
+            
+            // 计算总数
+            int total = productService.countProductsBySellerId(customerId, q, categoryId, status);
+
+            List<ProductInfoResponse> items = products.stream()
+                    .map(ProductInfoResponse::new)
+                    .collect(Collectors.toList());
+
+            HashMap<String, Object> data = new HashMap<>();
+            data.put("page", page);
+            data.put("size", size);
+            data.put("total", total);
+            data.put("items", items);
+
+            return ResponseEntity.ok(new ApiResponse(200, "查询成功", data));
+        } catch (IllegalArgumentException iae) {
+            return ResponseEntity.status(400)
+                    .body(new ApiResponse(400, iae.getMessage(), null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse(500, "查询失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()), null));
         }
     }
 }

@@ -13,6 +13,8 @@
           <el-menu-item index="/customer/dashboard/cart">我的购物车</el-menu-item>
           <el-menu-item index="/customer/dashboard/after-sales">售后申请</el-menu-item>
           <el-menu-item index="/customer/dashboard/addresses">地址管理</el-menu-item>
+          <el-menu-item index="/customer/dashboard/products">商品管理</el-menu-item>
+          <el-menu-item index="/customer/dashboard/purchase-intents">购买意向记录</el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -36,6 +38,8 @@ const activeKey = computed(() => {
   if (p.startsWith('/dashboard/favorites')) return '/dashboard/favorites'
   if (p.startsWith('/dashboard/cart')) return '/dashboard/cart'
   if (p.startsWith('/dashboard/after-sales')) return '/dashboard/after-sales'
+  if (p.startsWith('/dashboard/products')) return '/dashboard/products'
+  if (p.startsWith('/dashboard/purchase-intents')) return '/dashboard/purchase-intents'
   return '/dashboard/orders'
 })
 

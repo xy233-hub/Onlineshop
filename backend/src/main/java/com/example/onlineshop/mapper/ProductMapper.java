@@ -70,4 +70,19 @@ public interface ProductMapper {
     List<MediaResource> selectMediaByProductId(@Param("productId") Integer productId);
 
     Category selectCategoryById(@Param("categoryId") Integer categoryId);
+
+     // --- 新增：根据卖家 ID 查询商品（支持搜索、分类、状态过滤）---
+    List<Product> selectProductsBySellerId(@Param("sellerId") Integer sellerId,
+                                           @Param("q") String q,
+                                           @Param("categoryId") Integer categoryId,
+                                           @Param("status") String status,
+                                           @Param("offset") int offset,
+                                           @Param("size") int size,
+                                           @Param("sortBy") String sortBy,
+                                           @Param("order") String order);
+
+    int countProductsBySellerId(@Param("sellerId") Integer sellerId,
+                                @Param("q") String q,
+                                @Param("categoryId") Integer categoryId,
+                                @Param("status") String status);
 }
