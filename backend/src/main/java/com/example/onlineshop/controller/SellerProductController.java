@@ -131,13 +131,29 @@ public class SellerProductController {
 
     // 发布新商品：接收原始 JSON，发布成功后把请求体中含有 temp_key 的临时媒体关联到新 product_id
     @PostMapping("/products")
-    public ApiResponse publishProduct(@RequestBody Map<String, Object> body) {
+    public ApiResponse publishProduct(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
         try {
+            // 从 token 中解析用户 ID（支持 buyer 和 seller）
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            
+            // 优先使用 customerId（买家现在也可以发布商品），如果没有则使用 sellerId
+            Integer publisherId = customerId != null ? customerId : sellerIdFromToken;
+            if (publisherId == null) {
+                return ApiResponse.error(401, "未授权");
+            }
 
             // 把 JSON 转成 ProductRequest 调用原有逻辑
             ProductRequest request = objectMapper.convertValue(body, ProductRequest.class);
+            
+            // 设置发布者 ID 为 seller_id
+            request.setSellerId(publisherId);
+            
             validateMediaResources(request.getMediaResources());
             ApiResponse resp = sellerService.publishProduct(request);
+
 
             // 发布成功后，尝试从 resp.data 中更鲁棒地读取 product_id 并关联临时媒体
             if (resp != null && resp.getCode() == 200) {
@@ -190,13 +206,42 @@ public class SellerProductController {
         }
     }
 
-    // 其它接口不变...
     @GetMapping("/products")
-    public Object listProducts(@RequestParam(value = "seller_id", required = false) Integer sellerId) {
+    public Object listProducts(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(value = "seller_id", required = false) Integer sellerId) {
         try {
+            // 从 token 中解析用户 ID
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            
+            // 如果是买家访问，只能查看自己的商品
+            if (customerId != null) {
+                sellerId = customerId;
+            } else if (sellerIdFromToken != null) {
+                // 如果是卖家访问：
+                // - 如果传入了 seller_id 参数，则查询该卖家的商品
+                // - 如果没有传入 seller_id 参数，则查询所有商品（管理员视角）
+                if (sellerId == null) {
+                    // 卖家没有传 seller_id 参数，查询所有商品
+                    List<Product> allProducts = productService.getAllProducts();
+                    List<ProductInfoResponse> items = allProducts.stream()
+                            .map(ProductInfoResponse::new)
+                            .collect(Collectors.toList());
 
+                    HashMap<String, Object> data = new HashMap<>();
+                    data.put("items", items);
+                    data.put("total", items.size());
 
-            sellerId=1; //暂时只有一个卖家
+                    return ResponseUtil.success("查询成功", data);
+                } else {
+                    // 卖家传了 seller_id 参数，查询指定卖家的商品
+                    sellerId = sellerId;
+                }
+            } else {
+                return ApiResponse.error(401, "未授权");
+            }
+
             List<Product> products = productService.getHistoryProducts(sellerId);
             List<ProductInfoResponse> items = products.stream()
                     .map(ProductInfoResponse::new)
@@ -208,9 +253,10 @@ public class SellerProductController {
 
             return ResponseUtil.success("查询成功", data);
         } catch (Exception e) {
-            return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+            return ResponseUtil.error("查询失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
+
 
     // 冻结商品
     @PutMapping("/products/{product_id}/freeze")

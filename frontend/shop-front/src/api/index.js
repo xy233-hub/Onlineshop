@@ -100,6 +100,21 @@ export const sellerProductAPI = {
     markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
     updateProduct: (productId, data) => api.put(`/seller/products/${productId}`, data)
 }
+/**
+ * 买家商品管理接口
+ */
+export const customerProductAPI = {
+    getMyProducts: (params) => api.get('/customers/products/my-products', { params }),
+    createProduct: (data) => {
+        // 买家发布商品时需要显式指定使用 customer 角色
+        return api.post('/seller/products', data, {
+            headers: { 'X-Auth-Role': 'customer' }
+        })
+    },
+    freezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/freeze`, payload),
+    unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
+    markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload)
+}
 
 /**
  * 购买意向（客户/卖家相关）

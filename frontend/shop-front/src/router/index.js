@@ -16,6 +16,8 @@ import CustomerList from '@/views/seller/CustomerList.vue'
 import CustomerDetail from '@/views/seller/CustomerDetail.vue'
 import AfterSales from '@/views/customer/AfterSales.vue'
 import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
+import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
+import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
 
 const routes = [
     { path: '/', name: 'Home', component: Home },
@@ -33,7 +35,9 @@ const routes = [
             { path: 'favorites', name: 'DashboardFavorites', component: () => import('@/views/customer/Favorites.vue'), meta: { requiresAuth: true } },
             { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } },
             { path: 'after-sales', name: 'CustomerAfterSales', component: AfterSales, meta: { requiresAuth: true } },
-            { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } }
+            { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } },
+            { path: 'products', name: 'CustomerProducts', component: CustomerProductManagement, meta: { requiresAuth: true } },
+            { path: 'purchase-intents', name: 'CustomerPurchaseIntents', component: CustomerPurchaseIntents, meta: { requiresAuth: true } }
         ]
     },
     {

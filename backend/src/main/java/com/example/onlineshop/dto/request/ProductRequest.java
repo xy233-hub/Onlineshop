@@ -17,6 +17,9 @@ import java.util.List;
  */
 @Data
 public class ProductRequest {
+    @JsonProperty("seller_id")
+    private Integer sellerId;
+
     @JsonProperty("product_name")
     @NotBlank(message = "product_name 必填")
     private String productName;

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.example.onlineshop.mapper.PaymentMapper">
+
+    <resultMap id="PaymentResultMap" type="com.example.onlineshop.entity.Payment">
+        <id column="payment_id" property="paymentId"/>
+        <result column="purchase_id" property="purchaseId"/>
+        <result column="customer_id" property="customerId"/>
+        <result column="payment_method" property="paymentMethod"/>
+        <result column="payment_amount" property="paymentAmount"/>
+        <result column="payment_status" property="paymentStatus"/>
+        <result column="transaction_id" property="transactionId"/>
+        <result column="payment_time" property="paymentTime"/>
+        <result column="refund_time" property="refundTime"/>
+        <result column="refund_amount" property="refundAmount"/>
+        <result column="refund_reason" property="refundReason"/>
+        <result column="payment_expiry" property="paymentExpiry"/>
+        <result column="payment_notes" property="paymentNotes"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="PaymentResultMap">
+        SELECT * FROM payments WHERE payment_id = #{paymentId}
+    </select>
+
+    <select id="findByPurchaseId" resultMap="PaymentResultMap">
+        SELECT * FROM payments WHERE purchase_id = #{purchaseId} LIMIT 1
+    </select>
+
+    <select id="findByCustomerId" resultMap="PaymentResultMap">
+        SELECT * FROM payments WHERE customer_id = #{customerId} ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert" parameterType="com.example.onlineshop.entity.Payment" useGeneratedKeys="true" keyProperty="paymentId">
+        INSERT INTO payments (
+            purchase_id, customer_id, payment_method, payment_amount, payment_status,
+            transaction_id, payment_expiry, payment_notes, created_at, updated_at
+        ) VALUES (
+            #{purchaseId}, #{customerId}, #{paymentMethod}, #{paymentAmount}, #{paymentStatus},
+            #{transactionId}, #{paymentExpiry}, #{paymentNotes}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE payments
+        SET payment_status = #{paymentStatus},
+            transaction_id = #{transactionId},
+            payment_time = #{paymentTime},
+            updated_at = #{updatedAt}
+        WHERE payment_id = #{paymentId}
+    </update>
+    <update id="updateStatusWithMethod">
+        UPDATE payments 
+        SET payment_status = #{paymentStatus},
+            transaction_id = #{transactionId},
+            payment_method = #{paymentMethod},
+            payment_time = #{paymentTime},
+            updated_at = #{updatedAt} 
+        WHERE payment_id = #{paymentId}
+    </update>
+
+    <update id="updatePaymentMethod">
+        UPDATE payments 
+        SET payment_method = #{paymentMethod},
+            updated_at = #{updatedAt} 
+        WHERE payment_id = #{paymentId}
+    </update>
+
+    <update id="updatePaymentInfo" parameterType="com.example.onlineshop.entity.Payment">
+        UPDATE payments
+        <set>
+            <if test="paymentMethod != null">payment_method = #{paymentMethod},</if>
+            <if test="paymentAmount != null">payment_amount = #{paymentAmount},</if>
+            <if test="paymentStatus != null">payment_status = #{paymentStatus},</if>
+            <if test="transactionId != null">transaction_id = #{transactionId},</if>
+            <if test="paymentTime != null">payment_time = #{paymentTime},</if>
+            <if test="refundTime != null">refund_time = #{refundTime},</if>
+            <if test="refundAmount != null">refund_amount = #{refundAmount},</if>
+            <if test="refundReason != null">refund_reason = #{refundReason},</if>
+            <if test="paymentExpiry != null">payment_expiry = #{paymentExpiry},</if>
+            <if test="paymentNotes != null">payment_notes = #{paymentNotes},</if>
+            updated_at = #{updatedAt}
+        </set>
+        WHERE payment_id = #{paymentId}
+    </update>
+
+    <update id="markExpiredPaymentsFailed">
+        UPDATE payments
+        SET payment_status = 'FAILED',
+            payment_notes = CONCAT(IFNULL(payment_notes, ''), '; 系统自动标记：支付超时'),
+            updated_at = #{currentTime}
+        WHERE payment_status = 'PENDING'
+          AND payment_expiry &lt; #{currentTime}
+    </update>
+
+    <update id="processRefund">
+        UPDATE payments
+        SET payment_status = 'REFUNDED',
+            refund_amount = #{refundAmount},
+            refund_reason = #{refundReason},
+            refund_time = #{refundTime},
+            updated_at = #{updatedAt}
+        WHERE payment_id = #{paymentId}
+    </update>
+
+    <select id="findByCondition" resultMap="PaymentResultMap">
+        SELECT * FROM payments
+        <where>
+            <if test="paymentId != null">AND payment_id = #{paymentId}</if>
+            <if test="purchaseId != null">AND purchase_id = #{purchaseId}</if>
+            <if test="customerId != null">AND customer_id = #{customerId}</if>
+            <if test="paymentMethod != null and paymentMethod != ''">AND payment_method = #{paymentMethod}</if>
+            <if test="paymentStatus != null and paymentStatus != ''">AND payment_status = #{paymentStatus}</if>
+            <if test="transactionId != null and transactionId != ''">AND transaction_id = #{transactionId}</if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="countByCondition" resultType="int">
+        SELECT COUNT(*) FROM payments
+        <where>
+            <if test="paymentId != null">AND payment_id = #{paymentId}</if>
+            <if test="purchaseId != null">AND purchase_id = #{purchaseId}</if>
+            <if test="customerId != null">AND customer_id = #{customerId}</if>
+            <if test="paymentMethod != null and paymentMethod != ''">AND payment_method = #{paymentMethod}</if>
+            <if test="paymentStatus != null and paymentStatus != ''">AND payment_status = #{paymentStatus}</if>
+            <if test="transactionId != null and transactionId != ''">AND transaction_id = #{transactionId}</if>
+        </where>
+    </select>
+
+    <select id="findExpiringPayments" resultMap="PaymentResultMap">
+        SELECT * FROM payments
+        WHERE payment_status = 'PENDING'
+          AND payment_expiry &gt; #{currentTime}
+          AND TIMESTAMPDIFF(MINUTE, #{currentTime}, payment_expiry) &lt;= #{minutes}
+        ORDER BY payment_expiry ASC
+    </select>
+
+</mapper>
