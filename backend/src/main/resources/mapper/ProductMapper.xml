@@ -71,48 +71,76 @@
         ORDER BY pi.image_order ASC, pi.image_id ASC
         LIMIT 1) AS cover_image
         FROM products p
+        LEFT JOIN categories c ON c.category_id = p.category_id
+        LEFT JOIN categories pc ON pc.category_id = c.parent_id
         WHERE 1 = 1
         <if test="q != null and q != ''">
-            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+            AND (
+            p.product_name LIKE CONCAT('%', #{q}, '%')
+            OR p.search_keywords LIKE CONCAT('%', #{q}, '%')
+            OR p.product_desc LIKE CONCAT('%', #{q}, '%')
+            OR c.category_name LIKE CONCAT('%', #{q}, '%')
+            OR pc.category_name LIKE CONCAT('%', #{q}, '%')
+            )
         </if>
         <if test="categoryId != null">
-            AND category_id = #{categoryId}
+            AND p.category_id = #{categoryId}
         </if>
         <if test="status != null and status != ''">
-            AND product_status = #{status}
+            AND p.product_status = #{status}
+        </if>
+        <if test="minPrice != null">
+            AND p.price <![CDATA[>=]]> #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND p.price <![CDATA[<=]]> #{maxPrice}
         </if>
 
         <choose>
             <when test="sortBy != null and sortBy == 'price'">
-                ORDER BY price ${order}
+                ORDER BY p.price ${order}
             </when>
             <when test="sortBy != null and sortBy == 'stock_quantity'">
-                ORDER BY stock_quantity ${order}
+                ORDER BY p.stock_quantity ${order}
             </when>
             <when test="sortBy != null and sortBy == 'created_at'">
-                ORDER BY created_at ${order}
+                ORDER BY p.created_at ${order}
             </when>
             <otherwise>
-                ORDER BY created_at ${order}
+                ORDER BY p.created_at ${order}
             </otherwise>
         </choose>
 
         LIMIT #{offset}, #{size}
     </select>
 
-    <!-- 计数（与上面条件相同但无分页） -->
+    <!-- 计数（与上面条件一致） -->
     <select id="countProducts" parameterType="map" resultType="int">
         SELECT COUNT(1)
-        FROM products
+        FROM products p
+        LEFT JOIN categories c ON c.category_id = p.category_id
+        LEFT JOIN categories pc ON pc.category_id = c.parent_id
         WHERE 1 = 1
         <if test="q != null and q != ''">
-            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+            AND (
+            p.product_name LIKE CONCAT('%', #{q}, '%')
+            OR p.search_keywords LIKE CONCAT('%', #{q}, '%')
+            OR p.product_desc LIKE CONCAT('%', #{q}, '%')
+            OR c.category_name LIKE CONCAT('%', #{q}, '%')
+            OR pc.category_name LIKE CONCAT('%', #{q}, '%')
+            )
         </if>
         <if test="categoryId != null">
-            AND category_id = #{categoryId}
+            AND p.category_id = #{categoryId}
         </if>
         <if test="status != null and status != ''">
-            AND product_status = #{status}
+            AND p.product_status = #{status}
+        </if>
+        <if test="minPrice != null">
+            AND p.price <![CDATA[>=]]> #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND p.price <![CDATA[<=]]> #{maxPrice}
         </if>
     </select>
 
@@ -183,5 +211,6 @@
 
 
 </mapper>
+
 
 
