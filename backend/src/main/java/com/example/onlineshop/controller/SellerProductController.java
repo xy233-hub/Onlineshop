@@ -429,12 +429,23 @@ public class SellerProductController {
      * 49. 卖家手动添加物流轨迹
      */
     @PostMapping("/orders/{purchase_id}/logistics/tracks")
-   public ApiResponse addLogisticsTrack(
+    public ApiResponse addLogisticsTrack(
             @RequestHeader("Authorization") String token,
             @PathVariable("purchase_id") Integer purchaseId,
             @RequestBody Map<String, Object> body) {
         try {
+            // 从 token 中解析 sellerId
             Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+
+            // 如果不是卖家，尝试解析 customerId（买家调用时）
+            if (sellerId == null) {
+                Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+                if (customerId != null) {
+                    // 买家调用时，将 customerId 作为 sellerId 使用
+                    sellerId = customerId;
+                }
+            }
+
             if (sellerId == null) {
                 return new ApiResponse(401, "未授权", null);
             }
@@ -448,7 +459,7 @@ public class SellerProductController {
             if (items == null || items.isEmpty()) {
                 return new ApiResponse(404, "关联商品不存在", null);
             }
-            
+
             PurchaseIntentItem firstItem = items.get(0);
             Product product = productService.getProductById(firstItem.getProductId());
             if (product == null || !product.getSellerId().equals(sellerId)) {
@@ -488,4 +499,3 @@ public class SellerProductController {
         }
     }
 }
-
