@@ -143,4 +143,24 @@
             updated_at = NOW()
         WHERE purchase_id = #{purchaseId}
     </update>
+
+     <!-- 根据卖家 ID 查询购买意向（通过 products 表关联） -->
+    <select id="findBySellerId" resultMap="PurchaseIntentMap">
+        SELECT DISTINCT pi.* 
+        FROM purchase_intents pi
+        INNER JOIN purchase_intent_items pii ON pi.purchase_id = pii.purchase_id
+        INNER JOIN products p ON pii.product_id = p.product_id
+        WHERE p.seller_id = #{sellerId}
+        ORDER BY pi.created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 统计根据卖家 ID 查询的购买意向数量 -->
+    <select id="countBySellerId" resultType="int">
+        SELECT COUNT(DISTINCT pi.purchase_id)
+        FROM purchase_intents pi
+        INNER JOIN purchase_intent_items pii ON pi.purchase_id = pii.purchase_id
+        INNER JOIN products p ON pii.product_id = p.product_id
+        WHERE p.seller_id = #{sellerId}
+    </select>
 </mapper>

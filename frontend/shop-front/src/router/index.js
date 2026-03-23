@@ -16,8 +16,6 @@ import CustomerList from '@/views/seller/CustomerList.vue'
 import CustomerDetail from '@/views/seller/CustomerDetail.vue'
 import AfterSales from '@/views/customer/AfterSales.vue'
 import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
-import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
-import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
 
 const routes = [
     { path: '/', name: 'Home', component: Home },
@@ -36,8 +34,9 @@ const routes = [
             { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } },
             { path: 'after-sales', name: 'CustomerAfterSales', component: AfterSales, meta: { requiresAuth: true } },
             { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } },
-            { path: 'products', name: 'CustomerProducts', component: CustomerProductManagement, meta: { requiresAuth: true } },
-            { path: 'purchase-intents', name: 'CustomerPurchaseIntents', component: CustomerPurchaseIntents, meta: { requiresAuth: true } }
+            { path: 'products', name: 'CustomerProducts', component: () => import('@/views/customer/ProductManagement.vue'), meta: { requiresAuth: true } },
+            { path: 'purchase-intents', name: 'CustomerPurchaseIntents', component: () => import('@/views/customer/OrderManagement.vue'), meta: { requiresAuth: true } },
+            { path: 'after-sales-handle', name: 'CustomerAfterSalesHandle', component: () => import('@/views/customer/AfterSalesManagement.vue'), meta: { requiresAuth: true } }
         ]
     },
     {
@@ -131,6 +130,14 @@ router.beforeEach((to, from, next) => {
                 return next({ path: '/seller', query: { redirect: to.fullPath } })
             }
             return next()
+        }
+        return next()
+    }
+
+    // 买家路由：允许 buyer 访问
+    if (to.path.startsWith('/customer')) {
+        if (!isCustomer && !isSeller) {
+            return next({ path: '/login', query: { redirect: to.fullPath } })
         }
         return next()
     }

@@ -46,7 +46,18 @@ public class SellerAfterSalesController {
             @RequestParam(value = "size", required = false, defaultValue = "10") Integer size,
             @RequestParam(value = "service_status", required = false) String serviceStatus,
             @RequestParam(value = "service_type", required = false) String serviceType) {
+        // 从 token 中解析 sellerId
         Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+        
+        // 如果不是卖家，尝试解析 customerId（买家调用时）
+        if (sellerId == null) {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            if (customerId != null) {
+                // 买家调用时，将 customerId 作为 sellerId 使用
+                sellerId = customerId;
+            }
+        }
+        
         if (sellerId == null) {
             return ResponseEntity.status(401)
                     .body(new ApiResponse(401, "未授权", null));
@@ -91,6 +102,7 @@ public class SellerAfterSalesController {
         }
     }
 
+
     /**
      * 56. 卖家查询售后服务详情
      */
@@ -98,7 +110,18 @@ public class SellerAfterSalesController {
     public ResponseEntity<ApiResponse> getAfterSalesServiceDetail(
             @RequestHeader("Authorization") String token,
             @PathVariable("service_id") Integer serviceId) {
+        // 从 token 中解析 sellerId
         Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+        
+        // 如果不是卖家，尝试解析 customerId（买家调用时）
+        if (sellerId == null) {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            if (customerId != null) {
+                // 买家调用时，将 customerId 作为 sellerId 使用
+                sellerId = customerId;
+            }
+        }
+        
         if (sellerId == null) {
             return ResponseEntity.status(401)
                     .body(new ApiResponse(401, "未授权", null));
@@ -171,7 +194,6 @@ public class SellerAfterSalesController {
                     .body(new ApiResponse(500, "查询失败：" + e.getMessage(), null));
         }
     }
-
     /**
      * 57. 卖家处理售后服务申请
      */
@@ -180,7 +202,18 @@ public class SellerAfterSalesController {
             @RequestHeader("Authorization") String token,
             @PathVariable("service_id") Integer serviceId,
             @RequestBody Map<String, String> request) {
+        // 从 token 中解析 sellerId
         Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+        
+        // 如果不是卖家，尝试解析 customerId（买家调用时）
+        if (sellerId == null) {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            if (customerId != null) {
+                // 买家调用时，将 customerId 作为 sellerId 使用
+                sellerId = customerId;
+            }
+        }
+        
         if (sellerId == null) {
             return ResponseEntity.status(401)
                     .body(new ApiResponse(401, "未授权", null));
@@ -206,9 +239,8 @@ public class SellerAfterSalesController {
             return ResponseEntity.status(500)
                     .body(new ApiResponse(500, "处理失败：" + e.getMessage(), null));
         }
-    }
-
-    /**
+    }   
+     /**
      * 58. 卖家确认收到退货
      */
     @PostMapping("/{service_id}/confirm-return")
@@ -216,7 +248,18 @@ public class SellerAfterSalesController {
             @RequestHeader("Authorization") String token,
             @PathVariable("service_id") Integer serviceId,
             @RequestBody Map<String, String> request) {
+        // 从 token 中解析 sellerId
         Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+        
+        // 如果不是卖家，尝试解析 customerId（买家调用时）
+        if (sellerId == null) {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            if (customerId != null) {
+                // 买家调用时，将 customerId 作为 sellerId 使用
+                sellerId = customerId;
+            }
+        }
+        
         if (sellerId == null) {
             return ResponseEntity.status(401)
                     .body(new ApiResponse(401, "未授权", null));

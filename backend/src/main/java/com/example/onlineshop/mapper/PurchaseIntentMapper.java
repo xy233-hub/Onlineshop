@@ -51,4 +51,15 @@ public interface PurchaseIntentMapper {
     int updateLogisticsInfo(@Param("purchaseId") Integer purchaseId, 
                            @Param("logisticsProviderId") Integer logisticsProviderId, 
                            @Param("trackingNo") String trackingNo);
+    /**
+     * 根据卖家 ID 查询购买意向（通过 product 表关联）
+     */
+    List<PurchaseIntent> findBySellerId(@Param("sellerId") Integer sellerId, 
+                                        @Param("offset") Integer offset, 
+                                        @Param("size") Integer size);
+
+    /**
+     * 统计根据卖家 ID 查询的购买意向数量
+     */
+    int countBySellerId(@Param("sellerId") Integer sellerId);
 }
