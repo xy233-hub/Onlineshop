@@ -417,3 +417,16 @@ ALTER TABLE payments
     ADD COLUMN after_sales_service_id INT COMMENT '关联的售后服务单 ID',
     ADD CONSTRAINT fk_payment_after_sales FOREIGN KEY (after_sales_service_id)
         REFERENCES after_sales_services (service_id) ON DELETE SET NULL;
+
+-- 1. 先查看当前的外键名称（确认一下）
+SHOW CREATE TABLE onlineshop.products;
+
+-- 2. 删除外键约束 fk_product_seller
+ALTER TABLE onlineshop.products DROP FOREIGN KEY fk_product_seller;
+
+-- 3. 验证是否删除成功
+SHOW CREATE TABLE onlineshop.products;
+
+-- 4. 可选：添加索引提高查询性能
+CREATE INDEX idx_products_seller_id ON products(seller_id);
+
