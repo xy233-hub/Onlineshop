@@ -187,21 +187,22 @@ public class ExternalAiClient {
         return x.length() > 300 ? x.substring(0, 300) + "...(truncated)" : x;
     }
 
+
     private String buildExtractPrompt(String userText) {
         return ""
                 + "你是电商搜索条件提取器。\n"
                 + "从用户输入中提取结构化查询条件，输出严格 JSON，禁止输出多余文本。\n"
                 + "允许字段：q, categoryId, status, minPrice, maxPrice, sortBy, order, page, size。\n"
-                + "约束：\n"
-                + "1) status 默认 online。\n"
-                + "2) sortBy 只能是 price / created_at / stock_quantity 之一，不提供则为 created_at。\n"
-                + "3) order 只能是 asc / desc，不提供则 desc。\n"
-                + "4) page 默认 1，size 默认 10。\n"
-                + "5) 价格区间识别：例如 100-250 元 -> minPrice=100,maxPrice=250。\n"
+                + "重要规则（必须遵守）：\n"
+                + "1) `q` 必须尽量保留用户的关键短语，不要只保留一个名词，用逗号分离。\n"
+                + "2) status 默认 online。\n"
+                + "3) sortBy 只能是 price / created_at / stock_quantity 之一，不提供则为 created_at。\n"
+                + "4) order 只能是 asc / desc，不提供则 desc。\n"
+                + "5) page 默认 1，size 默认 10。\n"
+                + "6) 价格区间识别：例如 100-250 元 -> minPrice=100,maxPrice=250。\n"
                 + "用户输入：\n"
                 + userText + "\n";
     }
-
     private String buildDescriptionPrompt(String userText, String productsSummaryJson) {
         return ""
                 + "你是电商导购助手。\n"

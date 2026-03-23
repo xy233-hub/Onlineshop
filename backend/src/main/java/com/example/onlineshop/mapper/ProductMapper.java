@@ -46,7 +46,7 @@ public interface ProductMapper {
                             @Param("deduct") Integer deduct,
                             @Param("now") LocalDateTime now);
     // 用于分页/搜索
-    List<Product> selectProducts(@Param("q") String q,
+    List<Product> selectProducts(@Param("tokens") List<String> tokens,
                                  @Param("categoryId") Integer categoryId,
                                  @Param("status") String status,
                                  @Param("minPrice") java.math.BigDecimal minPrice,
@@ -56,8 +56,7 @@ public interface ProductMapper {
                                  @Param("sortBy") String sortBy,
                                  @Param("order") String order);
 
-
-    int countProducts(@Param("q") String q,
+    int countProducts(@Param("tokens") List<String> tokens,
                       @Param("categoryId") Integer categoryId,
                       @Param("status") String status,
                       @Param("minPrice") java.math.BigDecimal minPrice,

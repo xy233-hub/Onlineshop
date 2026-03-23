@@ -1,7 +1,7 @@
+<!-- 文件：`Home.vue` -->
 <template>
   <div class="home-container">
     <el-container>
-      <!-- 头部导航 -->
       <el-header class="header">
         <div class="nav-brand">
           <h1>在线购物系统</h1>
@@ -19,12 +19,11 @@
         </div>
       </el-header>
 
-      <!-- 主要内容：搜索（含分类弹出） + 商品列表 -->
       <el-main class="main-content">
         <div class="search-wrap">
           <div class="search-box">
-            <!-- 左：分类 -->
-            <div class="search-left">
+            <!-- 左：普通搜索才显示分类 -->
+            <div class="search-left" v-if="searchMode === 'normal'">
               <el-popover
                   v-model:visible="showCategoryPopover"
                   placement="bottom-start"
@@ -53,7 +52,6 @@
                   >
                     <el-menu-item index="">全部分类</el-menu-item>
 
-                    <!-- 兼容树形分类（children） -->
                     <template v-for="c in categories" :key="c.category_id">
                       <el-sub-menu
                           v-if="c.children && c.children.length"
@@ -69,10 +67,7 @@
                         </el-menu-item>
                       </el-sub-menu>
 
-                      <el-menu-item
-                          v-else
-                          :index="String(c.category_id)"
-                      >
+                      <el-menu-item v-else :index="String(c.category_id)">
                         {{ c.category_name }}
                       </el-menu-item>
                     </template>
@@ -82,22 +77,39 @@
             </div>
 
             <!-- 中：搜索输入 -->
+            <div class="search-middle" :class="{ 'ai-mode': searchMode === 'ai' }">
             <div class="search-middle">
               <el-input
                   v-model="q"
                   class="search-input"
                   clearable
-                  placeholder="搜索商品名称"
+                  :placeholder="searchMode === 'ai' ? '对我说：你想买什么' : '搜索商品名称'"
                   @keyup.enter="handleSearch"
               />
             </div>
-
-            <!-- 右：搜索按钮 -->
+            </div>
+            <!-- 右：模式切换 + 搜索按钮 -->
             <div class="search-right">
+              <el-segmented
+                  v-model="searchMode"
+                  :options="modeOptions"
+                  class="mode-switch"
+                  @change="onModeChange"
+              />
               <el-button type="primary" class="search-btn" @click="handleSearch">
-                搜索
+                {{ searchMode === 'ai' ? 'AI 推荐' : '搜索' }}
               </el-button>
             </div>
+          </div>
+
+          <!-- AI 文案 -->
+          <div v-if="searchMode === 'ai' && aiDescription" class="ai-desc">
+            <el-alert
+                :title="aiDescription"
+                type="info"
+                :closable="false"
+                show-icon
+            />
           </div>
         </div>
 
@@ -129,7 +141,6 @@
                   </div>
 
                   <div class="description">
-                    <!-- 渲染为纯文本、仅一行显示，多出部分省略，title 显示全文 -->
                     <p
                         class="desc-text single-line-ellipsis"
                         :title="stripHtml(product.product_desc)"
@@ -147,20 +158,18 @@
           </div>
         </div>
 
-        <!-- 无商品提示 -->
         <div v-else class="empty-state">
-          <el-empty description="暂无商品在售">
-            <el-button type="primary" @click="$router.push('/seller')">卖家登录</el-button>
+          <el-empty :description="searchMode === 'ai' ? '暂无推荐结果' : '暂无商品在售'">
+            <el-button v-if="searchMode !== 'ai'" type="primary" @click="$router.push('/seller')">卖家登录</el-button>
           </el-empty>
         </div>
 
-        <!-- 分页条 -->
         <div v-if="total > 0" style="margin-top: 12px;">
           <PaginationBar
               v-model="page"
               :page-size="size"
               :total="total"
-              @change="({ page: p, size: s }) => fetchProducts(p, s)"
+              @change="({ page: p, size: s }) => onPageChange(p, s)"
           />
         </div>
       </el-main>
@@ -175,6 +184,7 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCustomerStore } from '@/stores/customer'
+import api from '@/api' // 复用同一个 axios 实例（`index.js` 默认导出）
 
 const router = useRouter()
 const route = useRoute()
@@ -189,9 +199,15 @@ const categoryId = ref(null)
 const categories = ref([])
 const showCategoryPopover = ref(false)
 
+const searchMode = ref('normal') // normal | ai
+const modeOptions = [
+  { label: '普通搜索', value: 'normal' },
+  { label: 'AI 推荐', value: 'ai' }
+]
+const aiDescription = ref('')
+
 const isCustomerLogged = computed(() => !!customerStore.token)
 
-/* 导航与会话操作 */
 const goBuyerLogin = () => {
   router.push({ path: '/login', query: { redirect: route.fullPath } }).catch(() => {})
 }
@@ -202,10 +218,8 @@ const goDashboard = () => {
   router.push('/customer/dashboard').catch(() => {})
 }
 const LOGOUT_TOAST_KEY = 'post_reload_toast'
-
 const logout = async () => {
   try {
-    // 1) 清理状态
     if (typeof customerStore.logout === 'function') {
       await customerStore.logout()
     } else {
@@ -217,13 +231,11 @@ const logout = async () => {
       localStorage.removeItem('token')
     }
 
-    // 2) 把提示“带过刷新”
     sessionStorage.setItem(
         LOGOUT_TOAST_KEY,
         JSON.stringify({ type: 'success', message: '已退出登录', ts: Date.now() })
     )
 
-    // 3) 跳转后刷新（让页面状态彻底重置）
     await router.replace({ path: '/' })
     window.location.reload()
   } catch (e) {
@@ -245,61 +257,91 @@ const fetchCategories = async () => {
   }
 }
 
+const normalizeItems = (items) => {
+  const list = Array.isArray(items) ? items : []
+  return list.map(item => {
+    const copy = { ...item }
+    let img = ''
+    if (Array.isArray(copy.images) && copy.images.length) {
+      const first = copy.images[0]
+      if (typeof first === 'string') img = first
+      else if (first && (first.image_url || first.url)) img = first.image_url || first.url
+    } else if (copy.image_url) {
+      img = copy.image_url
+    } else if (copy.images && typeof copy.images === 'string') {
+      img = copy.images
+    }
+    copy.image_url = img || ''
+    copy.product_desc = copy.product_desc ?? ''
+    copy.price = copy.price ?? 0
+    return copy
+  })
+}
+
+const fetchProductsNormal = async (p = page.value, s = size.value) => {
+  const params = { page: p, size: s }
+  if (q.value && q.value.toString().trim()) params.q = q.value.toString().trim()
+  if (categoryId.value) params.category_id = categoryId.value
+
+  const response = await productAPI.getProducts(params)
+  const payload = extractData(response)
+
+  const items = normalizeItems(payload?.items ?? [])
+  page.value = p
+  size.value = s
+  total.value = Number(payload?.total ?? items.length ?? 0)
+  products.value = items
+}
+
+const fetchProductsAi = async (p = page.value, s = size.value) => {
+  const text = (q.value ?? '').toString().trim()
+  const body = { text, page: p, size: s }
+
+  const response = await api.post('/products/ai-recommend', body)
+  const payload = extractData(response) || {}
+
+  aiDescription.value = payload.ai_description ?? ''
+  const items = normalizeItems(payload.items ?? [])
+  page.value = Number(payload.page ?? p)
+  size.value = Number(payload.size ?? s)
+  total.value = Number(payload.total ?? items.length ?? 0)
+  products.value = items
+}
+
 const fetchProducts = async (p = page.value, s = size.value) => {
   try {
-    const params = { page: p, size: s }
-    if (q.value && q.value.toString().trim()) params.q = q.value.toString().trim()
-    if (categoryId.value) params.category_id = categoryId.value
-
-    const response = await productAPI.getProducts(params)
-    const payload = extractData(response)
-    let items = []
-
-    if (!payload) {
-      items = []
-    } else if (Array.isArray(payload.items) && payload.items.length) {
-      items = payload.items
-    } else if (Array.isArray(payload) && payload.length) {
-      items = payload
-    } else if (payload && (payload.product_id || payload.product_id === 0)) {
-      items = [payload]
+    if (searchMode.value === 'ai') {
+      await fetchProductsAi(p, s)
     } else {
-      items = []
+      await fetchProductsNormal(p, s)
     }
-
-    // 规范化字段
-    items = items.map(item => {
-      const copy = { ...item }
-      let img = ''
-      if (Array.isArray(copy.images) && copy.images.length) {
-        const first = copy.images[0]
-        if (typeof first === 'string') img = first
-        else if (first && (first.image_url || first.url)) img = first.image_url || first.url
-      } else if (copy.image_url) {
-        img = copy.image_url
-      } else if (copy.images && typeof copy.images === 'string') {
-        img = copy.images
-      }
-      copy.image_url = img || ''
-      copy.product_desc = copy.product_desc ?? ''
-      copy.price = copy.price ?? 0
-      return copy
-    })
-
-    page.value = p
-    size.value = s
-    total.value = Number(payload?.total ?? items.length ?? 0)
-    products.value = items
   } catch (error) {
     console.error('获取商品失败:', error)
     products.value = []
     total.value = 0
+    if (searchMode.value === 'ai') aiDescription.value = ''
   }
 }
 
 const handleSearch = () => {
   page.value = 1
-  fetchProducts()
+  fetchProducts(1, size.value)
+}
+
+const onPageChange = (p, s) => {
+  fetchProducts(p, s)
+}
+
+const onModeChange = () => {
+  // 切到 AI 时不需要分类过滤；切回普通保留输入框即可
+  page.value = 1
+  if (searchMode.value === 'ai') {
+    categoryId.value = null
+    showCategoryPopover.value = false
+  } else {
+    aiDescription.value = ''
+  }
+  fetchProducts(1, size.value)
 }
 
 const onSelectCategoryFromPopover = (index) => {
@@ -307,14 +349,14 @@ const onSelectCategoryFromPopover = (index) => {
   else categoryId.value = Number(index)
   showCategoryPopover.value = false
   page.value = 1
-  fetchProducts()
+  fetchProducts(1, size.value)
 }
 
 const clearCategory = () => {
   categoryId.value = null
   showCategoryPopover.value = false
   page.value = 1
-  fetchProducts()
+  fetchProducts(1, size.value)
 }
 
 const currentCategoryName = computed(() => {
@@ -338,6 +380,17 @@ const getStatusText = (status) => {
   return texts[status] || status
 }
 
+const stripHtml = (input) => {
+  if (input === null || input === undefined) return ''
+  let s = input
+  if (typeof s !== 'string') {
+    try { s = JSON.stringify(s) } catch { s = String(s) }
+  }
+  const div = document.createElement('div')
+  div.innerHTML = s
+  return (div.textContent || div.innerText || '').trim()
+}
+
 onMounted(() => {
   fetchCategories()
   fetchProducts()
@@ -345,31 +398,17 @@ onMounted(() => {
     const raw = sessionStorage.getItem(LOGOUT_TOAST_KEY)
     if (!raw) return
     sessionStorage.removeItem(LOGOUT_TOAST_KEY)
-
     const toast = JSON.parse(raw)
     if (toast?.message) {
-      ElMessage({
-        type: toast.type || 'success',
-        message: toast.message,
-        duration: 2000
-      })
+      ElMessage({ type: toast.type || 'success', message: toast.message, duration: 2000 })
     }
   } catch {
     // ignore
   }
 })
-const stripHtml = (input) => {
-  if (input === null || input === undefined) return ''
-  let s = input
-  if (typeof s !== 'string') {
-    try { s = JSON.stringify(s) } catch { s = String(s) }
-  }
-  // 使用 DOM 去掉 html
-  const div = document.createElement('div')
-  div.innerHTML = s
-  return (div.textContent || div.innerText || '').trim()
-}
 </script>
+
+
 
 <style scoped>
 *,
@@ -550,5 +589,6 @@ const stripHtml = (input) => {
 @media (max-width: 420px) {
   .products-grid { grid-template-columns: repeat(1, minmax(140px, 1fr)) !important; }
 }
+
 
 </style>
