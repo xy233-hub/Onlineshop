@@ -82,14 +82,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { sellerProductAPI, customerProductAPI, mediaAPI, categoryAPI } from '@/api'
+import { sellerProductAPI, mediaAPI, categoryAPI } from '@/api'
 import type { UploadFile } from 'element-plus'
 import  Editor  from '@tinymce/tinymce-vue'
 const tinymceApiKey = String("l8ol8rrsgk5v4unha10wmxcau3hdf40gu3y6sz23wdoadlxj")
+
 const props = defineProps({
-  visible: { type: Boolean, required: true },
-    // 新增：指定发布者角色，'seller' | 'customer'
-  publisherRole: { type: String, default: 'seller' }
+  visible: { type: Boolean, required: true }
 })
 const emit = defineEmits(['update:visible', 'created'])
 
@@ -334,9 +333,7 @@ const handleSubmit = async () => {
     }
     submitting.value = true
     try {
-      // 根据发布者角色选择对应的 API
-      const apiToUse = props.publisherRole === 'customer' ? customerProductAPI : sellerProductAPI
-      const res = await apiToUse.createProduct(payload)
+      const res = await sellerProductAPI.createProduct(payload)
       const d = res?.data?.data ?? res?.data ?? res
       ElMessage.success('发布成功')
       emit('created', d)

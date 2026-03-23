@@ -344,7 +344,7 @@ public class SellerProductController {
 
         return new ApiResponse(200, "查询成功", result);
     }
-    /**
+        /**
      * 47. 卖家发货（填写物流信息）
      */
       @PostMapping("/purchase-intents/{purchase_id}/ship")
@@ -354,6 +354,16 @@ public class SellerProductController {
             @RequestBody Map<String, Object> body) {
         try {
             Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+            
+            // 如果不是卖家，尝试解析 customerId（买家调用时）
+            if (sellerId == null) {
+                Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+                if (customerId != null) {
+                    // 买家调用时，将 customerId 作为 sellerId 使用
+                    sellerId = customerId;
+                }
+            }
+            
             if (sellerId == null) {
                 return new ApiResponse(401, "未授权", null);
             }
@@ -413,6 +423,7 @@ public class SellerProductController {
             return new ApiResponse(500, "发货失败：" + e.getMessage(), null);
         }
     }
+
 
     /**
      * 49. 卖家手动添加物流轨迹

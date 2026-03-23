@@ -24,9 +24,12 @@ api.interceptors.request.use(config => {
     const url = (config.url || '')
     const path = url.startsWith('http') ? new URL(url).pathname : url
     const inferredRole = (() => {
+        // 特殊处理：买家订单管理相关接口（虽然是 /seller/ 开头，但买家也需要访问）
+        if (/^\/seller\/purchase-intents(\/|$)/.test(path)) return 'any'
+        if (/^\/seller\/products(\/|$)/.test(path)) return 'any'
+        if (/^\/seller\/categories(\/|$)/.test(path)) return 'any'
+        if (/^\/seller\/after-sales(\/|$)/.test(path)) return 'any'
         if (/^\/seller(\/|$)/.test(path)) return 'seller'
-        // \*\*删除：地址相关的请求不需要JWT令牌\*\*
-        // if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
         if (/^\/products\/purchase-intents(\/|$)/.test(path)) return 'customer'
         return null
@@ -37,6 +40,7 @@ api.interceptors.request.use(config => {
     else if (explicitRole === 'customer') tokenToUse = customerToken
     else if (inferredRole === 'seller') tokenToUse = sellerToken
     else if (inferredRole === 'customer') tokenToUse = customerToken
+    else if (inferredRole === 'any') tokenToUse = sellerToken || customerToken
     else tokenToUse = sellerToken || customerToken
 
     if (tokenToUse) {
@@ -99,21 +103,6 @@ export const sellerProductAPI = {
     unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
     markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
     updateProduct: (productId, data) => api.put(`/seller/products/${productId}`, data)
-}
-/**
- * 买家商品管理接口
- */
-export const customerProductAPI = {
-    getMyProducts: (params) => api.get('/customers/products/my-products', { params }),
-    createProduct: (data) => {
-        // 买家发布商品时需要显式指定使用 customer 角色
-        return api.post('/seller/products', data, {
-            headers: { 'X-Auth-Role': 'customer' }
-        })
-    },
-    freezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/freeze`, payload),
-    unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
-    markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload)
 }
 
 /**
@@ -279,5 +268,49 @@ export const afterSalesAPI = {
     // 卖家确认收货
     confirmReturn: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/confirm-return`, data)
 }
+
+
+/**
+ * 买家商品管理（复用卖家接口 /api/seller/products）
+ * - 发布商品：POST /api/seller/products
+ * - 查看自己的商品：GET /api/seller/products
+ * - 冻结/下架：PUT /api/seller/products/{product_id}/freeze
+ * - 解冻/上架：PUT /api/seller/products/{product_id}/unfreeze
+ * - 标记已售：PUT /api/seller/products/{product_id}/mark-sold
+ */
+export const customerProductAPI = {
+    createProduct: (data) => api.post('/seller/products', data),
+    getProducts: (params) => api.get('/seller/products', { params }),
+    freezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/freeze`, payload),
+    unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
+    markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
+    updateProduct: (productId, data) => api.put(`/seller/products/${productId}`, data)
+}
+
+/**
+ * 买家物流管理（复用卖家接口 /api/seller/purchase-intents）
+ * - 发货：POST /api/seller/purchase-intents/{purchase_id}/ship
+ * - 添加物流轨迹：POST /api/seller/orders/{purchase_id}/logistics/tracks
+ */
+export const customerLogisticsAPI = {
+    shipOrder: (purchaseId, data) => api.post(`/seller/purchase-intents/${purchaseId}/ship`, data),
+    addLogisticsTrack: (purchaseId, data) => api.post(`/seller/orders/${purchaseId}/logistics/tracks`, data)
+}
+
+/**
+ * 买家售后处理（复用卖家接口 /api/seller/after-sales）
+ * - 查看售后列表：GET /api/seller/after-sales
+ * - 查看售后详情：GET /api/seller/after-sales/{service_id}
+ * - 处理售后：POST /api/seller/after-sales/{service_id}/decision
+ * - 确认退货：POST /api/seller/after-sales/{service_id}/confirm-return
+ */
+export const customerAfterSalesHandleAPI = {
+    getAfterSalesList: (params) => api.get('/seller/after-sales', { params }),
+    getAfterSalesDetail: (serviceId) => api.get(`/seller/after-sales/${serviceId}`),
+    handleAfterSales: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/decision`, data),
+    confirmReturn: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/confirm-return`, data)
+}
+
+
 
 export default api
