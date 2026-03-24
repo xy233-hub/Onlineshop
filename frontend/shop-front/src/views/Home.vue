@@ -4,7 +4,7 @@
       <!-- 头部导航 -->
       <el-header class="header">
         <div class="nav-brand">
-          <h1>在线购物系统</h1>
+          <h1>宁浩骚</h1>
         </div>
 
         <div class="header-actions">
