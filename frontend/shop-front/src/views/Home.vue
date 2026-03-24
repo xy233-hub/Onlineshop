@@ -1,0 +1,564 @@
+<template>
+  <div class="home-container">
+    <el-container>
+      <!-- 头部导航 -->
+      <el-header class="header">
+        <div class="nav-brand">
+          <h1>在线购物系统</h1>
+        </div>
+
+        <div class="header-actions">
+          <template v-if="!isCustomerLogged">
+            <el-button type="primary" @click="goBuyerLogin">买家登录</el-button>
+            <el-button type="primary" @click="goSellerLogin">卖家登录</el-button>
+          </template>
+          <template v-else>
+            <el-button type="primary" @click="goDashboard">我的中心</el-button>
+            <el-button type="warning" @click="logout">退出登录</el-button>
+          </template>
+        </div>
+      </el-header>
+
+      <!-- 主要内容：搜索（含分类弹出） + 商品列表 -->
+      <el-main class="main-content">
+        <div class="search-wrap">
+          <div class="search-box">
+            <!-- 左：分类 -->
+            <div class="search-left">
+              <el-popover
+                  v-model:visible="showCategoryPopover"
+                  placement="bottom-start"
+                  :width="320"
+                  trigger="click"
+                  popper-class="category-popover"
+              >
+                <template #reference>
+                  <button class="category-button" type="button">
+                    <span class="cat-label">
+                      {{ currentCategoryName || '全部分类' }}
+                    </span>
+                    <span class="caret" :class="{ open: showCategoryPopover }">▼</span>
+                  </button>
+                </template>
+
+                <div class="popover-header">
+                  <div style="font-weight:600;">选择分类</div>
+                  <el-button size="small" text type="primary" @click="clearCategory">清除</el-button>
+                </div>
+
+                <el-scrollbar max-height="260px">
+                  <el-menu
+                      :default-active="categoryId ? String(categoryId) : ''"
+                      @select="onSelectCategoryFromPopover"
+                  >
+                    <el-menu-item index="">全部分类</el-menu-item>
+
+                    <!-- 兼容树形分类（children） -->
+                    <template v-for="c in categories" :key="c.category_id">
+                      <el-sub-menu
+                          v-if="c.children && c.children.length"
+                          :index="String(c.category_id)"
+                      >
+                        <template #title>{{ c.category_name }}</template>
+                        <el-menu-item
+                            v-for="cc in c.children"
+                            :key="cc.category_id"
+                            :index="String(cc.category_id)"
+                        >
+                          {{ cc.category_name }}
+                        </el-menu-item>
+                      </el-sub-menu>
+
+                      <el-menu-item
+                          v-else
+                          :index="String(c.category_id)"
+                      >
+                        {{ c.category_name }}
+                      </el-menu-item>
+                    </template>
+                  </el-menu>
+                </el-scrollbar>
+              </el-popover>
+            </div>
+
+            <!-- 中：搜索输入 -->
+            <div class="search-middle">
+              <el-input
+                  v-model="q"
+                  class="search-input"
+                  clearable
+                  placeholder="搜索商品名称"
+                  @keyup.enter="handleSearch"
+              />
+            </div>
+
+            <!-- 右：搜索按钮 -->
+            <div class="search-right">
+              <el-button type="primary" class="search-btn" @click="handleSearch">
+                搜索
+              </el-button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="products.length" class="products-grid">
+          <div class="grid-item" v-for="product in products" :key="product.product_id">
+            <el-card class="product-card">
+              <template #header>
+                <div class="card-header">
+                  <span class="product-name" :title="product.product_name">{{ product.product_name }}</span>
+                  <el-tag :type="getStatusType(product.product_status)">
+                    {{ getStatusText(product.product_status) }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <div class="product-content">
+                <div class="product-image">
+                  <el-image
+                      :src="product.image_url || ''"
+                      :alt="product.product_name"
+                      fit="cover"
+                      class="thumb"
+                  />
+                </div>
+
+                <div class="product-info">
+                  <div class="price-section">
+                    <span class="price">¥{{ product.price ?? 0 }}</span>
+                  </div>
+
+                  <div class="description">
+                    <!-- 渲染为纯文本、仅一行显示，多出部分省略，title 显示全文 -->
+                    <p
+                        class="desc-text single-line-ellipsis"
+                        :title="stripHtml(product.product_desc)"
+                        v-text="stripHtml(product.product_desc)"
+                    ></p>
+                  </div>
+
+                  <div class="action-section">
+                    <el-tag type="info">库存: {{ product.stock_quantity ?? 0 }}</el-tag>
+                    <el-button type="text" @click="$router.push(`/product/${product.product_id}`)">查看详情</el-button>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </div>
+        </div>
+
+        <!-- 无商品提示 -->
+        <div v-else class="empty-state">
+          <el-empty description="暂无商品在售">
+            <el-button type="primary" @click="$router.push('/seller')">卖家登录</el-button>
+          </el-empty>
+        </div>
+
+        <!-- 分页条 -->
+        <div v-if="total > 0" style="margin-top: 12px;">
+          <PaginationBar
+              v-model="page"
+              :page-size="size"
+              :total="total"
+              @change="({ page: p, size: s }) => fetchProducts(p, s)"
+          />
+        </div>
+      </el-main>
+    </el-container>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import { productAPI, categoryAPI } from '@/api'
+import PaginationBar from '@/components/PaginationBar.vue'
+import { useRouter, useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { useCustomerStore } from '@/stores/customer'
+
+const router = useRouter()
+const route = useRoute()
+const customerStore = useCustomerStore()
+
+const page = ref(1)
+const size = ref(8)
+const total = ref(0)
+const products = ref([])
+const q = ref('')
+const categoryId = ref(null)
+const categories = ref([])
+const showCategoryPopover = ref(false)
+
+const isCustomerLogged = computed(() => !!customerStore.token)
+
+/* 导航与会话操作 */
+const goBuyerLogin = () => {
+  router.push({ path: '/login', query: { redirect: route.fullPath } }).catch(() => {})
+}
+const goSellerLogin = () => {
+  router.push('/seller').catch(() => {})
+}
+const goDashboard = () => {
+  router.push('/customer/dashboard').catch(() => {})
+}
+const LOGOUT_TOAST_KEY = 'post_reload_toast'
+
+const logout = async () => {
+  try {
+    // 1) 清理状态
+    if (typeof customerStore.logout === 'function') {
+      await customerStore.logout()
+    } else {
+      customerStore.token = ''
+      customerStore.customer = null
+      localStorage.removeItem('customer_info')
+      localStorage.removeItem('customer')
+      localStorage.removeItem('customer_id')
+      localStorage.removeItem('token')
+    }
+
+    // 2) 把提示“带过刷新”
+    sessionStorage.setItem(
+        LOGOUT_TOAST_KEY,
+        JSON.stringify({ type: 'success', message: '已退出登录', ts: Date.now() })
+    )
+
+    // 3) 跳转后刷新（让页面状态彻底重置）
+    await router.replace({ path: '/' })
+    window.location.reload()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('退出登录失败')
+  }
+}
+
+const extractData = (res) => res?.data?.data ?? res?.data ?? null
+
+const fetchCategories = async () => {
+  try {
+    const res = await categoryAPI.getCategories({ tree: true, size: 100 })
+    const d = extractData(res) || []
+    categories.value = Array.isArray(d) ? d : []
+  } catch (e) {
+    console.error('获取分类失败', e)
+    categories.value = []
+  }
+}
+
+const fetchProducts = async (p = page.value, s = size.value) => {
+  try {
+    const params = { page: p, size: s }
+    if (q.value && q.value.toString().trim()) params.q = q.value.toString().trim()
+    if (categoryId.value) params.category_id = categoryId.value
+
+    const response = await productAPI.getProducts(params)
+    console.log('获取商品列表响应:', response)
+    const payload = extractData(response)
+    console.log('提取的payload:', payload)
+    let items = []
+
+    if (!payload) {
+      items = []
+    } else if (Array.isArray(payload.items) && payload.items.length) {
+      items = payload.items
+    } else if (Array.isArray(payload) && payload.length) {
+      items = payload
+    } else if (payload && (payload.product_id || payload.product_id === 0)) {
+      items = [payload]
+    } else {
+      items = []
+    }
+
+    // 规范化字段
+    items = items.map(item => {
+      const copy = { ...item }
+      let img = ''
+      if (Array.isArray(copy.images) && copy.images.length) {
+        const first = copy.images[0]
+        if (typeof first === 'string') {
+          // 将远程图片URL替换为本地地址
+          img = first.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+        } else if (first && (first.image_url || first.url)) {
+          // 将远程图片URL替换为本地地址
+          const url = first.image_url || first.url
+          img = url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+        }
+      } else if (copy.image_url) {
+        // 将远程图片URL替换为本地地址
+        img = copy.image_url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+      } else if (copy.images && typeof copy.images === 'string') {
+        // 将远程图片URL替换为本地地址
+        img = copy.images.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+      }
+      copy.image_url = img || ''
+      copy.product_desc = copy.product_desc ?? ''
+      copy.price = copy.price ?? 0
+      return copy
+    })
+
+    page.value = p
+    size.value = s
+    total.value = Number(payload?.total ?? items.length ?? 0)
+    products.value = items
+  } catch (error) {
+    console.error('获取商品失败:', error)
+    products.value = []
+    total.value = 0
+  }
+}
+
+const handleSearch = () => {
+  page.value = 1
+  fetchProducts()
+}
+
+const onSelectCategoryFromPopover = (index) => {
+  if (index === '' || index == null) categoryId.value = null
+  else categoryId.value = Number(index)
+  showCategoryPopover.value = false
+  page.value = 1
+  fetchProducts()
+}
+
+const clearCategory = () => {
+  categoryId.value = null
+  showCategoryPopover.value = false
+  page.value = 1
+  fetchProducts()
+}
+
+const currentCategoryName = computed(() => {
+  if (!categoryId.value) return ''
+  const stack = [...categories.value]
+  while (stack.length) {
+    const n = stack.shift()
+    if (!n) continue
+    if (n.category_id === categoryId.value) return n.category_name
+    if (n.children && n.children.length) stack.push(...n.children)
+  }
+  return ''
+})
+
+const getStatusType = (status) => {
+  const types = { online: 'success', frozen: 'warning', sold: 'info' }
+  return types[status] || 'info'
+}
+const getStatusText = (status) => {
+  const texts = { online: '在售', frozen: '交易中', sold: '已售出' }
+  return texts[status] || status
+}
+
+onMounted(() => {
+  fetchCategories()
+  fetchProducts()
+  try {
+    const raw = sessionStorage.getItem(LOGOUT_TOAST_KEY)
+    if (!raw) return
+    sessionStorage.removeItem(LOGOUT_TOAST_KEY)
+
+    const toast = JSON.parse(raw)
+    if (toast?.message) {
+      ElMessage({
+        type: toast.type || 'success',
+        message: toast.message,
+        duration: 2000
+      })
+    }
+  } catch {
+    // ignore
+  }
+})
+const stripHtml = (input) => {
+  if (input === null || input === undefined) return ''
+  let s = input
+  if (typeof s !== 'string') {
+    try { s = JSON.stringify(s) } catch { s = String(s) }
+  }
+  // 使用 DOM 去掉 html
+  const div = document.createElement('div')
+  div.innerHTML = s
+  return (div.textContent || div.innerText || '').trim()
+}
+</script>
+
+<style scoped>
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+.home-container {
+  min-height: 100vh;
+  background: #f5f7fb;
+  padding-bottom: 40px;
+}
+
+.header {
+  background: #fff;
+  border-bottom: 1px solid #e9eef6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+.nav-brand h1 {
+  margin: 0;
+  color: #409eff;
+  font-size: 22px;
+  font-weight: 700;
+}
+.header-actions { display:flex; align-items:center; }
+
+.main-content {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 20px;
+}
+
+/* 搜索栏整体居中 */
+.search-wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 32px;
+  box-sizing: border-box;
+}
+
+/* 大框：三栏容器 */
+.search-box {
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #e8eef6;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(16, 24, 40, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+/* 左\／中\／右三栏 */
+.search-left {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+.search-middle {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.search-right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* 输入框撑满中间 */
+.search-input {
+  width: 100%;
+}
+
+/* 右侧按钮固定宽度 */
+.search-btn {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+
+/* 分类按钮 */
+.category-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #f4f8ff;
+  color: #2b7cff;
+  border: 1px solid #dbeeff;
+  cursor: pointer;
+  height: 36px;
+  font-size: 14px;
+  outline: none;
+}
+.category-button .cat-label {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+.category-button .caret {
+  transition: transform 0.18s ease;
+  font-size: 12px;
+}
+.category-button .caret.open {
+  transform: rotate(180deg);
+}
+
+
+
+/* popover 内 */
+.category-popover {
+  padding: 8px;
+}
+.popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+/* 网格样式 */
+.products-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(180px, 1fr)) !important;
+  gap: 20px;
+  align-items: start;
+  justify-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 0;
+}
+.grid-item { display:flex; align-items:stretch; width:100%; }
+
+.product-card {
+  width: 100%;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  border: 1px solid #e8eef6;
+  background: #ffffff;
+  overflow: visible;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.product-card:hover { transform: translateY(-6px); box-shadow: 0 8px 28px rgba(16,24,40,0.08); }
+
+.product-image { width:100%; height:160px; background:#fafbfd; display:flex; align-items:center; justify-content:center; }
+.product-image .thumb { width:100%; height:100%; object-fit:cover; display:block; }
+
+.product-content { display:flex; flex-direction:column; padding:12px 14px; gap:8px; flex:1; box-sizing:border-box; }
+.card-header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0; }
+.product-name { font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-right:8px; max-width:calc(100% - 56px); }
+
+.price { font-size:18px; color:#f56c6c; font-weight:700; }
+.desc-text { color:#666; font-size:13px; margin:4px 0; line-height:1.4; }
+
+.action-section { margin-top:auto; display:flex; gap:8px; align-items:center; }
+.empty-state { text-align:center; padding:100px 0; }
+
+/* 响应式 */
+@media (max-width: 1000px) {
+  .products-grid { grid-template-columns: repeat(3, minmax(160px, 1fr)) !important; }
+}
+@media (max-width: 700px) {
+  .products-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)) !important; }
+}
+@media (max-width: 420px) {
+  .products-grid { grid-template-columns: repeat(1, minmax(140px, 1fr)) !important; }
+}
+
+</style>

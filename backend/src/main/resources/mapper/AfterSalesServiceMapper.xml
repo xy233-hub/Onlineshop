@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.onlineshop.mapper.AfterSalesServiceMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.onlineshop.entity.AfterSalesService">
+        <id column="service_id" property="serviceId"/>
+        <result column="purchase_id" property="purchaseId"/>
+        <result column="product_id" property="productId"/>
+        <result column="customer_id" property="customerId"/>
+        <result column="service_type" property="serviceType"/>
+        <result column="service_title" property="serviceTitle"/>
+        <result column="problem_description" property="problemDescription"/>
+        <result column="evidence_images" property="evidenceImages"/>
+        <result column="refund_amount" property="refundAmount"/>
+        <result column="service_status" property="serviceStatus"/>
+        <result column="seller_response" property="sellerResponse"/>
+        <result column="seller_decision" property="sellerDecision"/>
+        <result column="seller_decision_at" property="sellerDecisionAt"/>
+        <result column="return_tracking_no" property="returnTrackingNo"/>
+        <result column="return_logistics_provider" property="returnLogisticsProvider"/>
+        <result column="return_shipped_at" property="returnShippedAt"/>
+        <result column="return_received_at" property="returnReceivedAt"/>
+        <result column="completed_at" property="completedAt"/>
+        <result column="cancelled_at" property="cancelledAt"/>
+        <result column="cancel_reason" property="cancelReason"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.onlineshop.entity.AfterSalesService" useGeneratedKeys="true" keyProperty="serviceId">
+        INSERT INTO after_sales_services (
+            purchase_id, product_id, customer_id, service_type, service_title,
+            problem_description, evidence_images, refund_amount, service_status
+        ) VALUES (
+            #{purchaseId}, #{productId}, #{customerId}, #{serviceType}, #{serviceTitle},
+            #{problemDescription}, #{evidenceImages}, #{refundAmount}, #{serviceStatus}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.onlineshop.entity.AfterSalesService">
+        UPDATE after_sales_services
+        <set>
+            <if test="serviceType != null">service_type = #{serviceType},</if>
+            <if test="serviceTitle != null">service_title = #{serviceTitle},</if>
+            <if test="problemDescription != null">problem_description = #{problemDescription},</if>
+            <if test="evidenceImages != null">evidence_images = #{evidenceImages},</if>
+            <if test="refundAmount != null">refund_amount = #{refundAmount},</if>
+            <if test="serviceStatus != null">service_status = #{serviceStatus},</if>
+            <if test="sellerResponse != null">seller_response = #{sellerResponse},</if>
+            <if test="sellerDecision != null">seller_decision = #{sellerDecision},</if>
+            <if test="sellerDecisionAt != null">seller_decision_at = #{sellerDecisionAt},</if>
+            <if test="returnTrackingNo != null">return_tracking_no = #{returnTrackingNo},</if>
+            <if test="returnLogisticsProvider != null">return_logistics_provider = #{returnLogisticsProvider},</if>
+            <if test="returnShippedAt != null">return_shipped_at = #{returnShippedAt},</if>
+            <if test="returnReceivedAt != null">return_received_at = #{returnReceivedAt},</if>
+            <if test="completedAt != null">completed_at = #{completedAt},</if>
+            <if test="cancelledAt != null">cancelled_at = #{cancelledAt},</if>
+            <if test="cancelReason != null">cancel_reason = #{cancelReason},</if>
+            updated_at = CURRENT_TIMESTAMP
+        </set>
+        WHERE service_id = #{serviceId}
+    </update>
+
+    <select id="selectByServiceId" resultMap="BaseResultMap">
+        SELECT * FROM after_sales_services WHERE service_id = #{serviceId}
+    </select>
+
+    <select id="selectByCustomerId" resultMap="BaseResultMap">
+        SELECT * FROM after_sales_services
+        WHERE customer_id = #{customerId}
+        <if test="serviceStatus != null and serviceStatus != ''">
+            AND service_status = #{serviceStatus}
+        </if>
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByCustomerId" resultType="int">
+        SELECT COUNT(*) FROM after_sales_services
+        WHERE customer_id = #{customerId}
+        <if test="serviceStatus != null and serviceStatus != ''">
+            AND service_status = #{serviceStatus}
+        </if>
+    </select>
+
+    <select id="selectBySellerId" resultMap="BaseResultMap">
+        SELECT ass.* FROM after_sales_services ass
+        INNER JOIN purchase_intents pi ON ass.purchase_id = pi.purchase_id
+        INNER JOIN products p ON ass.product_id = p.product_id
+        WHERE p.seller_id = #{sellerId}
+        <if test="serviceStatus != null and serviceStatus != ''">
+            AND ass.service_status = #{serviceStatus}
+        </if>
+        <if test="serviceType != null and serviceType != ''">
+            AND ass.service_type = #{serviceType}
+        </if>
+        ORDER BY ass.created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countBySellerId" resultType="int">
+        SELECT COUNT(*) FROM after_sales_services ass
+        INNER JOIN purchase_intents pi ON ass.purchase_id = pi.purchase_id
+        INNER JOIN products p ON ass.product_id = p.product_id
+        WHERE p.seller_id = #{sellerId}
+        <if test="serviceStatus != null and serviceStatus != ''">
+            AND ass.service_status = #{serviceStatus}
+        </if>
+        <if test="serviceType != null and serviceType != ''">
+            AND ass.service_type = #{serviceType}
+        </if>
+    </select>
+
+    <select id="selectByPurchaseIdAndCustomerId" resultMap="BaseResultMap">
+        SELECT * FROM after_sales_services
+        WHERE purchase_id = #{purchaseId}
+        AND customer_id = #{customerId}
+    </select>
+
+</mapper>

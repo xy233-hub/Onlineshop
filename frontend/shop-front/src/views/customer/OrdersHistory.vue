@@ -1,0 +1,627 @@
+<template>
+  <div class="customer-dashboard">
+    <el-card>
+      <div class="header-row">
+        <h2>历史订单</h2>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div v-if="!items.length && !loading" class="empty-wrap">
+          <el-empty description="暂无购买意向">
+            <el-button type="primary" @click="$router.push('/')">去逛逛</el-button>
+          </el-empty>
+        </div>
+
+        <div v-else>
+          <div class="intent-list">
+            <el-card
+                v-for="row in items"
+                :key="row.purchase_id"
+                class="intent-card"
+                shadow="hover"
+            >
+              <div class="intent-grid">
+                <div class="left">
+                  <div class="thumb" v-if="row.product_image">
+                    <el-image :src="row.product_image" fit="cover" />
+                  </div>
+                  <div class="meta">
+                    <div class="title" @click="goToProduct(row.product_id)">
+                      {{ row.product_name || ('商品 #' + (row.product_id ?? '')) }}
+                    </div>
+                    <div class="muted">购买意向 ID: {{ row.purchase_id }}</div>
+                  </div>
+                </div>
+
+                <div class="center">
+                  <div>数量：<strong>{{ row.quantity ?? 0 }}</strong></div>
+                  <div>总价：<strong>¥{{ row.total_amount ?? 0 }}</strong></div>
+                  <div class="muted">下单时间：{{ formatTime(row.created_at) }}</div>
+                </div>
+
+                 <div class="right">
+                  <!-- 整合后的订单状态显示 -->
+                  <el-tag :type="getOrderStatusType(row.purchase_status, row.payment_status)" size="medium">
+                    {{ getUnifiedOrderStatusText(row.purchase_status, row.payment_status) }}
+                  </el-tag>
+                  
+                  <div class="actions">
+                    <el-button size="small" type="primary" @click="showProductIds(row)">查看商品</el-button>
+                    <el-button size="small" @click="viewDetail(row)">详情</el-button>
+
+                    <!-- 去支付按钮 -->
+                    <el-button
+                        v-if="canPay(row)"
+                        size="small"
+                        type="success"
+                        @click="showPaymentDialog(row)">
+                      去支付
+                    </el-button>
+
+                    <!-- 支付结果校验按钮 -->
+                    <el-button
+                        v-if="row.payment_status === 'UNPAID' && row.payment_verify_token"
+                        size="small"
+                        @click="verifyPayment(row)">
+                      支付结果校验
+                    </el-button>
+
+                    <!-- 客户取消订单按钮 -->
+                    <el-button
+                        v-if="canCustomerCancel(row.purchase_status, row.payment_status)"
+                        size="small"
+                        type="danger"
+                        @click="showCancelDialog(row)">
+                      取消订单
+                    </el-button>
+
+
+                    <!-- 客户确认收货按钮 -->
+                    <el-button
+                        v-if="canCustomerConfirm(row.purchase_status, row.payment_status)"
+                        size="small"
+                        type="success"
+                        @click="confirmReceived(row)">
+                      确认收货
+                    </el-button>
+                    
+                    <!-- 查看物流轨迹按钮 -->
+                    <el-button
+                        v-if="row.purchase_status === 'SHIPPING_STARTED' && row.payment_status === 'PAID'"
+                        size="small"
+                        @click="viewLogistics(row)">
+                      查看物流
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </div>
+
+          <div class="pager-row">
+            <el-pagination
+                background
+                :current-page="page"
+                :page-size="size"
+                :total="total"
+                @current-change="onPageChange"
+                @size-change="onSizeChange"
+                :page-sizes="[10,20,50]"
+                layout="sizes, prev, pager, next, jumper"
+            />
+          </div>
+        </div>
+
+        <el-loading :loading="loading" />
+      </div>
+    </el-card>
+
+    <!-- 取消订单对话框 -->
+    <el-dialog v-model="cancelDialogVisible" title="取消订单" width="500px">
+      <el-form :model="cancelForm" label-width="100px">
+        <el-form-item label="取消原因">
+          <el-select v-model="cancelForm.cancelReason" placeholder="请选择取消原因">
+            <el-option label="不想买了" value="不想买了"></el-option>
+            <el-option label="买错了" value="买错了"></el-option>
+            <el-option label="找到更便宜的商品" value="找到更便宜的商品"></el-option>
+            <el-option label="商品信息有误" value="商品信息有误"></el-option>
+            <el-option label="等待时间过长" value="等待时间过长"></el-option>
+            <el-option label="其他原因" value="其他原因"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="取消备注">
+          <el-input
+              v-model="cancelForm.cancelNotes"
+              type="textarea"
+              placeholder="请输入取消备注（可选）"
+              :rows="3">
+          </el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancelDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmCancelOrder">确认取消</el-button>
+        </span>
+      </template>
+    </el-dialog>
+    
+    <!-- 支付对话框 -->
+    <PaymentDialog
+      v-model="paymentDialogVisible"
+      :order="currentOrder"
+      @payment-success="handlePaymentSuccess"
+    />
+    
+    <el-dialog v-model="productIdsDialogVisible" title="关联商品" width="520px">
+      <div v-if="!productIdsList.length" style="padding:12px 0;">无可显示的商品 ID</div>
+      <div v-else>
+        <div v-for="(id, idx) in productIdsList" :key="`${id}-${idx}`" style="display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px solid #f3f3f3;">
+          <div>{{ idx + 1 }}. {{ id }}</div>
+          <div>
+            <el-button size="small" type="primary" @click="() => { productIdsDialogVisible = false; goToProduct(id) }">查看商品</el-button>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="productIdsDialogVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
+    
+    <!-- 物流轨迹对话框 -->
+    <LogisticsDialog
+      v-model="logisticsDialogVisible"
+      :order-id="currentOrderId"
+    />
+
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { ElMessageBox, ElMessage, ElLoading } from 'element-plus'
+import { purchaseAPI } from '@/api'
+import { useRouter } from 'vue-router'
+import PaymentDialog from '@/components/PaymentDialog.vue'
+import LogisticsDialog from '@/components/LogisticsDialog.vue'
+
+const router = useRouter()
+const page = ref(1)
+const size = ref(10)
+const total = ref(0)
+const items = ref([])
+const loading = ref(false)
+const productIdsDialogVisible = ref(false)
+const productIdsList = ref([])
+// 取消订单相关
+const cancelDialogVisible = ref(false)
+const cancelForm = ref({
+  purchaseId: null,
+  cancelReason: '',
+  cancelNotes: ''
+})
+// 支付相关
+const paymentDialogVisible = ref(false)
+const currentOrder = ref(null)
+// 物流轨迹相关
+const logisticsDialogVisible = ref(false)
+const currentOrderId = ref(null)
+
+const extractData = (res) => res?.data?.data ?? res?.data ?? null
+
+const getCustomerIdFromStorage = () => {
+  try {
+    const raw = localStorage.getItem('customer_info') || localStorage.getItem('customer') || null
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (parsed && parsed.customer_id) return Number(parsed.customer_id)
+        if (parsed && (parsed.id || parsed.user_id)) return Number(parsed.id || parsed.user_id)
+      } catch (e) {
+        // raw 可能是字符串 id
+        const n = Number(raw)
+        if (!Number.isNaN(n)) return n
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  const idStr = localStorage.getItem('customer_id')
+  if (idStr) return Number(idStr)
+  return null
+}
+
+const fetchItems = async (p = page.value, s = size.value) => {
+  const customerId = getCustomerIdFromStorage()
+  if (!customerId) {
+    ElMessage.error('未检测到用户信息，无法获取购买意向')
+    items.value = []
+    total.value = 0
+    return
+  }
+
+  loading.value = true
+  try {
+    const res = await purchaseAPI.getCustomerPurchaseIntents(customerId, { page: p, size: s })
+    const payload = extractData(res)
+    let list = []
+    if (!payload) list = []
+    else if (Array.isArray(payload.items)) list = payload.items
+    else if (Array.isArray(payload)) list = payload
+    else if (payload && (payload.purchase_id || payload.purchase_id === 0)) list = [payload]
+    else list = []
+
+    // 简单规范化常用字段（兼容不同后端返回）
+    items.value = list.map(it => {
+      // 规范化行内的 items（兼容不同后端字段名）
+      const rawItems = it.items ?? it.itemList ?? it.purchase_items ?? [];
+      const normItems = Array.isArray(rawItems) ? rawItems.map(item => ({
+        item_id: item.item_id ?? item.id,
+        purchase_id: item.purchase_id ?? item.purchaseId ?? it.purchase_id,
+        product_id: item.product_id ?? item.productId ?? (item.product && (item.product.product_id ?? item.product.id)) ?? null,
+        product_name: item.product_name ?? item.product?.product_name ?? item.product?.name ?? null,
+        product_price: item.product_price ?? item.price ?? item.product?.price ?? null,
+        quantity: item.quantity ?? item.qty ?? 1,
+        subtotal: item.subtotal ?? null
+      })) : [];
+
+      // 如果顶层 product_id 为空，尝试使用第一个 item 的 product_id 回退
+      const fallbackProductId = it.product_id ?? it.productId ?? (normItems[0] && normItems[0].product_id) ?? (it.product && (it.product.product_id ?? it.product.id)) ?? null;
+
+      return {
+        purchase_id: it.purchase_id ?? it.id,
+        product_id: fallbackProductId,
+        product_name: it.product_name ?? it.product?.product_name ?? it.product?.name ?? (normItems[0] && normItems[0].product_name) ?? null,
+        product_image: it.product_image ?? it.product?.image_url ?? it.product?.image ?? null,
+        quantity: it.quantity ?? it.qty ?? it.total_quantity ?? 1,
+        total_amount: it.total_amount ?? it.total ?? it.amount ?? 0,
+        purchase_status: it.purchase_status ?? it.status,
+        created_at: it.created_at ?? it.createdAt ?? it.created,
+        payment_status: it.payment_status ?? null,
+        payment_verify_token: it.payment_verify_token ?? null,
+        // 关键：回填规范化后的 items，供 showProductIds 使用
+        items: normItems
+      }
+    })
+
+    total.value = Number(payload?.total ?? items.value.length ?? 0)
+    page.value = p
+    size.value = s
+  } catch (err) {
+    console.error('获取购买意向失败', err)
+    items.value = []
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+const onPageChange = (p) => { page.value = p; fetchItems(p, size.value) }
+const onSizeChange = (s) => { size.value = s; page.value = 1; fetchItems(1, s) }
+
+const formatTime = (t) => {
+  if (!t) return ''
+  try { return new Date(t).toLocaleString() } catch (e) { return t }
+}
+
+const getOrderStatusType = (status, paymentStatus) => {
+  // 根据统一订单状态流转规则返回标签类型
+  // 客户下单→待支付→已支付→个人确认→备货完成→开始发货→交易完成→(售后处理中→已退款)
+  
+  // 优先判断支付状态相关的颜色
+  if (paymentStatus === 'PAID') {
+    return 'success'
+  }
+  if (paymentStatus === 'REFUNDING') {
+    return 'warning'
+  }
+  if (paymentStatus === 'REFUNDED') {
+    return 'info'
+  }
+  
+  const types = {
+    'CUSTOMER_ORDERED': 'warning',      // 客户下单 - 待支付
+    'SELLER_CONFIRMED': 'primary',      // 已支付，商家确认
+    'STOCK_PREPARED': 'primary',        // 备货完成
+    'SHIPPING_STARTED': 'primary',      // 开始发货
+    'COMPLETED': 'success',             // 交易完成
+    'CUSTOMER_CANCELLED': 'danger',     // 客户取消
+    'SELLER_CANCELLED': 'danger'        // 商家取消
+  }
+  return types[status] || 'info'
+}
+
+const getUnifiedOrderStatusText = (status, paymentStatus) => {
+  // 根据统一订单状态流转规则返回状态文本
+  // 客户下单→待支付→已支付→个人确认→备货完成→开始发货→交易完成→(售后处理中→已退款)
+  
+  // 优先判断支付状态
+  if (paymentStatus === 'PAID') {
+    // 已支付后，根据订单状态显示后续流程
+    const paidTexts = {
+      'CUSTOMER_ORDERED': '已支付',         // 刚支付完成
+      'SELLER_CONFIRMED': '已支付',         // 商家确认
+      'STOCK_PREPARED': '备货完成',
+      'SHIPPING_STARTED': '开始发货',
+      'COMPLETED': '交易完成'
+    }
+    return paidTexts[status] || '已支付'
+  }
+  
+  // 退款相关状态
+  if (paymentStatus === 'REFUNDING') {
+    return '售后处理中'
+  }
+  if (paymentStatus === 'REFUNDED') {
+    return '已退款'
+  }
+  
+  // 未支付状态下的订单流转
+  const texts = {
+    'CUSTOMER_ORDERED': '待支付',       // 待支付
+    'SELLER_CONFIRMED': '商家确认',
+    'STOCK_PREPARED': '备货完成',
+    'SHIPPING_STARTED': '开始发货',
+    'COMPLETED': '交易完成',
+    'CUSTOMER_CANCELLED': '客户取消',
+    'SELLER_CANCELLED': '商家取消'
+  }
+  return texts[status] || (status || '')
+}
+const getOrderStatusText = (status) => {
+  const texts = {
+    'CUSTOMER_ORDERED': '待支付',
+    'SELLER_CONFIRMED': '商家确认',
+    'STOCK_PREPARED': '备货完成',
+    'SHIPPING_STARTED': '开始发货',
+    'COMPLETED': '交易完成',
+    'CUSTOMER_CANCELLED': '客户取消',
+    'SELLER_CANCELLED': '商家取消'
+  }
+  return texts[status] || (status || '')
+}
+
+
+// 获取支付状态类型
+const getPaymentStatusType = (status) => {
+  const types = {
+    'UNPAID': 'info',
+    'PAID': 'success',
+    'REFUNDING': 'warning',
+    'REFUNDED': 'info'
+  };
+  return types[status] || 'info';
+};
+
+// 获取支付状态文本
+const getPaymentStatusText = (status) => {
+  const texts = {
+    'UNPAID': '未支付',
+    'PAID': '已支付',
+    'REFUNDING': '退款中',
+    'REFUNDED': '已退款'
+  };
+  return texts[status] || status;
+};
+
+const canCustomerCancel = (status, paymentStatus) => {
+  // 未支付状态下，客户可以取消的订单状态
+  if (!paymentStatus || paymentStatus === 'UNPAID') {
+    return ['CUSTOMER_ORDERED', 'SELLER_CONFIRMED', 'STOCK_PREPARED'].includes(status)
+  }
+  // 已支付状态下不能直接取消，需要走售后流程
+  return false
+}
+
+// 判断客户是否可以确认收货
+const canCustomerConfirm = (status, paymentStatus) => {
+  // 只有已支付且开始发货的订单才能确认收货
+  return paymentStatus === 'PAID' && status === 'SHIPPING_STARTED'
+}
+
+// 判断是否可以支付
+const canPay = (row) => {
+  // 只有待支付状态的订单才能支付
+  const unpaidStatuses = ['CUSTOMER_ORDERED', 'SELLER_CONFIRMED', 'STOCK_PREPARED', 'SHIPPING_STARTED'];
+  const paymentUnpaid = !row.payment_status || row.payment_status === 'UNPAID';
+  
+  return unpaidStatuses.includes(row.purchase_status) && paymentUnpaid;
+}
+const goToProduct = (id) => {
+  if (!id) return ElMessage.warning('无可跳转的商品信息')
+  router.push({ path: `/product/${id}` })
+}
+
+const viewDetail = (row) => {
+  ElMessageBox.alert(
+      `
+购买意向 ID：${row.purchase_id}
+商品：${row.product_name || row.product_id}
+数量：${row.quantity}
+总价：¥${row.total_amount ?? 0}
+状态：${getOrderStatusText(row.purchase_status)}
+创建时间：${formatTime(row.created_at)}
+    `,
+      '购买意向详情',
+      { confirmButtonText: '关闭' }
+  )
+}
+
+// 显示取消订单对话框
+const showCancelDialog = (row) => {
+  cancelForm.value.purchaseId = row.purchase_id
+  cancelForm.value.cancelReason = ''
+  cancelForm.value.cancelNotes = ''
+  cancelDialogVisible.value = true
+}
+
+// 确认取消订单
+const confirmCancelOrder = async () => {
+  if (!cancelForm.value.cancelReason) {
+    ElMessage.warning('请选择取消原因')
+    return
+  }
+
+  const customerId = getCustomerIdFromStorage()
+  if (!customerId) {
+    ElMessage.error('未检测到用户信息')
+    return
+  }
+
+  try {
+    const res = await purchaseAPI.customerCancelOrder(
+        customerId,
+        cancelForm.value.purchaseId,
+        {
+          cancel_reason: cancelForm.value.cancelReason,
+          cancel_notes: cancelForm.value.cancelNotes
+        }
+    )
+
+    // 修复响应数据访问方式
+    if (res && res.data && res.data.code === 200) {
+      ElMessage.success('订单取消成功')
+      cancelDialogVisible.value = false
+      await fetchItems() // 重新加载订单列表
+    } else {
+      ElMessage.error(res?.data?.message || '取消订单失败')
+      // 即使提示失败，也刷新数据以确保界面与数据库一致
+      await fetchItems()
+    }
+  } catch (err) {
+    console.error('取消订单失败', err)
+    ElMessage.error('取消订单失败：' + (err.message || err))
+    // 即使提示失败，也刷新数据以确保界面与数据库一致
+    await fetchItems()
+  }
+}
+
+// 确认收货
+const confirmReceived = async (row) => {
+  try {
+    await ElMessageBox.confirm('确认已收到货物并完成订单？', '确认收货', {
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
+    const customerId = getCustomerIdFromStorage()
+    if (!customerId) {
+      ElMessage.error('未检测到用户信息')
+      return
+    }
+
+    const res = await purchaseAPI.customerConfirmReceived(customerId, row.purchase_id)
+
+    // 修复响应数据访问方式
+    if (res && res.data && res.data.code === 200) {
+      ElMessage.success('订单已完成')
+      await fetchItems() // 重新加载订单列表
+    } else {
+      ElMessage.error(res?.data?.message || '确认收货失败')
+      // 即使提示失败，也刷新数据以确保界面与数据库一致
+      await fetchItems()
+    }
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('确认收货失败', err)
+      ElMessage.error('确认收货失败：' + (err.message || err))
+      // 即使提示失败，也刷新数据以确保界面与数据库一致
+      await fetchItems()
+    }
+  }
+}
+
+// 显示支付对话框
+const showPaymentDialog = (row) => {
+  currentOrder.value = row;
+  paymentDialogVisible.value = true;
+}
+
+// 处理支付成功
+const handlePaymentSuccess = (order) => {
+  ElMessage.success('支付成功');
+  // 刷新订单列表
+  fetchItems();
+}
+
+// 验证支付结果
+const verifyPayment = async (row) => {
+  try {
+    const response = await fetch('/api/payments/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('customer_token')
+      },
+      body: JSON.stringify({
+        purchaseId: row.purchase_id
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.code === 200) {
+      ElMessage.success(`支付状态：${result.data.paymentStatus || '待支付'}`);
+      if (result.data.paymentStatus === 'PAID') {
+        // 如果支付成功，刷新订单列表
+        await fetchItems();
+      }
+    } else {
+      ElMessage.error(result.message || '校验失败');
+    }
+  } catch (error) {
+    console.error('校验支付结果失败:', error);
+    ElMessage.error('网络错误，请重试');
+  }
+}
+
+// 查看物流轨迹
+const viewLogistics = (row) => {
+  currentOrderId.value = row.purchase_id;
+  logisticsDialogVisible.value = true;
+}
+
+/* 新增的方法：显示购买意向关联的商品 ID 列表 */
+const showProductIds = (row) => {
+  const ids = (row.items && Array.isArray(row.items) && row.items.length)
+      ? row.items.map(it => it.product_id ?? it.productId).filter(Boolean)
+      : (row.product_id ? [row.product_id] : [])
+
+  if (!ids.length) {
+    return ElMessage.warning('无可显示的商品 ID')
+  }
+
+  productIdsList.value = ids
+  productIdsDialogVisible.value = true
+}
+
+onMounted(() => {
+  fetchItems()
+})
+</script>
+
+<style scoped>
+.customer-dashboard { padding: 16px; }
+.header-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.intent-list { display:flex; flex-direction:column; gap:12px; margin-top:8px; }
+.intent-card { padding:12px; }
+.intent-grid { display:flex; gap:16px; align-items:center; }
+.left { display:flex; gap:12px; align-items:center; min-width: 280px; }
+.thumb { width:80px; height:80px; border-radius:8px; overflow:hidden; background:#fafafa; }
+.thumb img, .thumb .el-image__inner { width:100%; height:100%; object-fit:cover; display:block; }
+.meta .title { font-weight:700; color:#409eff; cursor:pointer; }
+.meta .muted { color:#888; font-size:12px; margin-top:6px; }
+.center { flex:1; color:#333; }
+.right { display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:160px; }
+.actions { display:flex; gap:8px; flex-wrap: wrap; }
+.muted { color:#999; font-size:12px; }
+.pager-row { margin-top:14px; display:flex; justify-content:flex-end; }
+.empty-wrap { padding:24px 0; display:flex; justify-content:center; }
+@media (max-width:800px) {
+  .intent-grid { flex-direction:column; align-items:stretch; }
+  .right { align-items:flex-start; }
+  .left { min-width: auto; }
+}
+</style>
