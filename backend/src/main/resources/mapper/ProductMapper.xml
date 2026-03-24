@@ -62,7 +62,7 @@
         ORDER BY p.created_at DESC
     </select>
 
-    <!-- 分页/搜索/排序查询商品（controller -> service 已校验 sort/order） -->
+    <!-- 分页/搜索/排序查询商品：tokens 全命中(AND)，并按命中数评分排序 -->
     <select id="selectProducts" parameterType="map" resultType="com.example.onlineshop.entity.Product">
         SELECT p.*,
         (SELECT pi.image_url
@@ -71,48 +71,100 @@
         ORDER BY pi.image_order ASC, pi.image_id ASC
         LIMIT 1) AS cover_image
         FROM products p
+        LEFT JOIN categories c ON c.category_id = p.category_id
+        LEFT JOIN categories pc ON pc.category_id = c.parent_id
         WHERE 1 = 1
-        <if test="q != null and q != ''">
-            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+
+        <if test="tokens != null and tokens.size() > 0">
+            <foreach collection="tokens" item="t">
+                AND (
+                p.product_name LIKE CONCAT('%', #{t}, '%')
+                OR p.search_keywords LIKE CONCAT('%', #{t}, '%')
+                OR p.product_desc LIKE CONCAT('%', #{t}, '%')
+                OR c.category_name LIKE CONCAT('%', #{t}, '%')
+                OR pc.category_name LIKE CONCAT('%', #{t}, '%')
+                )
+            </foreach>
         </if>
+
         <if test="categoryId != null">
-            AND category_id = #{categoryId}
+            AND p.category_id = #{categoryId}
         </if>
         <if test="status != null and status != ''">
-            AND product_status = #{status}
+            AND p.product_status = #{status}
+        </if>
+        <if test="minPrice != null">
+            AND p.price <![CDATA[>=]]> #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND p.price <![CDATA[<=]]> #{maxPrice}
+        </if>
+
+        ORDER BY
+        <if test="tokens != null and tokens.size() > 0">
+            (
+            <foreach collection="tokens" item="t" separator="+">
+                CASE
+                WHEN p.product_name LIKE CONCAT('%', #{t}, '%') THEN 3
+                WHEN p.search_keywords LIKE CONCAT('%', #{t}, '%') THEN 2
+                WHEN p.product_desc LIKE CONCAT('%', #{t}, '%') THEN 1
+                WHEN c.category_name LIKE CONCAT('%', #{t}, '%') THEN 1
+                WHEN pc.category_name LIKE CONCAT('%', #{t}, '%') THEN 1
+                ELSE 0
+                END
+            </foreach>
+            ) DESC,
         </if>
 
         <choose>
             <when test="sortBy != null and sortBy == 'price'">
-                ORDER BY price ${order}
+                p.price ${order}
             </when>
             <when test="sortBy != null and sortBy == 'stock_quantity'">
-                ORDER BY stock_quantity ${order}
+                p.stock_quantity ${order}
             </when>
             <when test="sortBy != null and sortBy == 'created_at'">
-                ORDER BY created_at ${order}
+                p.created_at ${order}
             </when>
             <otherwise>
-                ORDER BY created_at ${order}
+                p.created_at ${order}
             </otherwise>
         </choose>
 
         LIMIT #{offset}, #{size}
     </select>
 
-    <!-- 计数（与上面条件相同但无分页） -->
+    <!-- 计数：与 tokens AND 逻辑保持一致 -->
     <select id="countProducts" parameterType="map" resultType="int">
         SELECT COUNT(1)
-        FROM products
+        FROM products p
+        LEFT JOIN categories c ON c.category_id = p.category_id
+        LEFT JOIN categories pc ON pc.category_id = c.parent_id
         WHERE 1 = 1
-        <if test="q != null and q != ''">
-            AND (product_name LIKE CONCAT('%', #{q}, '%') OR search_keywords LIKE CONCAT('%', #{q}, '%'))
+
+        <if test="tokens != null and tokens.size() > 0">
+            <foreach collection="tokens" item="t">
+                AND (
+                p.product_name LIKE CONCAT('%', #{t}, '%')
+                OR p.search_keywords LIKE CONCAT('%', #{t}, '%')
+                OR p.product_desc LIKE CONCAT('%', #{t}, '%')
+                OR c.category_name LIKE CONCAT('%', #{t}, '%')
+                OR pc.category_name LIKE CONCAT('%', #{t}, '%')
+                )
+            </foreach>
         </if>
+
         <if test="categoryId != null">
-            AND category_id = #{categoryId}
+            AND p.category_id = #{categoryId}
         </if>
         <if test="status != null and status != ''">
-            AND product_status = #{status}
+            AND p.product_status = #{status}
+        </if>
+        <if test="minPrice != null">
+            AND p.price <![CDATA[>=]]> #{minPrice}
+        </if>
+        <if test="maxPrice != null">
+            AND p.price <![CDATA[<=]]> #{maxPrice}
         </if>
     </select>
 
@@ -237,5 +289,6 @@
 
 
 </mapper>
+
 
 
