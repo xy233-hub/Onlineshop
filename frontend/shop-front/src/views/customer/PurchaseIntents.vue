@@ -7,19 +7,24 @@
 
     <el-table :data="intents" v-loading="loading" stripe>
       <el-table-column prop="purchase_id" label="意向 ID" width="100" />
-      <el-table-column prop="product_id" label="商品 ID" width="100">
+      <el-table-column label="商品 ID" width="100">
         <template #default="{ row }">
           <el-link 
-            v-if="row.product_id" 
+            v-if="row.items && row.items.length > 0" 
             type="primary" 
-            @click="$router.push({ path: `/product/${row.product_id}` })"
+            @click="$router.push({ path: `/product/${row.items[0].product_id}` })"
           >
-            {{ row.product_id }}
+            {{ row.items[0].product_id }}
           </el-link>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="product_name" label="商品名称" />
+      <el-table-column label="商品名称">
+        <template #default="{ row }">
+          <span v-if="row.items && row.items.length > 0">{{ row.items[0].product_name }}</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="卖家" width="120">
         <template #default="{ row }">
           <span>{{ sellerMap[row.seller_id] || row.seller_id || '-' }}</span>

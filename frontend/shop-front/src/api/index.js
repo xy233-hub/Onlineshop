@@ -255,6 +255,12 @@ export const sellerAPI = {
         console.log('调用sellerAPI.getSellerById，sellerId:', sellerId)
         console.log('API路径:', `/sellers/${sellerId}`)
         return api.get(`/sellers/${sellerId}`)
+    },
+    // 根据商品ID获取商品发布者信息
+    getSellerByProductId: (productId) => {
+        console.log('调用sellerAPI.getSellerByProductId，productId:', productId)
+        console.log('API路径:', `/sellers/product/${productId}`)
+        return api.get(`/sellers/product/${productId}`)
     }
 }
 

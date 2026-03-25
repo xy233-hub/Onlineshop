@@ -274,10 +274,10 @@ const fetchProduct = async () => {
     if (product.value?.product_id) {
       checkFavoriteStatus()
       // 获取卖家信息
-      if (product.value?.seller_id) {
+      if (product.value?.product_id) {
         try {
-          console.log('开始获取卖家信息，seller_id:', product.value.seller_id)
-          const sellerResponse = await sellerAPI.getSellerById(product.value.seller_id)
+          console.log('开始获取卖家信息，product_id:', product.value.product_id)
+          const sellerResponse = await sellerAPI.getSellerByProductId(product.value.product_id)
           console.log('获取卖家信息响应:', sellerResponse)
           sellerInfo.value = sellerResponse?.data?.data ?? null
           console.log('卖家信息:', sellerInfo.value)

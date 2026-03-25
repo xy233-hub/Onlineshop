@@ -20,6 +20,8 @@ public class PurchaseIntent implements Serializable {
 
     private Integer purchaseId;
     private Integer productId;
+    private Integer sellerId;
+    private String productName;
     private Integer customerId;
     private String customerName;
     private String customerPhone;
