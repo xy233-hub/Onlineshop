@@ -46,21 +46,17 @@ public interface ProductMapper {
                             @Param("deduct") Integer deduct,
                             @Param("now") LocalDateTime now);
     // 用于分页/搜索
-    List<Product> selectProducts(@Param("tokens") List<String> tokens,
+    List<Product> selectProducts(@Param("q") String q,
                                  @Param("categoryId") Integer categoryId,
                                  @Param("status") String status,
-                                 @Param("minPrice") java.math.BigDecimal minPrice,
-                                 @Param("maxPrice") java.math.BigDecimal maxPrice,
                                  @Param("offset") int offset,
                                  @Param("size") int size,
                                  @Param("sortBy") String sortBy,
                                  @Param("order") String order);
 
-    int countProducts(@Param("tokens") List<String> tokens,
+    int countProducts(@Param("q") String q,
                       @Param("categoryId") Integer categoryId,
-                      @Param("status") String status,
-                      @Param("minPrice") java.math.BigDecimal minPrice,
-                      @Param("maxPrice") java.math.BigDecimal maxPrice);
+                      @Param("status") String status);
 
     // --- 新增：用于单个商品详情组装的查询 ---
     Product selectProductById(@Param("productId") Integer productId);
