@@ -7,19 +7,29 @@
 
     <el-table :data="intents" v-loading="loading" stripe>
       <el-table-column prop="purchase_id" label="意向 ID" width="100" />
-      <el-table-column prop="product_id" label="商品 ID" width="100">
+      <el-table-column label="商品 ID" width="100">
         <template #default="{ row }">
           <el-link 
-            v-if="row.product_id" 
+            v-if="row.items && row.items.length > 0" 
             type="primary" 
-            @click="$router.push({ path: `/product/${row.product_id}` })"
+            @click="$router.push({ path: `/product/${row.items[0].product_id}` })"
           >
-            {{ row.product_id }}
+            {{ row.items[0].product_id }}
           </el-link>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="product_name" label="商品名称" />
+      <el-table-column label="商品名称">
+        <template #default="{ row }">
+          <span v-if="row.items && row.items.length > 0">{{ row.items[0].product_name }}</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="卖家" width="120">
+        <template #default="{ row }">
+          <span>{{ sellerMap[row.seller_id] || row.seller_id || '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="customer_name" label="顾客姓名" width="120" />
       <el-table-column prop="customer_phone" label="联系电话" width="140" />
       <el-table-column prop="customer_address" label="收货地址" width="200" />
@@ -234,7 +244,7 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { logisticsAPI, purchaseAPI, sellerProductAPI } from '@/api'
+import { logisticsAPI, purchaseAPI, sellerProductAPI, sellerAPI } from '@/api'
 import { formatTime } from '@/utils'
 
 const intents = ref([])
@@ -242,6 +252,7 @@ const loading = ref(false)
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
+const sellerMap = ref({}) // 存储seller_id到username的映射
 
 // 取消订单相关
 const cancelDialogVisible = ref(false)
@@ -316,6 +327,21 @@ const fetchIntents = async () => {
     }
     intents.value = Array.isArray(d.items) ? d.items : (Array.isArray(d) ? d : [])
     total.value = Number(d.total ?? intents.value.length)
+    
+    // 提取所有唯一的 seller_id
+    const sellerIds = [...new Set(intents.value.map(item => item.seller_id).filter(Boolean))]
+    
+    // 批量获取卖家信息
+    for (const sellerId of sellerIds) {
+      try {
+        const sellerResponse = await sellerAPI.getSellerById(sellerId)
+        if (sellerResponse.data.data?.username) {
+          sellerMap.value[sellerId] = sellerResponse.data.data.username
+        }
+      } catch (sellerError) {
+        console.error(`获取卖家 ${sellerId} 信息失败:`, sellerError)
+      }
+    }
   } catch (err) {
     console.error(err)
     ElMessage.error('获取购买意向失败')

@@ -76,6 +76,7 @@ C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\on
 C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\entity\Category.java
 C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\dto\request\ProductIdRequest.java
 C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\service\FavoriteService.java
+C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\controller\SellerController.java
 C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\mapper\PaymentMapper.java
 C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\entity\Customer.java
 C:\Users\Administrator\Desktop\onlineshop-D\backend\src\main\java\com\example\onlineshop\controller\ShoppingCartController.java

@@ -34,13 +34,18 @@ api.interceptors.request.use(config => {
     const isSellerAfterSalesPath = /^\/seller\/after-sales(\/.*)?$/.test(path)
     // 特殊处理：/seller/orders/{id}/logistics/tracks 允许买家调用（买家添加物流轨迹）
     const isSellerOrderLogisticsTrackPath = /^\/seller\/orders\/\d+\/logistics\/tracks$/.test(path)
+    // 特殊处理：/seller/products 允许买家调用（买家发布商品）
+    const isSellerProductsPath = /^\/seller\/products(\/.*)?$/.test(path)
+    // 特殊处理：/seller/{seller_id} 允许匿名调用（获取卖家信息）
+    const isSellerInfoPath = /^\/seller\/\d+$/.test(path)
     
     const inferredRole = (() => {
-        if (/^\/seller(\/|$)/.test(path) && !isSellerPurchaseIntentsPath && !isSellerPurchaseIntentStatusPath && !isSellerPurchaseIntentShipPath && !isSellerAfterSalesPath && !isSellerOrderLogisticsTrackPath) return 'seller'
+        if (/^\/seller(\/|$)/.test(path) && !isSellerPurchaseIntentsPath && !isSellerPurchaseIntentStatusPath && !isSellerPurchaseIntentShipPath && !isSellerAfterSalesPath && !isSellerOrderLogisticsTrackPath && !isSellerProductsPath && !isSellerInfoPath) return 'seller'
         // \*\*删除：地址相关的请求不需要 JWT 令牌\*\*
         // if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
         if (/^\/products\/purchase-intents(\/|$)/.test(path)) return 'customer'
+        if (/^\/products(\/|$)/.test(path)) return null
         return null
     })()
 
@@ -51,8 +56,8 @@ api.interceptors.request.use(config => {
     else if (inferredRole === 'customer') tokenToUse = customerToken
     else tokenToUse = sellerToken || customerToken
     
-    // 特殊处理：如果是 /seller/purchase-intents、/seller/after-sales 或 /seller/orders/{id}/logistics/tracks 相关接口且没有 seller_token，则使用 customer_token
-    if ((isSellerPurchaseIntentsPath || isSellerPurchaseIntentStatusPath || isSellerPurchaseIntentShipPath || isSellerAfterSalesPath || isSellerOrderLogisticsTrackPath) && !sellerToken && customerToken) {
+    // 特殊处理：如果是 /seller/purchase-intents、/seller/after-sales、/seller/orders/{id}/logistics/tracks 或 /seller/products 相关接口且没有 seller_token，则使用 customer_token
+    if ((isSellerPurchaseIntentsPath || isSellerPurchaseIntentStatusPath || isSellerPurchaseIntentShipPath || isSellerAfterSalesPath || isSellerOrderLogisticsTrackPath || isSellerProductsPath) && !sellerToken && customerToken) {
         tokenToUse = customerToken
     }
     if (tokenToUse) {
@@ -242,6 +247,24 @@ export const dashboardAPI = {
 }
 
 /**
+ * 卖家相关接口
+ */
+export const sellerAPI = {
+    // 根据卖家ID获取卖家信息
+    getSellerById: (sellerId) => {
+        console.log('调用sellerAPI.getSellerById，sellerId:', sellerId)
+        console.log('API路径:', `/sellers/${sellerId}`)
+        return api.get(`/sellers/${sellerId}`)
+    },
+    // 根据商品ID获取商品发布者信息
+    getSellerByProductId: (productId) => {
+        console.log('调用sellerAPI.getSellerByProductId，productId:', productId)
+        console.log('API路径:', `/sellers/product/${productId}`)
+        return api.get(`/sellers/product/${productId}`)
+    }
+}
+
+/**
  * 物流（46-49）
  */
 export const logisticsAPI = {
@@ -294,6 +317,30 @@ export const afterSalesAPI = {
     handleAfterSales: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/handle`, data),
     // 卖家确认收货
     confirmReturn: (serviceId, data) => api.post(`/seller/after-sales/${serviceId}/confirm-return`, data)
+}
+
+/**
+ * 支付相关接口
+ */
+export const paymentAPI = {
+    createPayment: (data) => api.post('/payments/create', data),
+    
+    paymentSuccess: (paymentId, data) => api.post(`/payments/${paymentId}/success`, null, {
+        params: {
+            transactionId: data.transactionId,
+            paymentMethod: data.paymentMethod
+        }
+    }),
+    
+    selectPaymentMethod: (paymentId, data) => api.post(`/payments/${paymentId}/pay`, data),
+    
+    paymentFailure: (paymentId, data) => api.post(`/payments/${paymentId}/failure`, data),
+    
+    verifyPayment: (data) => api.post('/payments/verify', data),
+    
+    getCustomerPayments: () => api.get('/payments/customer'),
+    
+    getPaymentByPurchaseId: (purchaseId) => api.get(`/payments/purchase/${purchaseId}`)
 }
 
 export default api

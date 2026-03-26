@@ -28,11 +28,11 @@ const routes = [
     { path: '/seller', name: 'SellerLogin', component: SellerLogin, meta: { guestOnly: true } },
     {
         path: '/customer/dashboard',
-        name: 'CustomerDashboard',
         component: () => import('@/views/customer/Dashboard.vue'),
         meta: { requiresAuth: true },
         children: [
-            { path: '', redirect: '/customer/dashboard/orders' },
+            { path: '', name: 'CustomerDashboard', redirect: '/customer/dashboard/info' },
+            { path: 'info', name: 'DashboardInfo', component: () => import('@/views/customer/PersonalInfo.vue'), meta: { requiresAuth: true } },
             { path: 'orders', name: 'DashboardOrders', component: () => import('@/views/customer/OrdersHistory.vue'), meta: { requiresAuth: true } },
             { path: 'favorites', name: 'DashboardFavorites', component: () => import('@/views/customer/Favorites.vue'), meta: { requiresAuth: true } },
             { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } },

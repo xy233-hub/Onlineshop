@@ -202,6 +202,7 @@
                     <div class="footer-meta">
                       <span>类别：{{ product.category?.category_name || '-' }}</span>
                       <span>发布时间：{{ formatTime(product.created_at) }}</span>
+                      <span>卖家：{{ sellerInfo?.username || product.seller_id || '-' }}</span>
                     </div>
                   </div>
                 </div>
@@ -241,7 +242,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { productAPI, favoritesAPI, cartAPI } from '@/api'
+import { productAPI, favoritesAPI, cartAPI, sellerAPI } from '@/api'
 import PurchaseDialog from '@/components/buyer/PurchaseDialog.vue'
 import DOMPurify from 'dompurify'
 import { ElMessage } from 'element-plus'
@@ -249,6 +250,7 @@ import { ArrowLeft, ZoomIn, ShoppingCart, Star, Plus, Message, Headset, Document
 
 const route = useRoute()
 const product = ref(null)
+const sellerInfo = ref(null)
 const loading = ref(true)
 const showPurchaseDialog = ref(false)
 const showImageDialog = ref(false)
@@ -265,12 +267,25 @@ const fetchProduct = async () => {
   loading.value = true
   try {
     const response = await productAPI.getProductDetail(productId.value)
-    product.value = response?.data?.data ?? response?.data ?? null
+    product.value = response?.data?.data ?? null
     currentImageIndex.value = 0
 
     // 获取后检查是否已收藏
     if (product.value?.product_id) {
       checkFavoriteStatus()
+      // 获取卖家信息
+      if (product.value?.product_id) {
+        try {
+          console.log('开始获取卖家信息，product_id:', product.value.product_id)
+          const sellerResponse = await sellerAPI.getSellerByProductId(product.value.product_id)
+          console.log('获取卖家信息响应:', sellerResponse)
+          sellerInfo.value = sellerResponse?.data?.data ?? null
+          console.log('卖家信息:', sellerInfo.value)
+        } catch (sellerError) {
+          console.error('获取卖家信息失败:', sellerError)
+          console.error('错误详情:', sellerError.response)
+        }
+      }
     }
   } catch (error) {
     console.error('获取商品详情失败:', error)
@@ -330,11 +345,18 @@ const imageList = computed(() => {
   if (!product.value) return []
   if (Array.isArray(product.value.images) && product.value.images.length) {
     return product.value.images.map(it => {
-      if (typeof it === 'string') return it
-      return it.image_url || it.media_url || ''
+      if (typeof it === 'string') {
+        // 将远程图片URL替换为本地地址
+        return it.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+      }
+      const url = it.image_url || it.media_url || ''
+      // 将远程图片URL替换为本地地址
+      return url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
     }).filter(Boolean)
   }
-  return product.value.image_url ? [product.value.image_url] : []
+  const url = product.value.image_url || ''
+  // 将远程图片URL替换为本地地址
+  return url ? [url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')] : []
 })
 
 const hasMedia = computed(() => {

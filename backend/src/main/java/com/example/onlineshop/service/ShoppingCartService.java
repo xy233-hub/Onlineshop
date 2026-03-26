@@ -7,7 +7,19 @@ import com.example.onlineshop.mapper.ShoppingCartMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.example.onlineshop.entity.Customer;
+import com.example.onlineshop.entity.Payment;
+import com.example.onlineshop.entity.Product;
+import com.example.onlineshop.entity.PurchaseIntent;
+import com.example.onlineshop.entity.PurchaseIntentItem;
+import com.example.onlineshop.mapper.CustomerMapper;
+import com.example.onlineshop.mapper.PurchaseIntentMapper;
+import com.example.onlineshop.mapper.PurchaseIntentItemMapper;
+import com.example.onlineshop.service.PaymentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -19,6 +31,20 @@ public class ShoppingCartService {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private CustomerMapper customerMapper;
+
+    @Autowired
+    private PurchaseIntentMapper purchaseIntentMapper;
+
+    @Autowired
+    private PurchaseIntentItemMapper purchaseIntentItemMapper;
+
+    @Autowired
+    private PaymentService paymentService;
+
+    private static final Logger log = LoggerFactory.getLogger(ShoppingCartService.class);
 
     /**
      * 添加商品到购物车（存在则数量累加，累加后不超过库存）
@@ -137,5 +163,126 @@ public class ShoppingCartService {
             if (entry != null) result.add(entry);
         }
         return result;
+    }
+    /**
+     * 批量下单：将选中的购物车项创建为多个订单（按卖家分组），然后合并为一个支付请求
+     */
+    @Transactional
+    public Map<String, Object> batchPurchase(Integer customerId, List<Integer> cartItemIds, 
+                                             String contactName, String contactPhone, 
+                                             String deliveryAddress, String note) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) {
+            return Map.of("code", 400, "message", "请选择要结算的商品", "data", Collections.emptyMap());
+        }
+
+        // 查询选中的购物车项
+        List<CartItemResponse> cartItems = cartMapper.listByCustomerAndIds(customerId, cartItemIds);
+        if (cartItems.isEmpty()) {
+            return Map.of("code", 400, "message", "选中的商品不存在或不属于该用户", "data", Collections.emptyMap());
+        }
+
+        // 获取客户信息
+        Customer customer = customerMapper.findById(customerId);
+        if (customer == null) {
+            return Map.of("code", 404, "message", "客户不存在", "data", Collections.emptyMap());
+        }
+
+        // 按 seller_id 分组，同一个卖家的商品合并为一个订单
+        Map<Integer, List<CartItemResponse>> itemsBySeller = new HashMap<>();
+        for (CartItemResponse item : cartItems) {
+            // 查询商品的 seller_id
+            Product product = productService.getProductById(item.getProductId());
+            if (product == null || product.getSellerId() == null) {
+                log.warn("商品 ID {} 没有有效的卖家信息", item.getProductId());
+                continue;
+            }
+            Integer sellerId = product.getSellerId();
+            itemsBySeller.computeIfAbsent(sellerId, k -> new ArrayList<>()).add(item);
+        }
+
+        if (itemsBySeller.isEmpty()) {
+            return Map.of("code", 400, "message", "没有有效的商品可以下单", "data", Collections.emptyMap());
+        }
+
+        List<Integer> purchaseIds = new ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+
+        // 为每个卖家的商品创建一个订单
+        for (Map.Entry<Integer, List<CartItemResponse>> entry : itemsBySeller.entrySet()) {
+            Integer sellerId = entry.getKey();
+            List<CartItemResponse> sellerItems = entry.getValue();
+
+            try {
+                // 计算该订单的总金额
+                BigDecimal orderTotal = sellerItems.stream()
+                        .map(item -> BigDecimal.valueOf(item.getUnitPrice()).multiply(BigDecimal.valueOf(item.getQuantity())))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                // 创建购买意向
+                PurchaseIntent intent = new PurchaseIntent();
+                intent.setCustomerId(customerId);
+                intent.setSellerId(sellerId);
+                intent.setCustomerName(contactName != null ? contactName : customer.getUsername());
+                intent.setCustomerPhone(contactPhone != null ? contactPhone : customer.getPhone());
+                intent.setCustomerAddress(deliveryAddress != null ? deliveryAddress : customer.getDefaultAddress());
+                intent.setQuantity(sellerItems.stream().mapToInt(CartItemResponse::getQuantity).sum());
+                intent.setTotalAmount(orderTotal);
+                intent.setPurchaseStatus("CUSTOMER_ORDERED");
+                intent.setSellerNotes(note);
+                intent.setCreatedAt(LocalDateTime.now());
+                intent.setUpdatedAt(LocalDateTime.now());
+
+                int rows = purchaseIntentMapper.insert(intent);
+                if (rows <= 0 || intent.getPurchaseId() == null) {
+                    throw new IllegalStateException("创建购买意向失败");
+                }
+
+                purchaseIds.add(intent.getPurchaseId());
+                totalAmount = totalAmount.add(orderTotal);
+
+                // 为每个商品项创建记录
+                for (CartItemResponse cartItem : sellerItems) {
+                    PurchaseIntentItem item = new PurchaseIntentItem();
+                    item.setPurchaseId(intent.getPurchaseId());
+                    item.setProductId(cartItem.getProductId());
+                    item.setProductName(cartItem.getProductName());
+                    item.setProductPrice(BigDecimal.valueOf(cartItem.getUnitPrice()));
+                    item.setQuantity(cartItem.getQuantity());
+                    item.setSubtotal(BigDecimal.valueOf(cartItem.getUnitPrice()).multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+
+                    int ir = purchaseIntentItemMapper.insert(item);
+                    if (ir <= 0) {
+                        throw new IllegalStateException("创建购买意向商品项失败");
+                    }
+                }
+
+            } catch (Exception e) {
+                log.error("创建订单失败，sellerId={}", sellerId, e);
+                throw new RuntimeException("创建订单失败：" + e.getMessage(), e);
+            }
+        }
+
+        // 创建合并支付记录
+        try {
+            Payment payment = paymentService.createBatchPayment(purchaseIds, customerId, totalAmount);
+            
+            Map<String, Object> data = new HashMap<>();
+            data.put("payment_id", payment.getPaymentId());
+            data.put("purchase_ids", purchaseIds);
+            data.put("total_amount", totalAmount);
+            data.put("payment_status", payment.getPaymentStatus());
+
+            // 从购物车删除已下单的商品
+            cartMapper.deleteByIds(customerId, cartItemIds);
+
+            return Map.of(
+                "code", 200,
+                "message", "下单成功，请完成支付",
+                "data", data
+            );
+        } catch (Exception e) {
+            log.error("创建支付记录失败", e);
+            throw new RuntimeException("创建支付记录失败：" + e.getMessage(), e);
+        }
     }
 }

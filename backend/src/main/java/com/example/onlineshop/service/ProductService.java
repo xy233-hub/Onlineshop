@@ -12,8 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,21 +29,6 @@ public class ProductService {
 
     public boolean createProduct(Product product) {
         return productMapper.insert(product) > 0;
-    }
-
-    private static List<String> splitKeywords(String q) {
-        if (q == null) return Collections.emptyList();
-        String s = q.replace('，', ',').trim();
-        if (s.isBlank()) return Collections.emptyList();
-
-        List<String> tokens = Arrays.stream(s.split("[,\\s]+"))
-                .map(String::trim)
-                .filter(x -> !x.isBlank())
-                .distinct()
-                .limit(8) // 防止 tokens 过多导致 SQL 过重
-                .collect(Collectors.toList());
-
-        return tokens;
     }
 
     public boolean updateProductStatus(Integer productId, String status) {
@@ -99,15 +82,7 @@ public class ProductService {
     }
 
     // 兼容前端分页/搜索接口（可直接被之前的 Controller 调用）
-    public List<Product> searchProducts(String q,
-                                        Integer categoryId,
-                                        String status,
-                                        BigDecimal minPrice,
-                                        BigDecimal maxPrice,
-                                        int offset,
-                                        int size,
-                                        String sortBy,
-                                        String order) {
+    public List<Product> searchProducts(String q, Integer categoryId, String status, int offset, int size, String sortBy, String order) {
         if (order == null || (!order.equalsIgnoreCase("asc") && !order.equalsIgnoreCase("desc"))) {
             order = "desc";
         }
@@ -115,14 +90,11 @@ public class ProductService {
         if ("price".equalsIgnoreCase(sortBy) || "created_at".equalsIgnoreCase(sortBy) || "stock_quantity".equalsIgnoreCase(sortBy)) {
             sort = sortBy;
         }
-
-        List<String> tokens = splitKeywords(q);
-        return productMapper.selectProducts(tokens, categoryId, status, minPrice, maxPrice, offset, size, sort, order);
+        return productMapper.selectProducts(q, categoryId, status, offset, size, sort, order);
     }
 
-    public int countProducts(String q, Integer categoryId, String status, BigDecimal minPrice, BigDecimal maxPrice) {
-        List<String> tokens = splitKeywords(q);
-        return productMapper.countProducts(tokens, categoryId, status, minPrice, maxPrice);
+    public int countProducts(String q, Integer categoryId, String status) {
+        return productMapper.countProducts(q, categoryId, status);
     }
 
     // 仅返回在线商品的详情；非 online 返回 null（Controller 会转换为 404）
