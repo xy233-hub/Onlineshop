@@ -48,7 +48,7 @@ public class ProductInfoResponse {
             this.productId = p.getProductId();
             this.sellerId = p.getSellerId();
             this.productName = p.getProductName();
-            this.productDesc = p.getProductDesc();
+            this.productDesc = p.getShortDesc();
             this.price = p.getPrice();
             this.stockQuantity = p.getStockQuantity();
             this.productStatus = p.getProductStatus();

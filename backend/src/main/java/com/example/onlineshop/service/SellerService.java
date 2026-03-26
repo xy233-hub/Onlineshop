@@ -115,10 +115,7 @@ public class SellerService {
             return new ApiResponse(401, "未授权，无法获取用户 ID", null);
         }
 
-        System.out.println("=== SellerService.publishProduct ===");
-        System.out.println("sellerId: " + sellerId);
-        System.out.println("productName: " + request.getProductName());
-        System.out.println("categoryId: " + request.getCategoryId());
+
 
         Integer stock = request.getStockQuantity() == null ? 0 : request.getStockQuantity();
         String status = stock > 0 ? "frozen" : "outOfStock";
@@ -132,15 +129,16 @@ public class SellerService {
                 .stockQuantity(stock)
                 .productStatus(status)
                 .searchKeywords(request.getSearchKeywords())
+                .shortDesc(request.getShortDesc()) // 新增：写入 shortDesc
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
+
         productMapper.insert(product); // 回填 productId
         Integer productId = product.getProductId();
         
-        System.out.println("商品发布成功，productId: " + productId + ", sellerId: " + sellerId);
-        System.out.println("=== SellerService.publishProduct 结束 ===");
+
 
         // 处理 images（ImageRequest -> 插入 product_images，并收集 URL 列表回写 product）
         if (request.getImages() != null && !request.getImages().isEmpty()) {

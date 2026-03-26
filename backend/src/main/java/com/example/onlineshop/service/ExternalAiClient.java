@@ -187,6 +187,47 @@ public class ExternalAiClient {
         return x.length() > 300 ? x.substring(0, 300) + "...(truncated)" : x;
     }
 
+    // 新增：生成缩减商品描述（用于 products.short_desc）
+    public String generateShortDesc(String productName, String productDesc) {
+        try {
+            JsonNode msg = callDashScopeMessage(
+                    buildShortDescPrompt(productName, productDesc),
+                    defaultEnableThinking,
+                    "generateShortDesc"
+            );
+            if (msg == null) return fallbackShortDesc(productDesc, 300);
+
+            String content = msg.path("content").asText("");
+            if (content == null || content.isBlank()) {
+                return fallbackShortDesc(productDesc, 300);
+            }
+
+            String cleaned = content.replace("\r", " ").replace("\n", " ").trim();
+            if (cleaned.isBlank()) return fallbackShortDesc(productDesc, 300);
+            return cleaned.length() > 300 ? cleaned.substring(0, 300) : cleaned;
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateShortDesc exception: " + e);
+            return fallbackShortDesc(productDesc, 300);
+        }
+    }
+
+    private String buildShortDescPrompt(String productName, String productDesc) {
+        return ""
+                + "你是电商商品文案助手。\n"
+                + "请根据商品名称和详情，生成一段缩减商品描述。\n"
+                + "要求：突出核心卖点，语气自然；不要输出多余解释；总长度不超过25字。\n"
+                + "商品名称：\n"
+                + (productName == null ? "" : productName) + "\n"
+                + "商品详情：\n"
+                + (productDesc == null ? "" : productDesc) + "\n";
+    }
+
+    private String fallbackShortDesc(String s, int maxLen) {
+        if (s == null) return "";
+        String x = s.replace("\r", " ").replace("\n", " ").trim();
+        if (x.isBlank()) return "";
+        return x.length() > maxLen ? x.substring(0, maxLen) : x;
+    }
 
     private String buildExtractPrompt(String userText) {
         return ""

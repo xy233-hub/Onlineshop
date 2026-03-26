@@ -54,6 +54,9 @@ public class SellerProductController {
     @Autowired
     private PurchaseIntentItemMapper purchaseIntentItemMapper;
 
+    @Autowired
+    private  ExternalAiClient externalAiClient;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private void validateMediaResources(List<MediaResourceRequest> medias) {
@@ -129,42 +132,42 @@ public class SellerProductController {
         return null;
     }
 
-    // 发布新商品：接收原始 JSON，发布成功后把请求体中含有 temp_key 的临时媒体关联到新 product_id
+
     @PostMapping("/products")
     public ApiResponse publishProduct(
             @RequestHeader("Authorization") String token,
             @RequestBody Map<String, Object> body) {
         try {
-            // 从 token 中解析用户 ID（支持 buyer 和 seller）
             Integer customerId = JwtUtil.getCustomerIdFromToken(token);
             Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
-            
-            // 优先使用 customerId（买家现在也可以发布商品），如果没有则使用 sellerId
             Integer publisherId = customerId != null ? customerId : sellerIdFromToken;
             if (publisherId == null) {
                 return ApiResponse.error(401, "未授权");
             }
 
-            // 把 JSON 转成 ProductRequest 调用原有逻辑
             ProductRequest request = objectMapper.convertValue(body, ProductRequest.class);
-            
-            // 设置发布者 ID 为 seller_id
             request.setSellerId(publisherId);
-            
+
+            // 新增：若前端未传 shortDesc，则调用 AI 自动生成并写入 request，后续入库
+            if (request.getShortDesc() == null || request.getShortDesc().isBlank()) {
+                String aiShort = externalAiClient.generateShortDesc(
+                        request.getProductName(),
+                        request.getProductDesc()
+                );
+                request.setShortDesc(aiShort == null ? "" : aiShort);
+            }
+
             validateMediaResources(request.getMediaResources());
             ApiResponse resp = sellerService.publishProduct(request);
 
-
-            // 发布成功后，尝试从 resp.data 中更鲁棒地读取 product_id 并关联临时媒体
             if (resp != null && resp.getCode() == 200) {
                 Integer productId = extractProductId(resp.getData());
                 if (productId != null) {
-                    // images（可能包含 temp_key）
                     Object imgs = body.get("images");
                     if (imgs instanceof Iterable) {
                         for (Object o : (Iterable<?>) imgs) {
                             if (o instanceof Map) {
-                                Map<?,?> m = (Map<?,?>) o;
+                                Map<?, ?> m = (Map<?, ?>) o;
                                 if (m.containsKey("temp_key")) {
                                     String tempKey = String.valueOf(m.get("temp_key"));
                                     try {
@@ -177,12 +180,11 @@ public class SellerProductController {
                         }
                     }
 
-                    // media_resources（可能包含 temp_key）
                     Object mrs = body.get("media_resources");
                     if (mrs instanceof Iterable) {
                         for (Object o : (Iterable<?>) mrs) {
                             if (o instanceof Map) {
-                                Map<?,?> m = (Map<?,?>) o;
+                                Map<?, ?> m = (Map<?, ?>) o;
                                 if (m.containsKey("temp_key")) {
                                     String tempKey = String.valueOf(m.get("temp_key"));
                                     try {
@@ -194,9 +196,6 @@ public class SellerProductController {
                             }
                         }
                     }
-                } else {
-                    // 无法解析 productId，记录以便排查
-                    System.err.println("publishProduct: 无法从 resp.data 中解析 product_id, resp.data=" + resp.getData());
                 }
             }
 
