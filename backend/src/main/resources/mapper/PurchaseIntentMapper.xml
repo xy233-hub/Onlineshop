@@ -5,6 +5,8 @@
     <resultMap id="PurchaseIntentMap" type="com.example.onlineshop.entity.PurchaseIntent">
         <id property="purchaseId" column="purchase_id"/>
         <result property="productId" column="product_id"/>
+        <result property="sellerId" column="seller_id"/>
+        <result property="productName" column="product_name"/>
         <result property="customerId" column="customer_id"/>
         <result property="customerName" column="customer_name"/>
         <result property="customerPhone" column="customer_phone"/>
@@ -17,6 +19,8 @@
         <result property="sellerNotes" column="seller_notes"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
+        <result property="paymentStatus" column="payment_status"/>
+        <result property="paymentVerifyToken" column="payment_verify_token"/>
     </resultMap>
 
     <insert id="insert" parameterType="com.example.onlineshop.entity.PurchaseIntent"
@@ -146,7 +150,7 @@
 
      <!-- 根据卖家 ID 查询购买意向（通过 products 表关联） -->
     <select id="findBySellerId" resultMap="PurchaseIntentMap">
-        SELECT DISTINCT pi.* 
+        SELECT DISTINCT pi.*, p.seller_id, p.product_name 
         FROM purchase_intents pi
         INNER JOIN purchase_intent_items pii ON pi.purchase_id = pii.purchase_id
         INNER JOIN products p ON pii.product_id = p.product_id
@@ -162,5 +166,23 @@
         INNER JOIN purchase_intent_items pii ON pi.purchase_id = pii.purchase_id
         INNER JOIN products p ON pii.product_id = p.product_id
         WHERE p.seller_id = #{sellerId}
+    </select>
+
+      <!-- 新增：根据客户 ID 和支付状态查询购买意向 -->
+    <select id="findByCustomerIdAndStatus" resultMap="PurchaseIntentMap">
+        SELECT pi.* 
+        FROM purchase_intents pi
+        WHERE pi.customer_id = #{customerId}
+        AND pi.payment_status = #{paymentStatus}
+        ORDER BY pi.created_at DESC
+    </select>
+
+     <!-- 新增：根据客户 ID 和时间范围查询购买意向 -->
+    <select id="findByCustomerIdAndTimeRange" resultMap="PurchaseIntentMap">
+        SELECT pi.* 
+        FROM purchase_intents pi
+        WHERE pi.customer_id = #{customerId}
+        AND pi.created_at BETWEEN #{startTime} AND #{endTime}
+        ORDER BY pi.created_at DESC
     </select>
 </mapper>

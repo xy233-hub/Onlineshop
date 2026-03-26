@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,27 +104,71 @@ public class PaymentService {
             LocalDateTime now = LocalDateTime.now();
             paymentMapper.updateStatusWithMethod(paymentId, "PAID", transactionId, paymentMethod, now, now);
 
-            // 更新购买意向的支付状态为 PAID
-            Map<String, Object> params = new HashMap<>();
-            params.put("purchaseId", payment.getPurchaseId());
-            params.put("paymentStatus", "PAID");
-            purchaseIntentMapper.updatePaymentInfo(params);
+            // 获取所有关联的购买意向 ID
+            List<Integer> allPurchaseIds = getAllPurchaseIdsByPayment(payment);
             
-            // 同时将订单状态从 CUSTOMER_ORDERED 更新为 SELLER_CONFIRMED（表示已支付，等待商家处理）
-            PurchaseIntent intent = purchaseIntentMapper.findById(payment.getPurchaseId());
-            if (intent != null && "CUSTOMER_ORDERED".equals(intent.getPurchaseStatus())) {
-                purchaseIntentMapper.updateStatus(payment.getPurchaseId(), "SELLER_CONFIRMED", now);
+            // 更新所有关联订单的支付状态为 PAID
+            for (Integer purchaseId : allPurchaseIds) {
+                Map<String, Object> params = new HashMap<>();
+                params.put("purchaseId", purchaseId);
+                params.put("paymentStatus", "PAID");
+                params.put("updatedAt", now);
+                purchaseIntentMapper.updatePaymentInfo(params);
+                
+                // 同时将订单状态从 CUSTOMER_ORDERED 更新为 SELLER_CONFIRMED
+                PurchaseIntent intent = purchaseIntentMapper.findById(purchaseId);
+                if (intent != null && "CUSTOMER_ORDERED".equals(intent.getPurchaseStatus())) {
+                    purchaseIntentMapper.updateStatus(purchaseId, "SELLER_CONFIRMED", now);
+                }
             }
 
             // 重新查询并返回
             Payment updated = paymentMapper.findById(paymentId);
-            return new ApiResponse(200, "支付成功", updated);
+            return new ApiResponse(200, "支付成功，共更新 " + allPurchaseIds.size() + " 个订单", updated);
         } catch (Exception e) {
             log.error("处理支付成功回调失败，paymentId={}", paymentId, e);
             return new ApiResponse(500, "处理支付失败：" + e.getMessage(), null);
         }
     }
 
+    /**
+     * 根据支付记录获取所有关联的购买意向 ID
+     */
+    private List<Integer> getAllPurchaseIdsByPayment(Payment payment) {
+        List<Integer> result = new ArrayList<>();
+        
+        // 首先添加主关联的 purchaseId
+        if (payment.getPurchaseId() != null) {
+            result.add(payment.getPurchaseId());
+        }
+        
+        // 从 paymentNotes 中解析批次信息
+        // 格式："批量订单合并支付，共 X 个订单"
+        if (payment.getPaymentNotes() != null && payment.getPaymentNotes().contains("批量订单合并支付")) {
+            // 查询该客户的所有 UNPAID 状态的订单（同一批次创建）
+            // 通过时间范围来限定：支付记录创建时间的前后 1 分钟内
+            LocalDateTime startTime = payment.getCreatedAt().minusMinutes(1);
+            LocalDateTime endTime = payment.getCreatedAt().plusMinutes(1);
+            
+            List<PurchaseIntent> intents = purchaseIntentMapper.findByCustomerIdAndTimeRange(
+                payment.getCustomerId(), 
+                startTime,
+                endTime
+            );
+            
+            if (intents != null) {
+                for (PurchaseIntent intent : intents) {
+                    // 只添加尚未支付的订单，并且不重复添加主订单
+                    if (!result.contains(intent.getPurchaseId()) && 
+                        ("UNPAID".equals(intent.getPaymentStatus()) || "PENDING".equals(intent.getPaymentStatus()))) {
+                        result.add(intent.getPurchaseId());
+                    }
+                }
+            }
+        }
+        
+        return result;
+    }
 
 
      /**
@@ -351,5 +396,60 @@ public class PaymentService {
      */
     public List<Payment> getPaymentsByCondition(Map<String, Object> params) {
         return paymentMapper.findByCondition(params);
+    }
+
+    /**
+     * 创建批量支付记录（多个订单合并支付）
+     */
+    @Transactional
+    public Payment createBatchPayment(List<Integer> purchaseIds, Integer customerId, BigDecimal totalAmount) {
+        if (purchaseIds == null || purchaseIds.isEmpty()) {
+            throw new IllegalArgumentException("购买意向 ID 列表不能为空");
+        }
+
+        // 验证所有购买意向都属于该客户
+        for (Integer purchaseId : purchaseIds) {
+            PurchaseIntent intent = purchaseIntentMapper.findById(purchaseId);
+            if (intent == null) {
+                throw new IllegalArgumentException("购买意向不存在：" + purchaseId);
+            }
+            if (!intent.getCustomerId().equals(customerId)) {
+                throw new IllegalArgumentException("无权为该订单创建支付记录：" + purchaseId);
+            }
+        }
+
+        // 生成支付过期时间（30 分钟后）
+        LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(30);
+
+        // 创建支付记录（第一个 purchase_id 作为主关联）
+        Payment payment = Payment.builder()
+                .purchaseId(purchaseIds.get(0))
+                .customerId(customerId)
+                .paymentAmount(totalAmount)
+                .paymentStatus("PENDING")
+                .paymentMethod(null)
+                .paymentExpiry(expiryTime)
+                .paymentNotes("批量订单合并支付，共 " + purchaseIds.size() + " 个订单")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        int rows = paymentMapper.insert(payment);
+        if (rows <= 0 || payment.getPaymentId() == null) {
+            throw new IllegalStateException("创建批量支付记录失败");
+        }
+
+        // 更新所有购买意向的支付状态
+        Map<String, Object> params = new HashMap<>();
+        params.put("paymentStatus", "UNPAID");
+        params.put("paymentVerifyToken", UUID.randomUUID().toString().replace("-", ""));
+        params.put("updatedAt", LocalDateTime.now());
+
+        for (Integer purchaseId : purchaseIds) {
+            params.put("purchaseId", purchaseId);
+            purchaseIntentMapper.updatePaymentInfo(params);
+        }
+
+        return payment;
     }
 }

@@ -269,4 +269,11 @@ public class SellerService {
         return new ApiResponse(200, "标记售出成功", new ProductInfoResponse(product));
     }
 
+    /**
+     * 根据卖家ID获取卖家信息
+     */
+    public com.example.onlineshop.entity.Seller getSellerById(Integer sellerId) {
+        return sellerMapper.selectById(sellerId);
+    }
+
 }

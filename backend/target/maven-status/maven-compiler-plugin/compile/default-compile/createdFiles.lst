@@ -90,6 +90,7 @@ com\example\onlineshop\entity\PurchaseIntentItem.class
 com\example\onlineshop\dto\request\ProductIdRequest.class
 com\example\onlineshop\entity\Customer$CustomerBuilder.class
 com\example\onlineshop\entity\Customer.class
+com\example\onlineshop\controller\SellerController.class
 com\example\onlineshop\service\CustomerAddressService.class
 com\example\onlineshop\dto\request\AfterSalesHandleRequest.class
 com\example\onlineshop\entity\ProductImage$ProductImageBuilder.class
