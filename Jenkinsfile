@@ -1,40 +1,34 @@
 pipeline {
     agent any
 
-    // 定义环境变量
     environment {
-        // 镜像名称 (不需要仓库前缀，直接本地用)
         IMAGE_BACKEND = 'onlineshop-backend'
         IMAGE_FRONTEND = 'onlineshop-frontend'
-        // 镜像标签
         IMAGE_TAG = "${BUILD_NUMBER}"
-
-        // 项目在服务器上的部署目录
-        // Jenkins 会把 docker-compose.yml 复制到这里并执行
         DEPLOY_PATH = '/data/onlineshop'
     }
 
     tools {
-        // 请确保 Jenkins 全局配置里的名字和这里一致
         jdk 'JDK17'
         maven 'Maven3.6'
         nodejs 'NodeJS'
     }
 
     stages {
-       stage('Checkout') {
+        stage('Checkout') {
             steps {
                 echo '=== 1. 拉取代码（脚本指定仓库） ==='
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/test']],  // 要拉取的分支
+                    branches: [[name: '*/test']],
                     userRemoteConfigs: [[
-                        url: 'git@github.com:xy233-hub/Onlineshop.git',  // 仓库URL
-                        credentialsId: 'jenkins-SSH'  // 你在Jenkins中创建的凭证ID
+                        url: 'git@github.com:xy233-hub/Onlineshop.git',
+                        credentialsId: 'jenkins-SSH'
                     ]],
                 ])
             }
         }
+
         stage('Build Backend Jar') {
             steps {
                 echo '=== 2. 编译 Spring Boot ==='
@@ -58,13 +52,9 @@ pipeline {
             steps {
                 echo '=== 4. 构建本地 Docker 镜像 ==='
                 script {
-                    // 构建后端镜像 (直接在本地构建，不推送)
                     dir('backend') {
                         sh "docker build -t ${IMAGE_BACKEND}:latest ."
-
                     }
-
-                    // 构建前端镜像
                     dir('frontend/shop-front') {
                         sh "docker build -t ${IMAGE_FRONTEND}:latest ."
                     }
@@ -76,33 +66,51 @@ pipeline {
             steps {
                 echo '=== 5. 本地部署 (启动容器) ==='
                 script {
-                    // 确保部署目录存在
                     sh "mkdir -p ${DEPLOY_PATH}"
-                    // 清空临时上传目录：/data/onlineshop/uploads/temp
                     sh """
                         if [ -d ${DEPLOY_PATH}/uploads/temp ]; then
                           rm -rf ${DEPLOY_PATH}/uploads/temp/*
                         fi
                     """
-                    // 将 docker-compose.yml 复制到部署目录
-                    // 注意：这里假设 docker-compose.yml 在项目根目录
                     sh "cp docker-compose.yml ${DEPLOY_PATH}/"
                     sh "cp text1.2.sql ${DEPLOY_PATH}/"
-                    // 进入目录并启动
                     dir("${DEPLOY_PATH}") {
-                        // 传递环境变量给 docker-compose
                         sh "export IMAGE_TAG=latest && docker compose down --remove-orphans"
                         sh "export IMAGE_TAG=latest && docker compose up -d"
                     }
                 }
             }
         }
+
+        stage('API Tests (Allure)') {
+            steps {
+                echo '=== 6. 运行 API 自动化测试并生成 Allure 结果 ==='
+                dir('ecommerce-api-test') {
+                    // 这里假设项目已配置 allure-maven 插件或 surefire 写入 allure-results
+                    sh 'mvn clean test'
+                }
+            }
+            post {
+                always {
+                    // 归档 surefire 报告（可选，但建议）
+                    junit allowEmptyResults: true, testResults: 'ecommerce-api-test/target/surefire-reports/*.xml'
+                }
+            }
+        }
     }
 
     post {
+        always {
+            // 发布 Allure 报告：要求 Jenkins 已安装 Allure Jenkins 插件，并配置好 Allure Commandline
+            allure([
+                includeProperties: false,
+                jdk: '',
+                reportBuildPolicy: 'ALWAYS',
+                results: [[path: 'ecommerce-api-test/target/allure-results']]
+            ])
+        }
         success {
             echo '部署成功！访问 http://你的服务器IP 试试'
-            // 可选：清理一下旧的悬空镜像
             sh 'docker image prune -f'
         }
         failure {
