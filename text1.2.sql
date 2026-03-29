@@ -430,3 +430,5 @@ SHOW CREATE TABLE onlineshop.products;
 -- 4. 可选：添加索引提高查询性能
 CREATE INDEX idx_products_seller_id ON products(seller_id);
 
+ALTER TABLE products
+    ADD COLUMN short_desc VARCHAR(300) NULL COMMENT '商品缩减描述（列表页/卡片展示用）'

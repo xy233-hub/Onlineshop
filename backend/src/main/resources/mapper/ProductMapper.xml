@@ -17,10 +17,18 @@
         <!-- images / mediaResources 为非持久化字段，需单独查询组装 -->
     </resultMap>
 
-    <!-- 新增商品 -->
-    <insert id="insert" parameterType="com.example.onlineshop.entity.Product" useGeneratedKeys="true" keyProperty="productId" keyColumn="product_id">
-        INSERT INTO products (seller_id, category_id, product_name, product_desc, price, stock_quantity, search_keywords, product_status, created_at, updated_at)
-        VALUES (#{sellerId}, #{categoryId}, #{productName}, #{productDesc}, #{price}, #{stockQuantity}, #{searchKeywords}, #{productStatus}, #{createdAt}, #{updatedAt})
+    <!-- 新增商品：补充 short_desc 入库 -->
+    <insert id="insert"
+            parameterType="com.example.onlineshop.entity.Product"
+            useGeneratedKeys="true"
+            keyProperty="productId"
+            keyColumn="product_id">
+        INSERT INTO products
+        (seller_id, category_id, product_name, product_desc, short_desc,
+         price, stock_quantity, search_keywords, product_status, created_at, updated_at)
+        VALUES
+            (#{sellerId}, #{categoryId}, #{productName}, #{productDesc}, #{shortDesc},
+             #{price}, COALESCE(#{stockQuantity}, 0), #{searchKeywords}, COALESCE(#{productStatus}, 'outOfStock'), #{createdAt}, #{updatedAt})
     </insert>
 
     <!-- 查询所有商品 -->
