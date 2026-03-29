@@ -7,15 +7,11 @@
     @close="handleClose"
   >
     <div class="payment-container">
+      <!-- 订单信息 -->
       <div class="order-info">
         <h4>订单信息</h4>
         <el-descriptions :column="1" size="small">
-          <el-descriptions-item label="订单编号">
-            {{ orderInfo.purchaseId }}
-            <span v-if="multipleOrders" class="order-count">
-              (共 {{ orderCount }} 个订单)
-            </span>
-          </el-descriptions-item>
+          <el-descriptions-item label="订单编号">{{ orderInfo.purchaseId }}</el-descriptions-item>
           <el-descriptions-item label="订单金额">
             <span class="amount">¥{{ orderInfo.totalAmount }}</span>
           </el-descriptions-item>
@@ -28,6 +24,7 @@
         </el-descriptions>
       </div>
 
+      <!-- 支付方式选择 -->
       <div class="payment-methods">
         <h4>选择支付方式</h4>
         <el-radio-group v-model="selectedPaymentMethod" class="payment-method-group">
@@ -46,6 +43,7 @@
         </el-radio-group>
       </div>
 
+      <!-- 支付倒计时 -->
       <div class="countdown" v-if="showCountdown && !isPaid">
         <el-alert
           title="请尽快完成支付"
@@ -78,8 +76,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { ElMessage } from 'element-plus';
-import api from '@/api/index';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { useCustomerStore } from '@/stores/customer';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -90,6 +88,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue', 'payment-success']);
+
+const customerStore = useCustomerStore();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -104,8 +104,11 @@ const showCountdown = ref(true);
 const countdownTime = ref('30:00');
 const countdownTimer = ref(null);
 const paymentId = ref(null);
+
+// 支付过期时间
 const paymentExpiryTime = ref(null);
 
+// 订单信息（规范化字段）
 const orderInfo = ref({
   purchaseId: null,
   productId: null,
@@ -113,9 +116,7 @@ const orderInfo = ref({
   totalAmount: 0
 });
 
-const multipleOrders = ref(false);
-const orderCount = ref(1);
-
+// 支付过期文本
 const paymentExpiryText = computed(() => {
   if (!paymentExpiryTime.value) return '未知';
   const time = new Date(paymentExpiryTime.value);
@@ -128,13 +129,15 @@ const paymentExpiryText = computed(() => {
   });
 });
 
+// 是否即将过期
 const isExpiring = computed(() => {
   if (!paymentExpiryTime.value) return false;
   const now = new Date().getTime();
   const expiry = new Date(paymentExpiryTime.value).getTime();
-  return (expiry - now) < 5 * 60 * 1000;
+  return (expiry - now) < 5 * 60 * 1000; // 少于 5 分钟
 });
 
+// 支付按钮文本
 const payButtonText = computed(() => {
   if (isPaid.value) return '已支付';
   if (isExpired.value) return '已过期';
@@ -142,24 +145,16 @@ const payButtonText = computed(() => {
   return '立即支付';
 });
 
+// 监听订单变化，初始化支付信息
 watch(() => props.order, (newOrder) => {
   if (newOrder && (newOrder.purchaseId || newOrder.purchase_id)) {
+    // 规范化订单字段
     orderInfo.value = {
       purchaseId: newOrder.purchaseId || newOrder.purchase_id,
       productId: newOrder.productId || newOrder.product_id,
       productName: newOrder.productName || newOrder.product_name,
       totalAmount: newOrder.totalAmount || newOrder.total_amount || 0
     };
-    
-    if (newOrder.purchase_ids && newOrder.purchase_ids.length > 1) {
-      multipleOrders.value = true;
-      orderCount.value = newOrder.purchase_ids.length;
-    }
-    
-    if (newOrder.paymentId) {
-      paymentId.value = newOrder.paymentId;
-    }
-    
     initPaymentInfo();
   }
 }, { immediate: true, deep: true });
@@ -174,35 +169,42 @@ onUnmounted(() => {
   }
 });
 
+// 初始化支付信息
 const initPaymentInfo = async () => {
   try {
-    if (paymentId.value) {
-      const response = await api.get(`/payments/${paymentId.value}`);
-      const result = response.data;
-      
-      if (result.code === 200 && result.data) {
-        handleExistingPayment(result.data);
-        return;
+    console.log('开始初始化支付信息，订单ID:', orderInfo.value.purchaseId);
+    // 查询是否已有支付记录
+    const response = await fetch(`/api/payments/purchase/${orderInfo.value.purchaseId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': localStorage.getItem('customer_token')
       }
-    }
-    
-    const response = await api.get(`/payments/purchase/${orderInfo.value.purchaseId}`);
-    const result = response.data;
+    });
+
+    const result = await response.json();
+    console.log('查询支付记录响应:', result);
     
     if (result.code === 200 && result.data) {
+      // 已有支付记录
+      console.log('已有支付记录:', result.data);
       handleExistingPayment(result.data);
     } else {
+      // 创建新的支付记录
+      console.log('无支付记录，创建新记录');
       await createPayment();
     }
   } catch (error) {
     console.error('初始化支付信息失败:', error);
+    // 如果初始化失败，设置一个默认的30分钟倒计时
     const defaultExpiry = new Date();
     defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
     paymentExpiryTime.value = defaultExpiry.toISOString();
+    console.log('初始化失败，设置默认过期时间:', paymentExpiryTime.value);
     updateCountdown();
   }
 };
 
+// 处理已存在的支付记录
 const handleExistingPayment = (payment) => {
   if (payment.paymentStatus === 'PAID' || payment.payment_status === 'PAID') {
     isPaid.value = true;
@@ -215,63 +217,86 @@ const handleExistingPayment = (payment) => {
     const expiryTimestamp = new Date(expiryTime).getTime();
     const nowTimestamp = new Date().getTime();
     
+    // 检查支付过期时间是否已经过去
     if (expiryTimestamp <= nowTimestamp) {
+      // 如果支付过期时间已经过去，设置一个新的30分钟倒计时
       const defaultExpiry = new Date();
       defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
       paymentExpiryTime.value = defaultExpiry.toISOString();
+      console.log('支付过期时间已过去，设置新的过期时间:', paymentExpiryTime.value);
     } else {
+      // 否则使用后端返回的支付过期时间
       paymentExpiryTime.value = expiryTime;
     }
     
-    if (!paymentId.value) {
-      paymentId.value = payment.payment_id || payment.id;
-    }
+    paymentId.value = payment.payment_id || payment.id;
     updateCountdown();
   }
 };
 
+// 创建支付记录
 const createPayment = async () => {
   try {
-    const response = await api.post('/payments/create', {
-      purchaseId: orderInfo.value.purchaseId,
-      amount: orderInfo.value.totalAmount
+    console.log('开始创建支付记录，订单ID:', orderInfo.value.purchaseId, '金额:', orderInfo.value.totalAmount);
+    const response = await fetch('/api/payments/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('customer_token')
+      },
+      body: JSON.stringify({
+        purchaseId: orderInfo.value.purchaseId,
+        amount: orderInfo.value.totalAmount
+      })
     });
 
-    const result = response.data;
+    const result = await response.json();
+    console.log('创建支付记录响应:', result);
     
     if (result.code === 200 && result.data) {
       const expiryTime = result.data.paymentExpiry || result.data.payment_expiry;
       const expiryTimestamp = new Date(expiryTime).getTime();
       const nowTimestamp = new Date().getTime();
       
+      // 检查支付过期时间是否已经过去
       if (expiryTimestamp <= nowTimestamp) {
+        // 如果支付过期时间已经过去，设置一个新的30分钟倒计时
         const defaultExpiry = new Date();
         defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
         paymentExpiryTime.value = defaultExpiry.toISOString();
+        console.log('支付过期时间已过去，设置新的过期时间:', paymentExpiryTime.value);
       } else {
+        // 否则使用后端返回的支付过期时间
         paymentExpiryTime.value = expiryTime;
       }
       
-      if (!paymentId.value) {
-        paymentId.value = result.data.payment_id || result.data.id;
-      }
+      paymentId.value = result.data.payment_id || result.data.id;
+      console.log('支付记录创建成功，过期时间:', paymentExpiryTime.value, '支付ID:', paymentId.value);
       updateCountdown();
       ElMessage.success('支付记录创建成功，请尽快完成支付');
     } else {
+      console.error('创建支付记录失败:', result.message);
+      ElMessage.error(result.message || '创建支付记录失败');
+      // 如果创建失败，设置默认的30分钟倒计时
       const defaultExpiry = new Date();
       defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
       paymentExpiryTime.value = defaultExpiry.toISOString();
+      console.log('创建失败，设置默认过期时间:', paymentExpiryTime.value);
       updateCountdown();
     }
   } catch (error) {
     console.error('创建支付记录失败:', error);
+    ElMessage.error('网络错误，请重试');
+    // 如果网络错误，设置默认的30分钟倒计时
     const defaultExpiry = new Date();
     defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 30);
     paymentExpiryTime.value = defaultExpiry.toISOString();
+    console.log('网络错误，设置默认过期时间:', paymentExpiryTime.value);
     updateCountdown();
   }
 };
 
+// 开始倒计时
 const startCountdown = () => {
   if (countdownTimer.value) {
     clearInterval(countdownTimer.value);
@@ -282,8 +307,10 @@ const startCountdown = () => {
   }, 1000);
 };
 
+// 更新倒计时
 const updateCountdown = () => {
   if (!paymentExpiryTime.value) {
+    // 如果没有支付过期时间，显示加载中状态
     countdownTime.value = '加载中...';
     return;
   }
@@ -292,12 +319,17 @@ const updateCountdown = () => {
   const expiry = new Date(paymentExpiryTime.value).getTime();
   const diff = expiry - now;
 
+  console.log('当前时间:', new Date(now).toLocaleString());
+  console.log('支付过期时间:', new Date(expiry).toLocaleString());
+  console.log('时间差(毫秒):', diff);
+
   if (diff <= 0) {
     countdownTime.value = '00:00';
     isExpired.value = true;
     if (countdownTimer.value) {
       clearInterval(countdownTimer.value);
     }
+    // 只在未支付状态下显示过期提示
     if (!isPaid.value) {
       ElMessage.warning('支付已过期，订单自动关闭');
     }
@@ -306,28 +338,39 @@ const updateCountdown = () => {
     const seconds = Math.floor((diff % 60000) / 1000);
     countdownTime.value = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     
+    // 少于 5 分钟显示警告
     if (diff < 5 * 60 * 1000) {
       showCountdown.value = true;
     }
   }
 };
 
+// 处理支付
 const handlePayment = async () => {
   if (paying.value || isPaid.value || isExpired.value) return;
 
   paying.value = true;
 
   try {
-    const payResponse = await api.post(`/payments/${paymentId.value}/pay`, {
-      paymentMethod: selectedPaymentMethod.value
+    // 先调用后端接口选择支付方式
+    const payResponse = await fetch(`/api/payments/${paymentId.value}/pay`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('customer_token')
+      },
+      body: JSON.stringify({
+        paymentMethod: selectedPaymentMethod.value
+      })
     });
 
-    const payResult = payResponse.data;
+    const payResult = await payResponse.json();
     
     if (payResult.code !== 200) {
       throw new Error(payResult.message || '发起支付失败');
     }
 
+    // 模拟调用第三方支付接口
     await simulateThirdPartyPayment();
     
     ElMessage.success('支付成功');
@@ -345,48 +388,97 @@ const handlePayment = async () => {
   }
 };
 
+// 模拟第三方支付（实际项目需要替换为真实支付接口）
 const simulateThirdPartyPayment = () => {
   return new Promise((resolve, reject) => {
+    // 模拟支付过程
     setTimeout(async () => {
       try {
+        // 生成模拟的交易号
         const transactionId = 'TXN' + Date.now() + Math.random().toString(36).substr(2, 9);
         
+        // 调用后端支付成功接口 - 确保 paymentId 存在
         if (!paymentId.value) {
           throw new Error('支付 ID 不存在');
         }
 
-        const response = await api.post(
-          `/payments/${paymentId.value}/success`,
-          null,
-          {
-            params: {
-              transactionId: transactionId,
-              paymentMethod: selectedPaymentMethod.value
-            }
+        const response = await fetch(`/api/payments/${paymentId.value}/success?transactionId=${encodeURIComponent(transactionId)}&paymentMethod=${encodeURIComponent(selectedPaymentMethod.value)}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': localStorage.getItem('customer_token')
           }
-        );
+        });
 
-        const result = response.data;
+        const result = await response.json();
         
         if (result.code !== 200) {
           throw new Error(result.message || '支付确认失败');
         }
         
-        ElMessage.success(result.message || '支付成功');
         resolve(result.data);
       } catch (error) {
         reject(error);
       }
-    }, 2000);
+    }, 2000); // 模拟 2 秒支付延迟
   });
 };
 
+// 手动校验支付结果
+const verifyPaymentResult = async () => {
+  try {
+    const response = await fetch('/api/payments/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('customer_token')
+      },
+      body: JSON.stringify({
+        purchaseId: orderInfo.value.purchaseId
+      })
+    });
+
+    const result = await response.json();
+    
+    if (result.code === 200) {
+      const status = result.data.paymentStatus;
+      let message = '';
+      
+      if (status === 'PAID') {
+        message = '支付成功';
+        isPaid.value = true;
+        emit('payment-success', orderInfo.value);
+      } else if (status === 'FAILED') {
+        message = '支付失败';
+        ElMessage.warning(result.data.message || '支付失败');
+        return;
+      } else if (status === 'PENDING') {
+        message = '待支付';
+      } else {
+        message = status || '未知状态';
+      }
+      
+      ElMessage.success(`当前支付状态：${message}`);
+    } else {
+      ElMessage.error(result.message || '校验失败');
+    }
+  } catch (error) {
+    console.error('校验支付结果失败:', error);
+    ElMessage.error('网络错误，请重试');
+  }
+};
+
+// 关闭对话框
 const handleClose = () => {
   if (countdownTimer.value) {
     clearInterval(countdownTimer.value);
   }
   emit('update:modelValue', false);
 };
+
+// 暴露校验方法给父组件
+defineExpose({
+  verifyPaymentResult
+});
 </script>
 
 <style scoped>
@@ -447,11 +539,5 @@ const handleClose = () => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.order-count {
-  color: #409EFF;
-  font-weight: bold;
-  margin-left: 5px;
 }
 </style>

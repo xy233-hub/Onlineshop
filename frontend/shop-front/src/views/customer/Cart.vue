@@ -1,9 +1,11 @@
-<!-- File: src/views/customer/Cart.vue -->
+<!-- language: vue -->
+<!-- File: src/views/customer/CustomerCart.vue -->
 <template>
   <div class="customer-cart-page">
     <div class="cart-header">
       <h2>我的购物车</h2>
       <div class="cart-actions">
+        <!-- 批量下单 -->
         <el-button
             type="primary"
             :disabled="!selectedIds.length"
@@ -11,6 +13,7 @@
         >
           下单
         </el-button>
+        <!-- 批量转收藏 -->
         <el-button
             type="success"
             :disabled="!selectedIds.length"
@@ -18,6 +21,7 @@
         >
           批量转收藏
         </el-button>
+        <!-- 批量删除 -->
         <el-button
             type="danger"
             :disabled="!selectedIds.length"
@@ -150,21 +154,13 @@
         </el-button>
       </template>
     </el-dialog>
-
-    <PaymentDialog
-      v-model="paymentDialogVisible"
-      :order="currentOrder"
-      @payment-success="handlePaymentSuccess"
-    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { cartAPI } from '@/api/index'
-import PaymentDialog from '@/components/PaymentDialog.vue'
 
 const loading = ref(false)
 const cartItems = ref([])
@@ -184,11 +180,6 @@ const purchaseForm = reactive({
   delivery_address: '',
   note: ''
 })
-
-const paymentDialogVisible = ref(false)
-const currentOrder = ref(null)
-
-const router = useRouter()
 
 const customerInfo = (() => {
   try {
@@ -256,11 +247,13 @@ const onPageChange = (page) => {
   fetchCart()
 }
 
+
+// 单条删除（统一走批量接口）
 const onDeleteItem = async (row) => {
   try {
     await cartAPI.removeCartItems({
       customer_id: Number(customerId),
-      cart_item_ids: [row.cart_item_id]
+      cart_item_ids: [row.cart_item_id] // 数组，不是字符串
     })
     ElMessage.success('删除成功')
     fetchCart()
@@ -269,6 +262,7 @@ const onDeleteItem = async (row) => {
   }
 }
 
+// 批量删除
 const onBatchDelete = async () => {
   if (!selectedIds.value.length) {
     ElMessage.warning('请先选择要删除的商品')
@@ -277,7 +271,7 @@ const onBatchDelete = async () => {
   try {
     await cartAPI.removeCartItems({
       customer_id: Number(customerId),
-      cart_item_ids: selectedIds.value
+      cart_item_ids: selectedIds.value // 直接数组
     })
     ElMessage.success('批量删除成功')
     selectedIds.value = []
@@ -334,37 +328,16 @@ const doBatchPurchase = async () => {
     if (data.code === 200) {
       ElMessage.success('下单成功')
       purchaseDialogVisible.value = false
-      
-      currentOrder.value = {
-        purchaseId: data.data.purchase_ids[0],
-        purchase_ids: data.data.purchase_ids,
-        productId: null,
-        productName: '批量订单',
-        totalAmount: data.data.total_amount,
-        paymentId: data.data.payment_id
-      }
-      
-      paymentDialogVisible.value = true
+      selectedIds.value = []
+      fetchCart()
     } else {
       ElMessage.error(data.message || '下单失败')
     }
   } catch (e) {
-    console.error('下单错误:', e)
     ElMessage.error('下单失败')
   } finally {
     purchaseLoading.value = false
   }
-}
-
-const handlePaymentSuccess = (orderInfo) => {
-  console.log('支付成功，订单信息:', orderInfo)
-  ElMessage.success('支付成功！正在跳转...')
-  
-  fetchCart()
-  
-  setTimeout(() => {
-    router.push('/customer/dashboard/orders')
-  }, 1500)
 }
 
 onMounted(() => {
@@ -376,25 +349,21 @@ onMounted(() => {
 .customer-cart-page {
   padding: 8px;
 }
-
 .cart-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
-
 .cart-actions > * + * {
   margin-left: 8px;
 }
-
 .cart-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-top: 16px;
 }
-
 .total-amount {
   color: #f56c6c;
   font-weight: 600;

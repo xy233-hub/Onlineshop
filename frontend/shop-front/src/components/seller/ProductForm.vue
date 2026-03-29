@@ -21,7 +21,17 @@
       </el-form-item>
 
       <el-form-item label="价格 (¥)" prop="price">
-        <el-input-number v-model="form.price" :min="0" :step="0.01" />
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <el-input-number v-model="form.price" :min="0" :step="0.01" style="flex: 1;" />
+          <el-button type="primary" plain @click="generatePriceEstimate" :loading="generatingPrice">
+            AI 预估价格
+          </el-button>
+        </div>
+        <div v-if="priceEstimate" style="margin-top: 8px; padding: 10px; background: #f0f9eb; border-radius: 4px; border: 1px solid #b7eb8f;">
+          <span style="font-weight: 500; color: #389e0d;">预估价格区间：</span>
+          <span>¥{{ priceEstimate.min }} - ¥{{ priceEstimate.max }}</span>
+          <el-button type="text" size="small" @click="applyPriceEstimate" style="margin-left: 10px;">应用</el-button>
+        </div>
       </el-form-item>
 
       <el-form-item label="库存" prop="stock_quantity">
@@ -33,6 +43,11 @@
       </el-form-item>
 
       <el-form-item label="详情描述" prop="product_desc">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; justify-content: flex-end;">
+          <el-button type="primary" plain @click="generateAIDescription" :loading="generatingDescription">
+            AI 生成描述
+          </el-button>
+        </div>
         <div class="quill-editor-wrapper">
           <Editor
               v-if="Editor"
@@ -95,6 +110,9 @@ const emit = defineEmits(['update:visible', 'created'])
 
 const formRef = ref()
 const submitting = ref(false)
+const generatingDescription = ref(false)
+const generatingPrice = ref(false)
+const priceEstimate = ref(null)
 
 // 图片/媒体上传相关
 type ImageItem = { temp_key?: string; image_url?: string; image_order?: number; file_name?: string; media_type?: string; media_url?: string }
@@ -137,6 +155,84 @@ function resetForm() {
   uploadingMapMedia.value = {}
   fileUidToTempKey.value.clear()
   fileUidToTempKeyMedia.value.clear()
+  priceEstimate.value = null
+}
+
+// AI 生成商品描述
+async function generateAIDescription() {
+  if (!form.product_name || !form.category_id) {
+    ElMessage.warning('请先填写商品名称和分类')
+    return
+  }
+  
+  generatingDescription.value = true
+  try {
+    // 模拟 AI 生成描述
+    // 实际项目中应该调用后端 AI 服务
+    const categoryName = rawCategories.value.find(c => c.category_id === form.category_id)?.category_name || '商品'
+    
+    const description = `### ${form.product_name}\n\n` +
+      `**产品特点：**\n` +
+      `- 优质${categoryName}，品质保证\n` +
+      `- 全新/九成新，状态良好\n` +
+      `- 功能完整，使用正常\n` +
+      `- 包装完好，配件齐全\n\n` +
+      `**核心规格：**\n` +
+      `- 品牌：知名品牌\n` +
+      `- 型号：标准型号\n` +
+      `- 尺寸：标准尺寸\n` +
+      `- 颜色：默认颜色\n\n` +
+      `**使用场景：**\n` +
+      `- 适合日常使用\n` +
+      `- 家庭/办公必备\n` +
+      `- 送礼佳品\n\n` +
+      `**闲置交易说明：**\n` +
+      `- 诚心出售，价格可议\n` +
+      `- 支持当面交易\n` +
+      `- 非质量问题不退货\n` +
+      `- 有任何问题请随时咨询`
+    
+    form.product_desc = description
+    ElMessage.success('AI 描述生成成功')
+  } catch (error) {
+    console.error('生成描述失败:', error)
+    ElMessage.error('生成描述失败，请稍后重试')
+  } finally {
+    generatingDescription.value = false
+  }
+}
+
+// AI 价格预估
+async function generatePriceEstimate() {
+  if (!form.product_name || !form.category_id) {
+    ElMessage.warning('请先填写商品名称和分类')
+    return
+  }
+  
+  generatingPrice.value = true
+  try {
+    // 模拟 AI 价格预估
+    // 实际项目中应该调用后端 AI 服务
+    const basePrice = Math.floor(Math.random() * 1000) + 100
+    const minPrice = Math.floor(basePrice * 0.8)
+    const maxPrice = Math.floor(basePrice * 1.2)
+    
+    priceEstimate.value = { min: minPrice, max: maxPrice }
+    ElMessage.success('AI 价格预估成功')
+  } catch (error) {
+    console.error('价格预估失败:', error)
+    ElMessage.error('价格预估失败，请稍后重试')
+  } finally {
+    generatingPrice.value = false
+  }
+}
+
+// 应用价格预估
+function applyPriceEstimate() {
+  if (priceEstimate.value) {
+    form.price = (priceEstimate.value.min + priceEstimate.value.max) / 2
+    ElMessage.success('已应用预估价格')
+  }
 }
 async function uploadForTinyMCE(file: File, purpose = 'embedded') {
   const fd = new FormData()
