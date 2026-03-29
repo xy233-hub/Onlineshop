@@ -38,18 +38,11 @@ pipeline {
             }
         }
 
-        stage('Build Frontend Dist') {
-            steps {
-                echo '=== 3. 构建 Vue ==='
-                dir('frontend/shop-front') {
-                    sh 'npm run build'
-                }
-            }
-        }
+
 
         stage('Build Docker Images') {
             steps {
-                echo '=== 4. 构建本地 Docker 镜像 ==='
+                echo '=== 3. 构建本地 Docker 镜像 ==='
                 script {
                     dir('backend') {
                         sh "docker build -t ${IMAGE_BACKEND}:latest ."
@@ -63,7 +56,7 @@ pipeline {
 
         stage('Deploy Local') {
             steps {
-                echo '=== 5. 本地部署 (启动容器) ==='
+                echo '=== 4. 本地部署 (启动容器) ==='
                 script {
                     sh "mkdir -p ${DEPLOY_PATH}"
                     sh """
@@ -83,7 +76,7 @@ pipeline {
 
         stage('API Tests (Allure)') {
             steps {
-                echo '=== 6. 运行 API 自动化测试并生成 Allure 结果 ==='
+                echo '=== 5. 运行 API 自动化测试并生成 Allure 结果 ==='
                 dir('ecommerce-api-test') {
                     // 这里假设项目已配置 allure-maven 插件或 surefire 写入 allure-results
                     sh 'mvn clean test'
