@@ -42,7 +42,6 @@ pipeline {
             steps {
                 echo '=== 3. 构建 Vue ==='
                 dir('frontend/shop-front') {
-                    sh 'npm install'
                     sh 'npm run build'
                 }
             }
