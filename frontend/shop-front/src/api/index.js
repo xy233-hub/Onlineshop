@@ -130,6 +130,11 @@ export const sellerProductAPI = {
     markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
     updateProduct: (productId, data) => api.put(`/seller/products/${productId}`, data)
 }
+
+export const sellerProductAIAPI = {
+    generateDescription: (data) => api.post('/seller/products/ai/description', data),
+    estimatePrice: (data) => api.post('/seller/products/ai/price-estimate', data)
+}
 /**
  * 买家商品管理接口
  */

@@ -245,6 +245,7 @@ import { useRoute } from 'vue-router'
 import { productAPI, favoritesAPI, cartAPI, sellerAPI } from '@/api'
 import PurchaseDialog from '@/components/buyer/PurchaseDialog.vue'
 import DOMPurify from 'dompurify'
+import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ZoomIn, ShoppingCart, Star, Plus, Message, Headset, Document, Goods } from '@element-plus/icons-vue'
 
@@ -388,6 +389,12 @@ const escapeHtml = (s) => {
       .replace(/'/g, '&#39;')
 }
 
+const looksLikeHtml = (s) => /<\/?[a-z][\s\S]*>/i.test(s)
+const looksLikeMarkdown = (s) => {
+  if (!s) return false
+  return /(\*\*.+\*\*|`{1,3}.+`{1,3}|^#{1,6}\s+|^\s*[-*+]\s+|^\s*\d+\.\s+)/m.test(s)
+}
+
 const convertDescToHtml = (desc) => {
   if (!desc && desc !== 0) return ''
   if (typeof desc === 'string') {
@@ -395,6 +402,17 @@ const convertDescToHtml = (desc) => {
       const parsed = JSON.parse(desc)
       if (parsed && typeof parsed === 'object') return convertDescToHtml(parsed)
     } catch (_) {}
+
+    const source = desc.trim()
+    if (source && looksLikeMarkdown(source) && !looksLikeHtml(source)) {
+      try {
+        const mdHtml = marked.parse(source, { gfm: true, breaks: true })
+        return DOMPurify.sanitize(mdHtml, { SAFE_FOR_TEMPLATES: true })
+      } catch (e) {
+        console.warn('Markdown -> HTML 转换失败，回退为纯文本:', e)
+      }
+    }
+
     return DOMPurify.sanitize(desc, { SAFE_FOR_TEMPLATES: true })
   }
 

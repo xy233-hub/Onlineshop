@@ -133,6 +133,73 @@ public class SellerProductController {
     }
 
 
+    @PostMapping("/products/ai/description")
+    public ApiResponse generateProductDescription(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            if (customerId == null && sellerIdFromToken == null) {
+                return ApiResponse.error(401, "未授权");
+            }
+
+            String productName = body.get("product_name") == null ? "" : String.valueOf(body.get("product_name"));
+            Integer categoryId = null;
+            Object cid = body.get("category_id");
+            if (cid instanceof Number) {
+                categoryId = ((Number) cid).intValue();
+            } else if (cid instanceof String s && !s.isBlank()) {
+                categoryId = Integer.valueOf(s);
+            }
+            String keywords = body.get("search_keywords") == null ? "" : String.valueOf(body.get("search_keywords"));
+
+            if (productName.isBlank()) {
+                return ApiResponse.error(400, "product_name 必填");
+            }
+
+            String description = externalAiClient.generateProductDescription(productName, categoryId, keywords);
+            Map<String, Object> data = new HashMap<>();
+            data.put("description", description == null ? "" : description);
+            data.put("source", "ai");
+            return new ApiResponse(200, "生成成功", data);
+        } catch (Exception e) {
+            return ApiResponse.error(500, "生成失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    @PostMapping("/products/ai/price-estimate")
+    public ApiResponse estimateProductPrice(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            if (customerId == null && sellerIdFromToken == null) {
+                return ApiResponse.error(401, "未授权");
+            }
+
+            String productName = body.get("product_name") == null ? "" : String.valueOf(body.get("product_name"));
+            Integer categoryId = null;
+            Object cid = body.get("category_id");
+            if (cid instanceof Number) {
+                categoryId = ((Number) cid).intValue();
+            } else if (cid instanceof String s && !s.isBlank()) {
+                categoryId = Integer.valueOf(s);
+            }
+            String productDesc = body.get("product_desc") == null ? "" : String.valueOf(body.get("product_desc"));
+
+            if (productName.isBlank()) {
+                return ApiResponse.error(400, "product_name 必填");
+            }
+
+            Map<String, Object> estimate = externalAiClient.estimateProductPriceRange(productName, categoryId, productDesc);
+            return new ApiResponse(200, "预估成功", estimate);
+        } catch (Exception e) {
+            return ApiResponse.error(500, "预估失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
     @PostMapping("/products")
     public ApiResponse publishProduct(
             @RequestHeader("Authorization") String token,

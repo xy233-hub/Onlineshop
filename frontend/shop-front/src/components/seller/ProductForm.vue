@@ -97,9 +97,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { sellerProductAPI, customerProductAPI, mediaAPI, categoryAPI } from '@/api'
+import { sellerProductAPI, customerProductAPI, sellerProductAIAPI, mediaAPI, categoryAPI } from '@/api'
 import type { UploadFile } from 'element-plus'
-import  Editor  from '@tinymce/tinymce-vue'
+import Editor from '@tinymce/tinymce-vue'
+import { marked } from 'marked'
+
 const tinymceApiKey = String("l8ol8rrsgk5v4unha10wmxcau3hdf40gu3y6sz23wdoadlxj")
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -158,41 +160,51 @@ function resetForm() {
   priceEstimate.value = null
 }
 
+const addEmbeddedTempKey = (tempKey?: string | null, mediaUrl?: string, mimeType?: string, fileName?: string) => {
+  if (!tempKey) return
+  const exists = form.media_resources.some(m => m.temp_key === tempKey)
+  if (exists) return
+  form.media_resources.push({
+    temp_key: tempKey,
+    media_url: mediaUrl,
+    media_type: mimeType,
+    file_name: fileName
+  })
+}
+
+const looksLikeHtml = (s: string) => /<\/?[a-z][\s\S]*>/i.test(s)
+const looksLikeMarkdown = (s: string) => /(\*\*.+\*\*|`{1,3}.+`{1,3}|^#{1,6}\s+|^\s*[-*+]\s+|^\s*\d+\.\s+)/m.test(s)
+
+const toEditorHtml = async (content: string) => {
+  const source = (content || '').trim()
+  if (!source) return ''
+  if (looksLikeHtml(source)) return source
+  if (!looksLikeMarkdown(source)) return source
+  const parsed = await Promise.resolve(marked.parse(source, { gfm: true, breaks: true }))
+  return typeof parsed === 'string' ? parsed : source
+}
+
 // AI 生成商品描述
 async function generateAIDescription() {
   if (!form.product_name || !form.category_id) {
     ElMessage.warning('请先填写商品名称和分类')
     return
   }
-  
+
   generatingDescription.value = true
   try {
-    // 模拟 AI 生成描述
-    // 实际项目中应该调用后端 AI 服务
-    const categoryName = rawCategories.value.find(c => c.category_id === form.category_id)?.category_name || '商品'
-    
-    const description = `### ${form.product_name}\n\n` +
-      `**产品特点：**\n` +
-      `- 优质${categoryName}，品质保证\n` +
-      `- 全新/九成新，状态良好\n` +
-      `- 功能完整，使用正常\n` +
-      `- 包装完好，配件齐全\n\n` +
-      `**核心规格：**\n` +
-      `- 品牌：知名品牌\n` +
-      `- 型号：标准型号\n` +
-      `- 尺寸：标准尺寸\n` +
-      `- 颜色：默认颜色\n\n` +
-      `**使用场景：**\n` +
-      `- 适合日常使用\n` +
-      `- 家庭/办公必备\n` +
-      `- 送礼佳品\n\n` +
-      `**闲置交易说明：**\n` +
-      `- 诚心出售，价格可议\n` +
-      `- 支持当面交易\n` +
-      `- 非质量问题不退货\n` +
-      `- 有任何问题请随时咨询`
-    
-    form.product_desc = description
+    const res = await sellerProductAIAPI.generateDescription({
+      product_name: form.product_name,
+      category_id: form.category_id,
+      search_keywords: form.search_keywords || ''
+    })
+    const data = res?.data?.data ?? res?.data ?? {}
+    const description = data?.description || ''
+    if (!description) {
+      ElMessage.warning('AI 暂未生成内容，请稍后重试')
+      return
+    }
+    form.product_desc = await toEditorHtml(description)
     ElMessage.success('AI 描述生成成功')
   } catch (error) {
     console.error('生成描述失败:', error)
@@ -208,16 +220,24 @@ async function generatePriceEstimate() {
     ElMessage.warning('请先填写商品名称和分类')
     return
   }
-  
+
   generatingPrice.value = true
   try {
-    // 模拟 AI 价格预估
-    // 实际项目中应该调用后端 AI 服务
-    const basePrice = Math.floor(Math.random() * 1000) + 100
-    const minPrice = Math.floor(basePrice * 0.8)
-    const maxPrice = Math.floor(basePrice * 1.2)
-    
-    priceEstimate.value = { min: minPrice, max: maxPrice }
+    const res = await sellerProductAIAPI.estimatePrice({
+      product_name: form.product_name,
+      category_id: form.category_id,
+      product_desc: form.product_desc || ''
+    })
+    const data = res?.data?.data ?? res?.data ?? {}
+    const min = Number(data?.min)
+    const max = Number(data?.max)
+
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max < min) {
+      ElMessage.warning('AI 预估结果异常，请重试')
+      return
+    }
+
+    priceEstimate.value = { min, max }
     ElMessage.success('AI 价格预估成功')
   } catch (error) {
     console.error('价格预估失败:', error)
@@ -242,7 +262,11 @@ async function uploadForTinyMCE(file: File, purpose = 'embedded') {
   try {
     const res = await mediaAPI.upload(fd)
     const d = res?.data?.data ?? res?.data ?? {}
-    return { url: d?.media_url || d?.mediaUrl || '', mime: d?.mime_type || file.type, tempKey: d?.temp_key || null }
+    const mediaUrl = d?.media_url || d?.mediaUrl || ''
+    const mime = d?.mime_type || file.type
+    const tempKey = d?.temp_key || null
+    addEmbeddedTempKey(tempKey, mediaUrl, mime, file.name)
+    return { url: mediaUrl, mime, tempKey }
   } catch (e) {
     console.error('uploadForTinyMCE error', e)
     return { url: '', mime: file.type, tempKey: null }
