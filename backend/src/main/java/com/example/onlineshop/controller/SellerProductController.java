@@ -153,15 +153,13 @@ public class SellerProductController {
                 categoryId = Integer.valueOf(s);
             }
             String keywords = body.get("search_keywords") == null ? "" : String.valueOf(body.get("search_keywords"));
+            String productDesc = body.get("product_desc") == null ? "" : String.valueOf(body.get("product_desc"));
 
             if (productName.isBlank()) {
                 return ApiResponse.error(400, "product_name 必填");
             }
 
-            String description = externalAiClient.generateProductDescription(productName, categoryId, keywords);
-            Map<String, Object> data = new HashMap<>();
-            data.put("description", description == null ? "" : description);
-            data.put("source", "ai");
+            Map<String, Object> data = externalAiClient.generateProductDescriptionPack(productName, categoryId, keywords, productDesc);
             return new ApiResponse(200, "生成成功", data);
         } catch (Exception e) {
             return ApiResponse.error(500, "生成失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));

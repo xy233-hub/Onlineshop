@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
@@ -19,6 +20,7 @@ public class ExternalAiClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ThreadLocal<String> lastFailureReason = new ThreadLocal<>();
 
     @Value("${ai.api.base-url:}")
     private String baseUrl;
@@ -37,11 +39,14 @@ public class ExternalAiClient {
     @Value("${ai.api.debug-verbose:false}")
     private boolean debugVerbose;
 
-    @Value("${ai.api.connect-timeout-ms:1000}")
+    @Value("${ai.api.connect-timeout-ms:10000}")
     private long connectTimeoutMs;
 
-    @Value("${ai.api.read-timeout-ms:8000}")
+    @Value("${ai.api.read-timeout-ms:80000}")
     private long readTimeoutMs;
+
+    @Value("${ai.api.retry-times:1}")
+    private int retryTimes;
 
     @Value("${ai.api.enable-thinking:false}")
     private boolean defaultEnableThinking;
@@ -88,26 +93,55 @@ public class ExternalAiClient {
 
     // 供卖家发布页按钮调用：生成详情描述（Markdown）
     public String generateProductDescription(String productName, Integer categoryId, String keywords) {
+        Map<String, Object> pack = generateProductDescriptionPack(productName, categoryId, keywords, "");
+        Object desc = pack.get("description");
+        return desc == null ? "" : String.valueOf(desc);
+    }
+
+    // 返回 description + source，便于前端判断是否走了 fallback
+    public Map<String, Object> generateProductDescriptionPack(String productName, Integer categoryId, String keywords, String productDesc) {
+        Map<String, Object> result = new HashMap<>();
         try {
-            if (productName == null || productName.isBlank()) return "";
+            if (productName == null || productName.isBlank()) {
+                result.put("description", "");
+                result.put("source", "fallback");
+                result.put("fallback_reason", "product_name empty");
+                return result;
+            }
 
             JsonNode msg = callDashScopeMessage(
-                    buildProductDescriptionPrompt(productName, categoryId, keywords),
+                    buildProductDescriptionPrompt(productName, categoryId, keywords, productDesc),
                     defaultEnableThinking,
-                    "generateProductDescription"
+                    "generateProductDescription",
+                    0.85,
+                    0.9
             );
-            if (msg == null) return fallbackProductDescription(productName, keywords);
+            if (msg == null) {
+                result.put("description", fallbackProductDescription(productName, keywords));
+                result.put("source", "fallback");
+                result.put("fallback_reason", consumeFailureReason("ai response null"));
+                return result;
+            }
 
             String content = msg.path("content").asText("");
             if (content == null || content.isBlank()) {
-                return fallbackProductDescription(productName, keywords);
+                result.put("description", fallbackProductDescription(productName, keywords));
+                result.put("source", "fallback");
+                result.put("fallback_reason", "ai content empty");
+                return result;
             }
 
             String cleaned = content.replace("\r", "\n").trim();
-            return cleaned.isBlank() ? fallbackProductDescription(productName, keywords) : cleaned;
+            result.put("description", cleaned.isBlank() ? fallbackProductDescription(productName, keywords) : cleaned);
+            result.put("source", cleaned.isBlank() ? "fallback" : "ai");
+            if (cleaned.isBlank()) result.put("fallback_reason", "ai content blank after trim");
+            return result;
         } catch (Exception e) {
             if (debug) System.out.println("[AI] generateProductDescription exception: " + e);
-            return fallbackProductDescription(productName, keywords);
+            result.put("description", fallbackProductDescription(productName, keywords));
+            result.put("source", "fallback");
+            result.put("fallback_reason", e.getClass().getSimpleName() + ": " + (e.getMessage() == null ? "unknown" : e.getMessage()));
+            return result;
         }
     }
 
@@ -172,8 +206,25 @@ public class ExternalAiClient {
     }
 
     private JsonNode callDashScopeMessage(String prompt, boolean enableThinking, String op) throws Exception {
-        if (baseUrl == null || baseUrl.isBlank()) return null;
-        if (apiKey == null || apiKey.isBlank()) return null;
+        return callDashScopeMessage(prompt, enableThinking, op, null, null);
+    }
+
+    private JsonNode callDashScopeMessage(
+            String prompt,
+            boolean enableThinking,
+            String op,
+            Double temperature,
+            Double topP
+    ) throws Exception {
+        clearFailureReason();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            setFailureReason("ai.api.base-url empty");
+            return null;
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            setFailureReason("ai.api.key empty");
+            return null;
+        }
 
         String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         String url = normalized + "/services/aigc/text-generation/generation";
@@ -188,6 +239,8 @@ public class ExternalAiClient {
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("result_format", "message");
         parameters.put("enable_thinking", enableThinking);
+        if (temperature != null) parameters.put("temperature", temperature);
+        if (topP != null) parameters.put("top_p", topP);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", model);
@@ -207,32 +260,50 @@ public class ExternalAiClient {
         ResponseEntity<String> resp;
         String raw = null;
 
-        try {
-            resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
-            raw = resp.getBody();
+        for (int attempt = 0; attempt <= Math.max(retryTimes, 0); attempt++) {
+            try {
+                resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+                raw = resp.getBody();
 
-            if (debug) {
-                System.out.println("[AI] op=" + op
-                        + " http=" + resp.getStatusCode().value()
-                        + " costMs=" + (System.currentTimeMillis() - t0)
-                        + " thinking=" + enableThinking);
-            }
+                if (debug) {
+                    System.out.println("[AI] op=" + op
+                            + " http=" + resp.getStatusCode().value()
+                            + " costMs=" + (System.currentTimeMillis() - t0)
+                            + " thinking=" + enableThinking
+                            + " attempt=" + (attempt + 1));
+                }
 
-            if (debug && debugVerbose) {
-                System.out.println("[AI] Raw: " + raw);
+                if (debug && debugVerbose) {
+                    System.out.println("[AI] Raw: " + raw);
+                }
+                break;
+            } catch (ResourceAccessException ex) {
+                if (attempt < Math.max(retryTimes, 0)) {
+                    if (debug) {
+                        System.out.println("[AI] op=" + op + " timeout/retry attempt=" + (attempt + 1)
+                                + " msg=" + safeOneLine(ex.getMessage()));
+                    }
+                    continue;
+                }
+                setFailureReason("resource access: " + safeOneLine(ex.getMessage()));
+                return null;
+            } catch (RestClientResponseException ex) {
+                if (debug) {
+                    System.out.println("[AI] op=" + op
+                            + " http=" + ex.getRawStatusCode()
+                            + " costMs=" + (System.currentTimeMillis() - t0)
+                            + " thinking=" + enableThinking);
+                    System.out.println("[AI] errBody=" + safeOneLine(ex.getResponseBodyAsString()));
+                }
+                setFailureReason("http " + ex.getRawStatusCode() + ": " + safeOneLine(ex.getResponseBodyAsString()));
+                return null;
             }
-        } catch (RestClientResponseException ex) {
-            if (debug) {
-                System.out.println("[AI] op=" + op
-                        + " http=" + ex.getRawStatusCode()
-                        + " costMs=" + (System.currentTimeMillis() - t0)
-                        + " thinking=" + enableThinking);
-                System.out.println("[AI] errBody=" + safeOneLine(ex.getResponseBodyAsString()));
-            }
-            return null;
         }
 
-        if (raw == null || raw.isBlank()) return null;
+        if (raw == null || raw.isBlank()) {
+            setFailureReason("empty response body");
+            return null;
+        }
 
         JsonNode root = objectMapper.readTree(raw);
 
@@ -243,11 +314,15 @@ public class ExternalAiClient {
                         + " apiErrorCode=" + errCode.asText("")
                         + " apiErrorMessage=" + safeOneLine(root.path("message").asText("")));
             }
+            setFailureReason("provider error " + errCode.asText("") + ": " + safeOneLine(root.path("message").asText("")));
             return null;
         }
 
         JsonNode messageNode = root.path("output").path("choices").path(0).path("message");
-        if (messageNode.isMissingNode() || messageNode.isNull()) return null;
+        if (messageNode.isMissingNode() || messageNode.isNull()) {
+            setFailureReason("message node missing");
+            return null;
+        }
 
         if (debug && debugVerbose) {
             String reasoning = messageNode.path("reasoning_content").asText("");
@@ -342,14 +417,19 @@ public class ExternalAiClient {
                 + (productsSummaryJson == null ? "[]" : productsSummaryJson) + "\n";
     }
 
-    private String buildProductDescriptionPrompt(String productName, Integer categoryId, String keywords) {
+    private String buildProductDescriptionPrompt(String productName, Integer categoryId, String keywords, String productDesc) {
         return ""
                 + "你是二手电商商品文案助手。\n"
-                + "请输出 Markdown 描述，结构包含：产品特点、核心规格、使用场景、交易说明。\n"
-                + "要求：具体、自然、不夸张；不要输出无关解释。\n"
+                + "请根据输入信息生成可直接发布的商品详情，输出 Markdown。\n"
+                + "要求：\n"
+                + "1) 必须结合商品名称、关键词、已有描述中的具体信息；\n"
+                + "2) 禁止机械套用固定句式（例如每段都写同一句）；\n"
+                + "3) 结构包含：产品特点、核心规格、使用场景、交易说明；\n"
+                + "4) 不要输出任何解释性前言。\n"
                 + "商品名称：" + productName + "\n"
                 + "分类ID：" + (categoryId == null ? "" : categoryId) + "\n"
-                + "关键词：" + (keywords == null ? "" : keywords) + "\n";
+                + "关键词：" + (keywords == null ? "" : keywords) + "\n"
+                + "已有描述：" + (productDesc == null ? "" : productDesc) + "\n";
     }
 
     private String buildPriceEstimatePrompt(String productName, Integer categoryId, String productDesc) {
@@ -382,5 +462,20 @@ public class ExternalAiClient {
         m.put("max", 300);
         m.put("source", "fallback");
         return m;
+    }
+
+    private void setFailureReason(String reason) {
+        lastFailureReason.set(reason == null || reason.isBlank() ? "unknown" : reason);
+    }
+
+    private void clearFailureReason() {
+        lastFailureReason.remove();
+    }
+
+    private String consumeFailureReason(String fallback) {
+        String reason = lastFailureReason.get();
+        lastFailureReason.remove();
+        if (reason == null || reason.isBlank()) return fallback;
+        return reason;
     }
 }

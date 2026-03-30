@@ -132,8 +132,9 @@ export const sellerProductAPI = {
 }
 
 export const sellerProductAIAPI = {
-    generateDescription: (data) => api.post('/seller/products/ai/description', data),
-    estimatePrice: (data) => api.post('/seller/products/ai/price-estimate', data)
+    // AI 生成可能超过默认 10s，这里单独放宽超时。
+    generateDescription: (data) => api.post('/seller/products/ai/description', data, { timeout: 120000 }),
+    estimatePrice: (data) => api.post('/seller/products/ai/price-estimate', data, { timeout: 120000 })
 }
 /**
  * 买家商品管理接口

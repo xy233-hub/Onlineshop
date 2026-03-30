@@ -196,19 +196,26 @@ async function generateAIDescription() {
     const res = await sellerProductAIAPI.generateDescription({
       product_name: form.product_name,
       category_id: form.category_id,
-      search_keywords: form.search_keywords || ''
+      search_keywords: form.search_keywords || '',
+      product_desc: form.product_desc || ''
     })
     const data = res?.data?.data ?? res?.data ?? {}
     const description = data?.description || ''
+    const source = String(data?.source || '').toLowerCase()
+    const fallbackReason = String(data?.fallback_reason || '').trim()
     if (!description) {
       ElMessage.warning('AI 暂未生成内容，请稍后重试')
       return
     }
     form.product_desc = await toEditorHtml(description)
-    ElMessage.success('AI 描述生成成功')
-  } catch (error) {
+    if (source === 'fallback') {
+      ElMessage.warning(`AI 服务不可用，已使用兜底文案${fallbackReason ? '（' + fallbackReason + '）' : ''}`)
+    } else {
+      ElMessage.success('AI 描述生成成功')
+    }
+  } catch (error: any) {
     console.error('生成描述失败:', error)
-    ElMessage.error('生成描述失败，请稍后重试')
+    ElMessage.error(error?.response?.data?.message || '生成描述失败，请稍后重试')
   } finally {
     generatingDescription.value = false
   }
