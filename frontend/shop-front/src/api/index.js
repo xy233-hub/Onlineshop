@@ -41,10 +41,11 @@ api.interceptors.request.use(config => {
     
     const inferredRole = (() => {
         if (/^\/seller(\/|$)/.test(path) && !isSellerPurchaseIntentsPath && !isSellerPurchaseIntentStatusPath && !isSellerPurchaseIntentShipPath && !isSellerAfterSalesPath && !isSellerOrderLogisticsTrackPath && !isSellerProductsPath && !isSellerInfoPath) return 'seller'
-        // \*\*删除：地址相关的请求不需要 JWT 令牌\*\*
+        // **删除：地址相关的请求不需要 JWT 令牌**
         // if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
         if (/^\/products\/purchase-intents(\/|$)/.test(path)) return 'customer'
+        if (/^\/payments(\/|$)/.test(path)) return 'customer'
         if (/^\/products(\/|$)/.test(path)) return null
         return null
     })()
@@ -104,6 +105,14 @@ api.interceptors.response.use(
 export const productAPI = {
     getProducts: (params) => api.get('/products', { params }),
     getProductDetail: (id) => api.get(`/products/${id}`)
+}
+
+/**
+ * AI 选品助手
+ * - POST /api/products/ai-recommend
+ */
+export const aiAPI = {
+    recommend: (data) => api.post('/products/ai-recommend', data)
 }
 
 /**
@@ -340,7 +349,12 @@ export const paymentAPI = {
     
     getCustomerPayments: () => api.get('/payments/customer'),
     
-    getPaymentByPurchaseId: (purchaseId) => api.get(`/payments/purchase/${purchaseId}`)
+    getPaymentByPurchaseId: (purchaseId) => api.get(`/payments/purchase/${purchaseId}`),
+
+    alipayReturn: (params) => api.get('/payments/alipay/return', { params }),
+
+    // Keep original signed query as-is to avoid signature mismatch after re-encoding.
+    alipayReturnRaw: (rawQuery = '') => api.get(`/payments/alipay/return${rawQuery}`)
 }
 
 export default api

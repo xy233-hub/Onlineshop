@@ -11,6 +11,8 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class ExternalAiClient {
@@ -81,6 +83,91 @@ public class ExternalAiClient {
         } catch (Exception e) {
             if (debug) System.out.println("[AI] generateDescription exception: " + e);
             return "";
+        }
+    }
+
+    // 供卖家发布页按钮调用：生成详情描述（Markdown）
+    public String generateProductDescription(String productName, Integer categoryId, String keywords) {
+        try {
+            if (productName == null || productName.isBlank()) return "";
+
+            JsonNode msg = callDashScopeMessage(
+                    buildProductDescriptionPrompt(productName, categoryId, keywords),
+                    defaultEnableThinking,
+                    "generateProductDescription"
+            );
+            if (msg == null) return fallbackProductDescription(productName, keywords);
+
+            String content = msg.path("content").asText("");
+            if (content == null || content.isBlank()) {
+                return fallbackProductDescription(productName, keywords);
+            }
+
+            String cleaned = content.replace("\r", "\n").trim();
+            return cleaned.isBlank() ? fallbackProductDescription(productName, keywords) : cleaned;
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateProductDescription exception: " + e);
+            return fallbackProductDescription(productName, keywords);
+        }
+    }
+
+    // 供卖家发布页按钮调用：预估价格区间
+    public Map<String, Object> estimateProductPriceRange(String productName, Integer categoryId, String productDesc) {
+        Map<String, Object> fallback = fallbackPriceEstimate();
+        try {
+            if (productName == null || productName.isBlank()) return fallback;
+
+            JsonNode msg = callDashScopeMessage(
+                    buildPriceEstimatePrompt(productName, categoryId, productDesc),
+                    false,
+                    "estimateProductPriceRange"
+            );
+            if (msg == null) return fallback;
+
+            String content = msg.path("content").asText("").trim();
+            if (content.isBlank()) return fallback;
+
+            // 优先 JSON 解析：{"min":100,"max":200}
+            try {
+                JsonNode n = objectMapper.readTree(content);
+                int min = n.path("min").asInt(-1);
+                int max = n.path("max").asInt(-1);
+                if (min > 0 && max >= min) {
+                    Map<String, Object> ok = new HashMap<>();
+                    ok.put("min", min);
+                    ok.put("max", max);
+                    ok.put("source", "ai");
+                    return ok;
+                }
+            } catch (Exception ignore) {
+                // 非 JSON 继续走正则兜底
+            }
+
+            // 次优：从自由文本提取两个数字
+            Matcher matcher = Pattern.compile("(\\d{1,6})").matcher(content);
+            List<Integer> nums = new ArrayList<>();
+            while (matcher.find()) {
+                nums.add(Integer.parseInt(matcher.group(1)));
+                if (nums.size() >= 2) break;
+            }
+            if (nums.size() >= 2) {
+                int a = nums.get(0);
+                int b = nums.get(1);
+                int min = Math.min(a, b);
+                int max = Math.max(a, b);
+                if (min > 0) {
+                    Map<String, Object> ok = new HashMap<>();
+                    ok.put("min", min);
+                    ok.put("max", Math.max(max, min + 20));
+                    ok.put("source", "ai");
+                    return ok;
+                }
+            }
+
+            return fallback;
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] estimateProductPriceRange exception: " + e);
+            return fallback;
         }
     }
 
@@ -253,5 +340,47 @@ public class ExternalAiClient {
                 + userText + "\n"
                 + "候选商品摘要 JSON：\n"
                 + (productsSummaryJson == null ? "[]" : productsSummaryJson) + "\n";
+    }
+
+    private String buildProductDescriptionPrompt(String productName, Integer categoryId, String keywords) {
+        return ""
+                + "你是二手电商商品文案助手。\n"
+                + "请输出 Markdown 描述，结构包含：产品特点、核心规格、使用场景、交易说明。\n"
+                + "要求：具体、自然、不夸张；不要输出无关解释。\n"
+                + "商品名称：" + productName + "\n"
+                + "分类ID：" + (categoryId == null ? "" : categoryId) + "\n"
+                + "关键词：" + (keywords == null ? "" : keywords) + "\n";
+    }
+
+    private String buildPriceEstimatePrompt(String productName, Integer categoryId, String productDesc) {
+        return ""
+                + "你是二手商品定价助手。\n"
+                + "请根据商品信息给出价格区间，只输出 JSON：{\"min\":数字,\"max\":数字}。\n"
+                + "约束：min>0，max>=min。不要输出任何多余文字。\n"
+                + "商品名称：" + productName + "\n"
+                + "分类ID：" + (categoryId == null ? "" : categoryId) + "\n"
+                + "商品描述：" + (productDesc == null ? "" : productDesc) + "\n";
+    }
+
+    private String fallbackProductDescription(String productName, String keywords) {
+        String kw = (keywords == null || keywords.isBlank()) ? "品质保证" : keywords;
+        return "### " + productName + "\n\n"
+                + "**产品特点：**\n"
+                + "- " + kw + "\n"
+                + "- 成色良好，功能正常\n\n"
+                + "**核心规格：**\n"
+                + "- 具体参数可私信确认\n\n"
+                + "**使用场景：**\n"
+                + "- 日常使用/学习办公\n\n"
+                + "**交易说明：**\n"
+                + "- 诚心出售，支持沟通细节";
+    }
+
+    private Map<String, Object> fallbackPriceEstimate() {
+        Map<String, Object> m = new HashMap<>();
+        m.put("min", 100);
+        m.put("max", 300);
+        m.put("source", "fallback");
+        return m;
     }
 }

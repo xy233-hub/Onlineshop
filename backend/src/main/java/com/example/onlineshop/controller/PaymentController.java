@@ -9,7 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -277,4 +279,40 @@ public class PaymentController {
                     .body(new ApiResponse(500, "查询失败：" + e.getMessage(), null));
         }
     }
+
+    /**
+     * POST /api/payments/alipay/notify
+     * 支付宝支付通知
+     */
+    @PostMapping(value = "/alipay/notify", produces = "text/plain;charset=UTF-8")
+    public String alipayNotify(HttpServletRequest request) {
+        Map<String, String> params = extractRequestParams(request);
+        boolean success = paymentService.handleAlipayNotify(params);
+        return success ? "success" : "failure";
+    }
+
+    /**
+     * GET /api/payments/alipay/return
+     * 支付宝支付返回
+     */
+    @GetMapping("/alipay/return")
+    public ResponseEntity<ApiResponse> alipayReturn(@RequestParam Map<String, String> params) {
+        ApiResponse response = paymentService.handleAlipayReturn(params);
+        return ResponseEntity.status(response.getCode() == 200 ? 200 : 400).body(response);
+    }
+
+    private Map<String, String> extractRequestParams(HttpServletRequest request) {
+        Map<String, String> params = new HashMap<>();
+        Enumeration<String> names = request.getParameterNames();
+        while (names.hasMoreElements()) {
+            String name = names.nextElement();
+            String[] values = request.getParameterValues(name);
+            if (values == null || values.length == 0) {
+                continue;
+            }
+            params.put(name, String.join(",", values));
+        }
+        return params;
+    }
 }
+

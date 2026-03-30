@@ -325,17 +325,82 @@
         />
       </div>
     </main>
+
+    <!-- 右下角 AI 助手入口 -->
+    <el-button class="ai-fab" type="primary" circle @click="aiPanelVisible = true" :icon="ChatDotRound" />
+
+    <!-- AI 助手抽屉 -->
+    <el-drawer
+      v-model="aiPanelVisible"
+      title="AI 选品助手"
+      direction="rtl"
+      :size="aiDrawerSize"
+      class="ai-drawer"
+    >
+      <div class="ai-panel">
+        <el-input
+          v-model="aiInput"
+          type="textarea"
+          :rows="3"
+          resize="none"
+          placeholder="例如：我要黑神话悟空"
+          @keyup.enter.ctrl="submitAiQuery"
+        />
+        <div class="ai-actions-row">
+          <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
+          <el-button @click="clearAiResult">清空</el-button>
+          <span class="ai-tip">按 Ctrl + Enter 也可发送</span>
+        </div>
+
+        <el-alert
+          class="ai-reply"
+          type="success"
+          :closable="false"
+          :title="aiReply || '请输入你的需求，AI 会返回推荐结果'"
+          show-icon
+        />
+
+        <div class="ai-carousel-wrap">
+          <el-carousel v-if="aiItems.length" :autoplay="false" indicator-position="outside" height="250px">
+            <el-carousel-item v-for="item in aiItems" :key="item.product_id">
+              <div class="ai-product-card">
+                <el-image
+                  class="ai-product-image"
+                  fit="cover"
+                  :src="item.image_url || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=minimal%20product%20placeholder%20white%20background&image_size=square'"
+                />
+                <div class="ai-product-main">
+                  <h4 class="ai-product-name">{{ item.product_name }}</h4>
+                  <div class="ai-product-meta">
+                    <span>¥{{ item.price ?? 0 }}</span>
+                    <span>库存: {{ item.stock_quantity ?? 0 }}</span>
+                  </div>
+                  <p class="ai-product-desc">{{ stripHtml(item.product_desc) }}</p>
+                  <el-button type="primary" link @click="goToProductDetail(item.product_id)">查看详情</el-button>
+                </div>
+              </div>
+            </el-carousel-item>
+          </el-carousel>
+          <el-empty v-else description="暂无推荐商品" />
+        </div>
+
+        <div class="ai-raw-block">
+          <div class="ai-raw-title">原始返回数据</div>
+          <pre class="ai-raw-json">{{ aiRawText }}</pre>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import { productAPI, categoryAPI, cartAPI } from '@/api'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { productAPI, categoryAPI, cartAPI, aiAPI } from '@/api'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCustomerStore } from '@/stores/customer'
-import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop } from '@element-plus/icons-vue'
+import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop, ChatDotRound } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -351,6 +416,25 @@ const categories = ref([])
 const showCategoryPopover = ref(false)
 const activeTab = ref('all')
 const loading = ref(false)
+
+// AI 助手
+const aiPanelVisible = ref(false)
+const aiInput = ref('')
+const aiLoading = ref(false)
+const aiReply = ref('')
+const aiItems = ref([])
+const aiRawResponse = ref(null)
+const aiPage = ref(1)
+const aiSize = ref(10)
+const aiDrawerSize = ref('460px')
+const aiRawText = computed(() => {
+  if (!aiRawResponse.value) return '暂无数据'
+  try {
+    return JSON.stringify(aiRawResponse.value, null, 2)
+  } catch {
+    return String(aiRawResponse.value)
+  }
+})
 
 // 轮播图数据 - 从已上架商品中获取
 const bannerItems = ref([])
@@ -584,6 +668,74 @@ const addToCart = async (product) => {
 
 const extractData = (res) => res?.data?.data ?? res?.data ?? null
 
+const normalizeProductItem = (item) => {
+  const copy = { ...(item || {}) }
+  let img = ''
+  if (Array.isArray(copy.images) && copy.images.length) {
+    const first = copy.images[0]
+    if (typeof first === 'string') {
+      img = first.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+    } else if (first && (first.image_url || first.url)) {
+      const url = first.image_url || first.url
+      img = url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+    }
+  } else if (copy.image_url) {
+    img = copy.image_url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+  } else if (copy.images && typeof copy.images === 'string') {
+    img = copy.images.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+  }
+  copy.image_url = img || ''
+  copy.product_desc = copy.product_desc ?? ''
+  copy.price = copy.price ?? 0
+  copy.stock_quantity = copy.stock_quantity ?? 0
+  return copy
+}
+
+const clearAiResult = () => {
+  aiInput.value = ''
+  aiReply.value = ''
+  aiItems.value = []
+  aiRawResponse.value = null
+}
+
+const submitAiQuery = async () => {
+  const text = (aiInput.value || '').trim()
+  if (!text) {
+    ElMessage.warning('请输入问题后再发送')
+    return
+  }
+
+  aiLoading.value = true
+  try {
+    const response = await aiAPI.recommend({
+      text,
+      page: aiPage.value,
+      size: aiSize.value
+    })
+    aiRawResponse.value = response?.data ?? null
+
+    const payload = extractData(response) || {}
+    aiReply.value = payload?.ai_description || '未获取到 AI 描述'
+    aiItems.value = Array.isArray(payload?.items) ? payload.items.map(normalizeProductItem) : []
+
+    if (!aiItems.value.length) {
+      ElMessage.info('未匹配到可推荐商品')
+    }
+  } catch (error) {
+    console.error('AI 推荐请求失败:', error)
+    aiReply.value = '请求失败，请稍后重试'
+    aiItems.value = []
+    ElMessage.error('AI 推荐请求失败')
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+const updateAiDrawerSize = () => {
+  if (typeof window === 'undefined') return
+  aiDrawerSize.value = window.innerWidth <= 768 ? '92%' : '460px'
+}
+
 const fetchCategories = async () => {
   try {
     const res = await categoryAPI.getCategories({ tree: true, size: 100 })
@@ -620,31 +772,7 @@ const fetchProducts = async (p = page.value, s = size.value) => {
     }
 
     // 规范化字段
-    items = items.map(item => {
-      const copy = { ...item }
-      let img = ''
-      if (Array.isArray(copy.images) && copy.images.length) {
-        const first = copy.images[0]
-        if (typeof first === 'string') {
-          // 将远程图片URL替换为本地地址
-          img = first.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
-        } else if (first && (first.image_url || first.url)) {
-          // 将远程图片URL替换为本地地址
-          const url = first.image_url || first.url
-          img = url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
-        }
-      } else if (copy.image_url) {
-        // 将远程图片URL替换为本地地址
-        img = copy.image_url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
-      } else if (copy.images && typeof copy.images === 'string') {
-        // 将远程图片URL替换为本地地址
-        img = copy.images.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
-      }
-      copy.image_url = img || ''
-      copy.product_desc = copy.product_desc ?? ''
-      copy.price = copy.price ?? 0
-      return copy
-    })
+    items = items.map(normalizeProductItem)
 
     page.value = p
     size.value = s
@@ -737,6 +865,8 @@ onMounted(() => {
   fetchCategories()
   fetchProducts()
   fetchBannerProducts()
+  updateAiDrawerSize()
+  window.addEventListener('resize', updateAiDrawerSize)
   try {
     const raw = sessionStorage.getItem(LOGOUT_TOAST_KEY)
     if (!raw) return
@@ -754,6 +884,11 @@ onMounted(() => {
     // ignore
   }
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateAiDrawerSize)
+})
+
 const stripHtml = (input) => {
   if (input === null || input === undefined) return ''
   let s = input
@@ -1724,113 +1859,6 @@ const stripHtml = (input) => {
 }
 
 @media (max-width: 768px) {
-  .featured-games-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 16px;
-  }
-  
-  .featured-game-image {
-    height: 150px;
-  }
-  
-  .featured-game-info {
-    padding: 16px;
-  }
-  
-  .featured-game-name {
-    font-size: 16px;
-  }
-  
-  .featured-game-desc {
-    font-size: 13px;
-  }
-}
-
-@media (max-width: 480px) {
-  .featured-games-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
-  
-  .featured-game-image {
-    height: 120px;
-  }
-  
-  .featured-game-name {
-    font-size: 14px;
-  }
-}
-
-/* 分类弹窗 */
-.category-popover {
-  border-radius: 16px !important;
-  overflow: hidden !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15) !important;
-  border: 1px solid #e2e8f0 !important;
-  background: white !important;
-}
-
-.popover-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #f1f5f9;
-  background: #f8fafc;
-}
-
-.popover-header div {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.el-menu {
-  background: white !important;
-  border-right: none !important;
-}
-
-.el-menu-item {
-  color: #1e293b !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-}
-
-.el-menu-item:hover {
-  background: #f8fafc !important;
-  color: #3b82f6 !important;
-}
-
-.el-menu-item.is-active {
-  background: #3b82f6 !important;
-  color: white !important;
-}
-
-.el-sub-menu__title {
-  color: #1e293b !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-}
-
-.el-sub-menu__title:hover {
-  background: #f8fafc !important;
-  color: #3b82f6 !important;
-}
-
-/* 响应式 */
-@media (max-width: 1024px) {
-  .products-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
-    gap: 20px;
-  }
-  
-  .banner-content h2 {
-    font-size: 36px;
-  }
-  
-  .banner-content p {
-    font-size: 18px;
-  }
-}
-
-@media (max-width: 768px) {
   .header-inner {
     padding: 0 20px;
     height: 70px;
@@ -1879,6 +1907,13 @@ const stripHtml = (input) => {
   .product-info {
     padding: 16px;
   }
+
+  .ai-fab {
+    right: 16px;
+    bottom: 16px;
+    width: 50px;
+    height: 50px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1916,4 +1951,121 @@ const stripHtml = (input) => {
   }
 }
 
+/* AI 助手 */
+.ai-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border: none;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
+  z-index: 1200;
+}
+
+:deep(.ai-drawer .el-drawer__body) {
+  padding: 0;
+}
+
+.ai-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.ai-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-tip {
+  color: #64748b;
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.ai-reply {
+  margin-top: 2px;
+}
+
+.ai-carousel-wrap {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.ai-product-card {
+  display: flex;
+  gap: 10px;
+  height: 100%;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.ai-product-image {
+  width: 110px;
+  height: 110px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.ai-product-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-product-name {
+  margin: 0 0 8px;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.ai-product-meta {
+  display: flex;
+  gap: 12px;
+  color: #334155;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.ai-product-desc {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ai-raw-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+}
+
+.ai-raw-title {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.ai-raw-json {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 </style>

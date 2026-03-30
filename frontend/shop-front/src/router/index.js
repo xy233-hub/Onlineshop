@@ -19,6 +19,7 @@ import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
 import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
 import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
 import CustomerAfterSalesManagement from '@/views/customer/AfterSalesManagement.vue'
+import AlipayReturn from '@/views/payment/AlipayReturn.vue'
 
 
 const routes = [
@@ -26,6 +27,7 @@ const routes = [
     { path: '/login', name: 'CustomerLogin', component: CustomerLogin, meta: { guestOnly: true } },
     { path: '/product/:id', name: 'ProductDetail', component: ProductDetail, props: true },
     { path: '/seller', name: 'SellerLogin', component: SellerLogin, meta: { guestOnly: true } },
+    { path: '/payment/alipay/return', name: 'AlipayReturn', component: AlipayReturn },
     {
         path: '/customer/dashboard',
         component: () => import('@/views/customer/Dashboard.vue'),
