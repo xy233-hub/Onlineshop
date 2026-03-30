@@ -342,22 +342,38 @@ const formatTime = (time) => {
   return time ? new Date(time).toLocaleString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : ''
 }
 
+const mediaBaseUrl = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/$/, '')
+const normalizeMediaUrl = (rawUrl) => {
+  const url = String(rawUrl || '').trim()
+  if (!url) return ''
+
+  // Relative media path: /media/xxx -> prefer configured media base, fallback current origin.
+  if (url.startsWith('/media/')) {
+    if (mediaBaseUrl) return `${mediaBaseUrl}${url}`
+    return `${window.location.origin}${url}`
+  }
+
+  // Absolute URL: keep as-is unless VITE_MEDIA_BASE_URL is provided, then rewrite only /media host.
+  if (/^https?:\/\//i.test(url)) {
+    if (!mediaBaseUrl) return url
+    return url.replace(/https?:\/\/[^/]+\/media/i, `${mediaBaseUrl}/media`)
+  }
+
+  return url
+}
+
 const imageList = computed(() => {
   if (!product.value) return []
+
   if (Array.isArray(product.value.images) && product.value.images.length) {
-    return product.value.images.map(it => {
-      if (typeof it === 'string') {
-        // 将远程图片URL替换为本地地址
-        return it.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
-      }
-      const url = it.image_url || it.media_url || ''
-      // 将远程图片URL替换为本地地址
-      return url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+    return product.value.images.map((it) => {
+      if (typeof it === 'string') return normalizeMediaUrl(it)
+      return normalizeMediaUrl(it?.image_url || it?.media_url || it?.url || '')
     }).filter(Boolean)
   }
-  const url = product.value.image_url || ''
-  // 将远程图片URL替换为本地地址
-  return url ? [url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')] : []
+
+  const url = normalizeMediaUrl(product.value.image_url || '')
+  return url ? [url] : []
 })
 
 const hasMedia = computed(() => {
