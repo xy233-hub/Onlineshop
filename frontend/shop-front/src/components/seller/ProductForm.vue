@@ -21,7 +21,17 @@
       </el-form-item>
 
       <el-form-item label="价格 (¥)" prop="price">
-        <el-input-number v-model="form.price" :min="0" :step="0.01" />
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <el-input-number v-model="form.price" :min="0" :step="0.01" style="flex: 1;" />
+          <el-button type="primary" plain @click="generatePriceEstimate" :loading="generatingPrice">
+            AI 预估价格
+          </el-button>
+        </div>
+        <div v-if="priceEstimate" style="margin-top: 8px; padding: 10px; background: #f0f9eb; border-radius: 4px; border: 1px solid #b7eb8f;">
+          <span style="font-weight: 500; color: #389e0d;">预估价格区间：</span>
+          <span>¥{{ priceEstimate.min }} - ¥{{ priceEstimate.max }}</span>
+          <el-button type="text" size="small" @click="applyPriceEstimate" style="margin-left: 10px;">应用</el-button>
+        </div>
       </el-form-item>
 
       <el-form-item label="库存" prop="stock_quantity">
@@ -33,6 +43,11 @@
       </el-form-item>
 
       <el-form-item label="详情描述" prop="product_desc">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; justify-content: flex-end;">
+          <el-button type="primary" plain @click="generateAIDescription" :loading="generatingDescription">
+            AI 生成描述
+          </el-button>
+        </div>
         <div class="quill-editor-wrapper">
           <Editor
               v-if="Editor"
@@ -82,18 +97,24 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { sellerProductAPI, mediaAPI, categoryAPI } from '@/api'
+import { sellerProductAPI, customerProductAPI, sellerProductAIAPI, mediaAPI, categoryAPI } from '@/api'
 import type { UploadFile } from 'element-plus'
-import  Editor  from '@tinymce/tinymce-vue'
-const tinymceApiKey = String("l8ol8rrsgk5v4unha10wmxcau3hdf40gu3y6sz23wdoadlxj")
+import Editor from '@tinymce/tinymce-vue'
+import { marked } from 'marked'
 
+const tinymceApiKey = String("l8ol8rrsgk5v4unha10wmxcau3hdf40gu3y6sz23wdoadlxj")
 const props = defineProps({
-  visible: { type: Boolean, required: true }
+  visible: { type: Boolean, required: true },
+    // 新增：指定发布者角色，'seller' | 'customer'
+  publisherRole: { type: String, default: 'seller' }
 })
 const emit = defineEmits(['update:visible', 'created'])
 
 const formRef = ref()
 const submitting = ref(false)
+const generatingDescription = ref(false)
+const generatingPrice = ref(false)
+const priceEstimate = ref(null)
 
 // 图片/媒体上传相关
 type ImageItem = { temp_key?: string; image_url?: string; image_order?: number; file_name?: string; media_type?: string; media_url?: string }
@@ -136,6 +157,109 @@ function resetForm() {
   uploadingMapMedia.value = {}
   fileUidToTempKey.value.clear()
   fileUidToTempKeyMedia.value.clear()
+  priceEstimate.value = null
+}
+
+const addEmbeddedTempKey = (tempKey?: string | null, mediaUrl?: string, mimeType?: string, fileName?: string) => {
+  if (!tempKey) return
+  const exists = form.media_resources.some(m => m.temp_key === tempKey)
+  if (exists) return
+  form.media_resources.push({
+    temp_key: tempKey,
+    media_url: mediaUrl,
+    media_type: mimeType,
+    file_name: fileName
+  })
+}
+
+const looksLikeHtml = (s: string) => /<\/?[a-z][\s\S]*>/i.test(s)
+const looksLikeMarkdown = (s: string) => /(\*\*.+\*\*|`{1,3}.+`{1,3}|^#{1,6}\s+|^\s*[-*+]\s+|^\s*\d+\.\s+)/m.test(s)
+
+const toEditorHtml = async (content: string) => {
+  const source = (content || '').trim()
+  if (!source) return ''
+  if (looksLikeHtml(source)) return source
+  if (!looksLikeMarkdown(source)) return source
+  const parsed = await Promise.resolve(marked.parse(source, { gfm: true, breaks: true }))
+  return typeof parsed === 'string' ? parsed : source
+}
+
+// AI 生成商品描述
+async function generateAIDescription() {
+  if (!form.product_name || !form.category_id) {
+    ElMessage.warning('请先填写商品名称和分类')
+    return
+  }
+
+  generatingDescription.value = true
+  try {
+    const res = await sellerProductAIAPI.generateDescription({
+      product_name: form.product_name,
+      category_id: form.category_id,
+      search_keywords: form.search_keywords || '',
+      product_desc: form.product_desc || ''
+    })
+    const data = res?.data?.data ?? res?.data ?? {}
+    const description = data?.description || ''
+    const source = String(data?.source || '').toLowerCase()
+    const fallbackReason = String(data?.fallback_reason || '').trim()
+    if (!description) {
+      ElMessage.warning('AI 暂未生成内容，请稍后重试')
+      return
+    }
+    form.product_desc = await toEditorHtml(description)
+    if (source === 'fallback') {
+      ElMessage.warning(`AI 服务不可用，已使用兜底文案${fallbackReason ? '（' + fallbackReason + '）' : ''}`)
+    } else {
+      ElMessage.success('AI 描述生成成功')
+    }
+  } catch (error: any) {
+    console.error('生成描述失败:', error)
+    ElMessage.error(error?.response?.data?.message || '生成描述失败，请稍后重试')
+  } finally {
+    generatingDescription.value = false
+  }
+}
+
+// AI 价格预估
+async function generatePriceEstimate() {
+  if (!form.product_name || !form.category_id) {
+    ElMessage.warning('请先填写商品名称和分类')
+    return
+  }
+
+  generatingPrice.value = true
+  try {
+    const res = await sellerProductAIAPI.estimatePrice({
+      product_name: form.product_name,
+      category_id: form.category_id,
+      product_desc: form.product_desc || ''
+    })
+    const data = res?.data?.data ?? res?.data ?? {}
+    const min = Number(data?.min)
+    const max = Number(data?.max)
+
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max < min) {
+      ElMessage.warning('AI 预估结果异常，请重试')
+      return
+    }
+
+    priceEstimate.value = { min, max }
+    ElMessage.success('AI 价格预估成功')
+  } catch (error) {
+    console.error('价格预估失败:', error)
+    ElMessage.error('价格预估失败，请稍后重试')
+  } finally {
+    generatingPrice.value = false
+  }
+}
+
+// 应用价格预估
+function applyPriceEstimate() {
+  if (priceEstimate.value) {
+    form.price = (priceEstimate.value.min + priceEstimate.value.max) / 2
+    ElMessage.success('已应用预估价格')
+  }
 }
 async function uploadForTinyMCE(file: File, purpose = 'embedded') {
   const fd = new FormData()
@@ -145,7 +269,11 @@ async function uploadForTinyMCE(file: File, purpose = 'embedded') {
   try {
     const res = await mediaAPI.upload(fd)
     const d = res?.data?.data ?? res?.data ?? {}
-    return { url: d?.media_url || d?.mediaUrl || '', mime: d?.mime_type || file.type, tempKey: d?.temp_key || null }
+    const mediaUrl = d?.media_url || d?.mediaUrl || ''
+    const mime = d?.mime_type || file.type
+    const tempKey = d?.temp_key || null
+    addEmbeddedTempKey(tempKey, mediaUrl, mime, file.name)
+    return { url: mediaUrl, mime, tempKey }
   } catch (e) {
     console.error('uploadForTinyMCE error', e)
     return { url: '', mime: file.type, tempKey: null }
@@ -333,7 +461,9 @@ const handleSubmit = async () => {
     }
     submitting.value = true
     try {
-      const res = await sellerProductAPI.createProduct(payload)
+      // 根据发布者角色选择对应的 API
+      const apiToUse = props.publisherRole === 'customer' ? customerProductAPI : sellerProductAPI
+      const res = await apiToUse.createProduct(payload)
       const d = res?.data?.data ?? res?.data ?? res
       ElMessage.success('发布成功')
       emit('created', d)

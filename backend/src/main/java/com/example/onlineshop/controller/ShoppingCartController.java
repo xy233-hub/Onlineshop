@@ -120,6 +120,23 @@ public class ShoppingCartController {
         return Map.of("code", 200, "message", "转换完成", "data", data);
     }
 
+    // 批量下单（购物车结算）
+    @PostMapping("/batch-purchase")
+    public Map<String, Object> batchPurchase(@RequestBody Map<String, Object> body) {
+        Integer customerId = parseInteger(body.get("customer_id"));
+        List<Integer> cartItemIds = parseListOfIntegers(body.get("cart_item_ids"));
+        String contactName = (String) body.get("contact_name");
+        String contactPhone = (String) body.get("contact_phone");
+        String deliveryAddress = (String) body.get("delivery_address");
+        String note = (String) body.get("note");
+
+        if (customerId == null || cartItemIds == null || cartItemIds.isEmpty()) {
+            return Map.of("code", 400, "message", "参数缺失：customer_id 或 cart_item_ids 为空", "data", Collections.emptyMap());
+        }
+
+        return cartService.batchPurchase(customerId, cartItemIds, contactName, contactPhone, deliveryAddress, note);
+    }
+
     // 辅助方法：安全解析 Integer（支持 Number / String）
     private Integer parseInteger(Object obj) {
         if (obj == null) return null;

@@ -16,24 +16,33 @@ import CustomerList from '@/views/seller/CustomerList.vue'
 import CustomerDetail from '@/views/seller/CustomerDetail.vue'
 import AfterSales from '@/views/customer/AfterSales.vue'
 import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
+import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
+import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
+import CustomerAfterSalesManagement from '@/views/customer/AfterSalesManagement.vue'
+import AlipayReturn from '@/views/payment/AlipayReturn.vue'
+
 
 const routes = [
     { path: '/', name: 'Home', component: Home },
     { path: '/login', name: 'CustomerLogin', component: CustomerLogin, meta: { guestOnly: true } },
     { path: '/product/:id', name: 'ProductDetail', component: ProductDetail, props: true },
     { path: '/seller', name: 'SellerLogin', component: SellerLogin, meta: { guestOnly: true } },
+    { path: '/payment/alipay/return', name: 'AlipayReturn', component: AlipayReturn },
     {
         path: '/customer/dashboard',
-        name: 'CustomerDashboard',
         component: () => import('@/views/customer/Dashboard.vue'),
         meta: { requiresAuth: true },
         children: [
-            { path: '', redirect: '/customer/dashboard/orders' },
+            { path: '', name: 'CustomerDashboard', redirect: '/customer/dashboard/info' },
+            { path: 'info', name: 'DashboardInfo', component: () => import('@/views/customer/PersonalInfo.vue'), meta: { requiresAuth: true } },
             { path: 'orders', name: 'DashboardOrders', component: () => import('@/views/customer/OrdersHistory.vue'), meta: { requiresAuth: true } },
             { path: 'favorites', name: 'DashboardFavorites', component: () => import('@/views/customer/Favorites.vue'), meta: { requiresAuth: true } },
             { path: 'cart', name: 'DashboardCart', component: () => import('@/views/customer/Cart.vue'), meta: { requiresAuth: true } },
             { path: 'after-sales', name: 'CustomerAfterSales', component: AfterSales, meta: { requiresAuth: true } },
-            { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } }
+            { path: 'addresses', name: 'CustomerAddresses', component: () => import('@/views/customer/AddressManagement.vue'), meta: { requiresAuth: true } },
+            { path: 'products', name: 'CustomerProducts', component: CustomerProductManagement, meta: { requiresAuth: true } },
+            { path: 'purchase-intents', name: 'CustomerPurchaseIntents', component: CustomerPurchaseIntents, meta: { requiresAuth: true } },
+            { path: 'after-sales-management', name: 'CustomerAfterSalesManagement', component: CustomerAfterSalesManagement, meta: { requiresAuth: true } }             
         ]
     },
     {

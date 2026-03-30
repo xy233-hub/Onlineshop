@@ -17,6 +17,9 @@ import java.util.List;
  */
 @Data
 public class ProductRequest {
+    @JsonProperty("seller_id")
+    private Integer sellerId;
+
     @JsonProperty("product_name")
     @NotBlank(message = "product_name 必填")
     private String productName;
@@ -47,6 +50,9 @@ public class ProductRequest {
     @JsonProperty("media_resources")
     @Valid
     private List<MediaResourceRequest> mediaResources;
+
+    // 新增：允许前端传；未传时你在 SellerProductController 里用 AI 生成后写入
+    private String shortDesc;
 }
 
 

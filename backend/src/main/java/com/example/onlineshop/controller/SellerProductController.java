@@ -54,6 +54,9 @@ public class SellerProductController {
     @Autowired
     private PurchaseIntentItemMapper purchaseIntentItemMapper;
 
+    @Autowired
+    private  ExternalAiClient externalAiClient;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private void validateMediaResources(List<MediaResourceRequest> medias) {
@@ -129,26 +132,107 @@ public class SellerProductController {
         return null;
     }
 
-    // 发布新商品：接收原始 JSON，发布成功后把请求体中含有 temp_key 的临时媒体关联到新 product_id
-    @PostMapping("/products")
-    public ApiResponse publishProduct(@RequestBody Map<String, Object> body) {
-        try {
 
-            // 把 JSON 转成 ProductRequest 调用原有逻辑
+    @PostMapping("/products/ai/description")
+    public ApiResponse generateProductDescription(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            if (customerId == null && sellerIdFromToken == null) {
+                return ApiResponse.error(401, "未授权");
+            }
+
+            String productName = body.get("product_name") == null ? "" : String.valueOf(body.get("product_name"));
+            Integer categoryId = null;
+            Object cid = body.get("category_id");
+            if (cid instanceof Number) {
+                categoryId = ((Number) cid).intValue();
+            } else if (cid instanceof String s && !s.isBlank()) {
+                categoryId = Integer.valueOf(s);
+            }
+            String keywords = body.get("search_keywords") == null ? "" : String.valueOf(body.get("search_keywords"));
+            String productDesc = body.get("product_desc") == null ? "" : String.valueOf(body.get("product_desc"));
+
+            if (productName.isBlank()) {
+                return ApiResponse.error(400, "product_name 必填");
+            }
+
+            Map<String, Object> data = externalAiClient.generateProductDescriptionPack(productName, categoryId, keywords, productDesc);
+            return new ApiResponse(200, "生成成功", data);
+        } catch (Exception e) {
+            return ApiResponse.error(500, "生成失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    @PostMapping("/products/ai/price-estimate")
+    public ApiResponse estimateProductPrice(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            if (customerId == null && sellerIdFromToken == null) {
+                return ApiResponse.error(401, "未授权");
+            }
+
+            String productName = body.get("product_name") == null ? "" : String.valueOf(body.get("product_name"));
+            Integer categoryId = null;
+            Object cid = body.get("category_id");
+            if (cid instanceof Number) {
+                categoryId = ((Number) cid).intValue();
+            } else if (cid instanceof String s && !s.isBlank()) {
+                categoryId = Integer.valueOf(s);
+            }
+            String productDesc = body.get("product_desc") == null ? "" : String.valueOf(body.get("product_desc"));
+
+            if (productName.isBlank()) {
+                return ApiResponse.error(400, "product_name 必填");
+            }
+
+            Map<String, Object> estimate = externalAiClient.estimateProductPriceRange(productName, categoryId, productDesc);
+            return new ApiResponse(200, "预估成功", estimate);
+        } catch (Exception e) {
+            return ApiResponse.error(500, "预估失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    @PostMapping("/products")
+    public ApiResponse publishProduct(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            Integer publisherId = customerId != null ? customerId : sellerIdFromToken;
+            if (publisherId == null) {
+                return ApiResponse.error(401, "未授权");
+            }
+
             ProductRequest request = objectMapper.convertValue(body, ProductRequest.class);
+            request.setSellerId(publisherId);
+
+            // 新增：若前端未传 shortDesc，则调用 AI 自动生成并写入 request，后续入库
+            if (request.getShortDesc() == null || request.getShortDesc().isBlank()) {
+                String aiShort = externalAiClient.generateShortDesc(
+                        request.getProductName(),
+                        request.getProductDesc()
+                );
+                request.setShortDesc(aiShort == null ? "" : aiShort);
+            }
+
             validateMediaResources(request.getMediaResources());
             ApiResponse resp = sellerService.publishProduct(request);
 
-            // 发布成功后，尝试从 resp.data 中更鲁棒地读取 product_id 并关联临时媒体
             if (resp != null && resp.getCode() == 200) {
                 Integer productId = extractProductId(resp.getData());
                 if (productId != null) {
-                    // images（可能包含 temp_key）
                     Object imgs = body.get("images");
                     if (imgs instanceof Iterable) {
                         for (Object o : (Iterable<?>) imgs) {
                             if (o instanceof Map) {
-                                Map<?,?> m = (Map<?,?>) o;
+                                Map<?, ?> m = (Map<?, ?>) o;
                                 if (m.containsKey("temp_key")) {
                                     String tempKey = String.valueOf(m.get("temp_key"));
                                     try {
@@ -161,12 +245,11 @@ public class SellerProductController {
                         }
                     }
 
-                    // media_resources（可能包含 temp_key）
                     Object mrs = body.get("media_resources");
                     if (mrs instanceof Iterable) {
                         for (Object o : (Iterable<?>) mrs) {
                             if (o instanceof Map) {
-                                Map<?,?> m = (Map<?,?>) o;
+                                Map<?, ?> m = (Map<?, ?>) o;
                                 if (m.containsKey("temp_key")) {
                                     String tempKey = String.valueOf(m.get("temp_key"));
                                     try {
@@ -178,9 +261,6 @@ public class SellerProductController {
                             }
                         }
                     }
-                } else {
-                    // 无法解析 productId，记录以便排查
-                    System.err.println("publishProduct: 无法从 resp.data 中解析 product_id, resp.data=" + resp.getData());
                 }
             }
 
@@ -190,13 +270,42 @@ public class SellerProductController {
         }
     }
 
-    // 其它接口不变...
     @GetMapping("/products")
-    public Object listProducts(@RequestParam(value = "seller_id", required = false) Integer sellerId) {
+    public Object listProducts(
+            @RequestHeader("Authorization") String token,
+            @RequestParam(value = "seller_id", required = false) Integer sellerId) {
         try {
+            // 从 token 中解析用户 ID
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            
+            // 如果是买家访问，只能查看自己的商品
+            if (customerId != null) {
+                sellerId = customerId;
+            } else if (sellerIdFromToken != null) {
+                // 如果是卖家访问：
+                // - 如果传入了 seller_id 参数，则查询该卖家的商品
+                // - 如果没有传入 seller_id 参数，则查询所有商品（管理员视角）
+                if (sellerId == null) {
+                    // 卖家没有传 seller_id 参数，查询所有商品
+                    List<Product> allProducts = productService.getAllProducts();
+                    List<ProductInfoResponse> items = allProducts.stream()
+                            .map(ProductInfoResponse::new)
+                            .collect(Collectors.toList());
 
+                    HashMap<String, Object> data = new HashMap<>();
+                    data.put("items", items);
+                    data.put("total", items.size());
 
-            sellerId=1; //暂时只有一个卖家
+                    return ResponseUtil.success("查询成功", data);
+                } else {
+                    // 卖家传了 seller_id 参数，查询指定卖家的商品
+                    sellerId = sellerId;
+                }
+            } else {
+                return ApiResponse.error(401, "未授权");
+            }
+
             List<Product> products = productService.getHistoryProducts(sellerId);
             List<ProductInfoResponse> items = products.stream()
                     .map(ProductInfoResponse::new)
@@ -208,9 +317,10 @@ public class SellerProductController {
 
             return ResponseUtil.success("查询成功", data);
         } catch (Exception e) {
-            return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+            return ResponseUtil.error("查询失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
+
 
     // 冻结商品
     @PutMapping("/products/{product_id}/freeze")
@@ -298,7 +408,7 @@ public class SellerProductController {
 
         return new ApiResponse(200, "查询成功", result);
     }
-    /**
+        /**
      * 47. 卖家发货（填写物流信息）
      */
       @PostMapping("/purchase-intents/{purchase_id}/ship")
@@ -308,6 +418,16 @@ public class SellerProductController {
             @RequestBody Map<String, Object> body) {
         try {
             Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+            
+            // 如果不是卖家，尝试解析 customerId（买家调用时）
+            if (sellerId == null) {
+                Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+                if (customerId != null) {
+                    // 买家调用时，将 customerId 作为 sellerId 使用
+                    sellerId = customerId;
+                }
+            }
+            
             if (sellerId == null) {
                 return new ApiResponse(401, "未授权", null);
             }
@@ -368,16 +488,28 @@ public class SellerProductController {
         }
     }
 
+
     /**
      * 49. 卖家手动添加物流轨迹
      */
     @PostMapping("/orders/{purchase_id}/logistics/tracks")
-   public ApiResponse addLogisticsTrack(
+    public ApiResponse addLogisticsTrack(
             @RequestHeader("Authorization") String token,
             @PathVariable("purchase_id") Integer purchaseId,
             @RequestBody Map<String, Object> body) {
         try {
+            // 从 token 中解析 sellerId
             Integer sellerId = JwtUtil.getSellerIdFromToken(token);
+
+            // 如果不是卖家，尝试解析 customerId（买家调用时）
+            if (sellerId == null) {
+                Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+                if (customerId != null) {
+                    // 买家调用时，将 customerId 作为 sellerId 使用
+                    sellerId = customerId;
+                }
+            }
+
             if (sellerId == null) {
                 return new ApiResponse(401, "未授权", null);
             }
@@ -391,7 +523,7 @@ public class SellerProductController {
             if (items == null || items.isEmpty()) {
                 return new ApiResponse(404, "关联商品不存在", null);
             }
-            
+
             PurchaseIntentItem firstItem = items.get(0);
             Product product = productService.getProductById(firstItem.getProductId());
             if (product == null || !product.getSellerId().equals(sellerId)) {
@@ -431,4 +563,3 @@ public class SellerProductController {
         }
     }
 }
-

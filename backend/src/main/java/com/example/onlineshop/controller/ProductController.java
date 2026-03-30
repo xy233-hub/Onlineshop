@@ -1,18 +1,22 @@
 // backend/src/main/java/com/example/onlineshop/controller/ProductController.java
 package com.example.onlineshop.controller;
 
+import com.example.onlineshop.dto.request.AiAssistantQueryRequest;
 import com.example.onlineshop.dto.request.PurchaseIntentRequest;
 import com.example.onlineshop.dto.request.PurchaseRequest;
+import com.example.onlineshop.dto.response.AiAssistantProductResponse;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.Product;
 import com.example.onlineshop.entity.PurchaseIntent;
+import com.example.onlineshop.service.AiShoppingAssistantService;
 import com.example.onlineshop.service.ProductService;
 import com.example.onlineshop.service.PurchaseIntentService;
 import com.example.onlineshop.util.ResponseUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,9 +32,12 @@ public class ProductController {
     @Autowired
     private PurchaseIntentService purchaseIntentService;
 
+    @Autowired
+    private  AiShoppingAssistantService aiShoppingAssistantService;
+
     /**
      * 搜索/分页/排序获取商品列表
-     * 支持参数：q, category_id, status, page, size, sort_by, order
+     * 支持参数：q, category_id, status, min_price, max_price, page, size, sort_by, order
      * 若未传 status，默认只返回 online 商品
      */
     @GetMapping("")
@@ -38,6 +45,8 @@ public class ProductController {
             @RequestParam(value = "q", required = false) String q,
             @RequestParam(value = "category_id", required = false) Integer categoryId,
             @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "min_price", required = false) BigDecimal minPrice,
+            @RequestParam(value = "max_price", required = false) BigDecimal maxPrice,
             @RequestParam(value = "page", defaultValue = "1") Integer page,
             @RequestParam(value = "size", defaultValue = "10") Integer size,
             @RequestParam(value = "sort_by", required = false) String sortBy,
@@ -48,13 +57,26 @@ public class ProductController {
             if (size == null || size < 1) size = 10;
             int offset = (page - 1) * size;
 
-            // 如果调用方没有显式传 status，默认只查询在线商品
             if (status == null || status.trim().isEmpty()) {
                 status = "online";
             }
 
-            List<Product> products = productService.searchProducts(q, categoryId, status, offset, size, sortBy, order);
-            int total = productService.countProducts(q, categoryId, status);
+            if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+                return ResponseUtil.custom(400, "min_price 不能大于 max_price", null);
+            }
+
+            List<Product> products = productService.searchProducts(
+                    q,
+                    categoryId,
+                    status,
+                    minPrice,
+                    maxPrice,
+                    offset,
+                    size,
+                    sortBy,
+                    order
+            );
+            int total = productService.countProducts(q, categoryId, status, minPrice, maxPrice);
 
             List<ProductInfoResponse> items = products.stream()
                     .map(ProductInfoResponse::new)
@@ -104,6 +126,23 @@ public class ProductController {
             return new ApiResponse(500, e.getMessage(), null);
         } catch (Exception e) {
             return new ApiResponse(500, "服务器错误", null);
+        }
+    }
+
+
+    @PostMapping("/ai-recommend")
+    public Object aiRecommend(@RequestBody AiAssistantQueryRequest req) {
+        try {
+            AiAssistantProductResponse resp = aiShoppingAssistantService.recommend(
+                    req == null ? null : req.getText(),
+                    req == null ? null : req.getPage(),
+                    req == null ? null : req.getSize()
+            );
+            return ResponseUtil.success("查询成功", resp);
+        } catch (IllegalArgumentException e) {
+            return ResponseUtil.custom(400, e.getMessage(), null);
+        } catch (Exception e) {
+            return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
 }

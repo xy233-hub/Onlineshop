@@ -1,0 +1,8 @@
+/ecommerce-api-test/allure-results/
+/.idea/
+/mysql_data/
+/backend/uploads/
+/backend/target/
+/backend/.idea/
+
+/ecommerce-api-test/target/

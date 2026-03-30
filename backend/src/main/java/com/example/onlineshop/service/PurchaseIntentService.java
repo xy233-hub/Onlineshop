@@ -441,6 +441,34 @@ public class PurchaseIntentService {
     public int countPurchaseIntentsByCondition(Map<String, Object> params) {
         return purchaseIntentMapper.countByCondition(params);
     }
+
+    /**
+     * 根据卖家 ID 查询购买意向（别人提交给该卖家的商品）
+     */
+    public List<PurchaseIntent> getPurchaseIntentsBySellerId(Integer sellerId, Integer page, Integer size) {
+        int offset = (page - 1) * size;
+        List<PurchaseIntent> intents = purchaseIntentMapper.findBySellerId(sellerId, offset, size);
+        if (intents == null || intents.isEmpty()) {
+            return intents;
+        }
+        for (PurchaseIntent intent : intents) {
+            if (intent != null && intent.getPurchaseId() != null) {
+                List<PurchaseIntentItem> items = purchaseIntentItemMapper.findByPurchaseId(intent.getPurchaseId());
+                intent.setItems(items);
+            }
+        }
+        return intents;
+    }
+
+    /**
+     * 统计根据卖家 ID 查询的购买意向数量
+     */
+    public int countPurchaseIntentsBySellerId(Integer sellerId) {
+        return purchaseIntentMapper.countBySellerId(sellerId);
+    }
+
+
+
      /**
      * 卖家发货：更新物流信息并创建初始物流轨迹
      */

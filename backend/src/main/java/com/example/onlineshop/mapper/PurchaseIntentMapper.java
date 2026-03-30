@@ -51,4 +51,28 @@ public interface PurchaseIntentMapper {
     int updateLogisticsInfo(@Param("purchaseId") Integer purchaseId, 
                            @Param("logisticsProviderId") Integer logisticsProviderId, 
                            @Param("trackingNo") String trackingNo);
+    /**
+     * 根据卖家 ID 查询购买意向（通过 product 表关联）
+     */
+    List<PurchaseIntent> findBySellerId(@Param("sellerId") Integer sellerId, 
+                                        @Param("offset") Integer offset, 
+                                        @Param("size") Integer size);
+
+    /**
+     * 统计根据卖家 ID 查询的购买意向数量
+     */
+    int countBySellerId(@Param("sellerId") Integer sellerId);
+
+    /**
+     * 根据客户 ID 和支付状态查询购买意向
+     */
+    List<PurchaseIntent> findByCustomerIdAndStatus(@Param("customerId") Integer customerId, 
+                                                    @Param("paymentStatus") String paymentStatus);
+    
+    /**
+     * 根据客户 ID 和时间范围查询购买意向
+     */
+    List<PurchaseIntent> findByCustomerIdAndTimeRange(@Param("customerId") Integer customerId,
+                                                       @Param("startTime") LocalDateTime startTime,
+                                                       @Param("endTime") LocalDateTime endTime);                                                
 }

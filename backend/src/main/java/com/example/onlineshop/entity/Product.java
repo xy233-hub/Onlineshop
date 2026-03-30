@@ -29,7 +29,8 @@ public class Product implements Serializable {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-
+    // 新增：列表页/卡片用短描述（对应表字段 short_desc）
+    private String shortDesc;
     // 新增：封面图片 URL（来自 product_images 第一张图，非持久化）
     private String coverImage;
 

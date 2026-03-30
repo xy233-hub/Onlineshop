@@ -1,7 +1,7 @@
-# 以官方 OpenJDK 镜像为基础
-FROM openjdk:17-slim
+# 使用本地JDK镜像运行项目
+FROM eclipse-temurin:17-jdk
 VOLUME /tmp
-COPY target/*.jar app.jar
+COPY target/onlineshop-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app.jar"]
 

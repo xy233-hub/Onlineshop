@@ -46,17 +46,21 @@ public interface ProductMapper {
                             @Param("deduct") Integer deduct,
                             @Param("now") LocalDateTime now);
     // 用于分页/搜索
-    List<Product> selectProducts(@Param("q") String q,
+    List<Product> selectProducts(@Param("tokens") List<String> tokens,
                                  @Param("categoryId") Integer categoryId,
                                  @Param("status") String status,
+                                 @Param("minPrice") java.math.BigDecimal minPrice,
+                                 @Param("maxPrice") java.math.BigDecimal maxPrice,
                                  @Param("offset") int offset,
                                  @Param("size") int size,
                                  @Param("sortBy") String sortBy,
                                  @Param("order") String order);
 
-    int countProducts(@Param("q") String q,
+    int countProducts(@Param("tokens") List<String> tokens,
                       @Param("categoryId") Integer categoryId,
-                      @Param("status") String status);
+                      @Param("status") String status,
+                      @Param("minPrice") java.math.BigDecimal minPrice,
+                      @Param("maxPrice") java.math.BigDecimal maxPrice);
 
     // --- 新增：用于单个商品详情组装的查询 ---
     Product selectProductById(@Param("productId") Integer productId);
@@ -66,4 +70,19 @@ public interface ProductMapper {
     List<MediaResource> selectMediaByProductId(@Param("productId") Integer productId);
 
     Category selectCategoryById(@Param("categoryId") Integer categoryId);
+
+     // --- 新增：根据卖家 ID 查询商品（支持搜索、分类、状态过滤）---
+    List<Product> selectProductsBySellerId(@Param("sellerId") Integer sellerId,
+                                           @Param("q") String q,
+                                           @Param("categoryId") Integer categoryId,
+                                           @Param("status") String status,
+                                           @Param("offset") int offset,
+                                           @Param("size") int size,
+                                           @Param("sortBy") String sortBy,
+                                           @Param("order") String order);
+
+    int countProductsBySellerId(@Param("sellerId") Integer sellerId,
+                                @Param("q") String q,
+                                @Param("categoryId") Integer categoryId,
+                                @Param("status") String status);
 }
