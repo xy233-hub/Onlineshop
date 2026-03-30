@@ -1,0 +1,190 @@
+<html>
+<head>
+<title>TestNG:  Surefire test</title>
+<link href="../testng.css" rel="stylesheet" type="text/css" />
+<link href="../my-testng.css" rel="stylesheet" type="text/css" />
+
+<style type="text/css">
+.log { display: none;} 
+.stack-trace { display: none;} 
+</style>
+<script type="text/javascript">
+<!--
+function flip(e) {
+  current = e.style.display;
+  if (current == 'block') {
+    e.style.display = 'none';
+    return 0;
+  }
+  else {
+    e.style.display = 'block';
+    return 1;
+  }
+}
+
+function toggleBox(szDivId, elem, msg1, msg2)
+{
+  var res = -1;  if (document.getElementById) {
+    res = flip(document.getElementById(szDivId));
+  }
+  else if (document.all) {
+    // this is the way old msie versions work
+    res = flip(document.all[szDivId]);
+  }
+  if(elem) {
+    if(res == 0) elem.innerHTML = msg1; else elem.innerHTML = msg2;
+  }
+
+}
+
+function toggleAllBoxes() {
+  if (document.getElementsByTagName) {
+    d = document.getElementsByTagName('div');
+    for (i = 0; i < d.length; i++) {
+      if (d[i].className == 'log') {
+        flip(d[i]);
+      }
+    }
+  }
+}
+
+// -->
+</script>
+
+</head>
+<body>
+<h2 align='center'>Surefire test</h2><table border='1' align="center">
+<tr>
+<td>Tests passed/Failed/Skipped:</td><td>22/0/0</td>
+</tr><tr>
+<td>Started on:</td><td>Sun Mar 29 22:08:21 CST 2026</td>
+</tr>
+<tr><td>Total time:</td><td>5 seconds (5598 ms)</td>
+</tr><tr>
+<td>Included groups:</td><td></td>
+</tr><tr>
+<td>Excluded groups:</td><td></td>
+</tr>
+</table><p/>
+<small><i>(Hover the method name to see the test class name)</i></small><p/>
+<table width='100%' border='1' class='invocation-passed'>
+<tr><td colspan='4' align='center'><b>PASSED TESTS</b></td></tr>
+<tr><td><b>Test method</b></td>
+<td><b>Attribute(s)</b></td>
+<td width="30%"><b>Exception</b></td>
+<td width="10%"><b>Time (seconds)</b></td>
+<td><b>Instance</b></td>
+</tr>
+<tr>
+<td title='com.ecommerce.afterSale.SellerAfterSaleTest.testViewAfterSaleList()'><b>testViewAfterSaleList</b><br>Test class: com.ecommerce.afterSale.SellerAfterSaleTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1</td></tr>
+<tr>
+<td title='com.ecommerce.payment.PaymentTest.testPaymentTimeout()'><b>testPaymentTimeout</b><br>Test class: com.ecommerce.payment.PaymentTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.payment.PaymentTest@1b2abca6</td></tr>
+<tr>
+<td title='com.ecommerce.base.SimpleLoginTest.testCustomerLogin()'><b>testCustomerLogin</b><br>Test class: com.ecommerce.base.SimpleLoginTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.base.SimpleLoginTest@bae7dc0</td></tr>
+<tr>
+<td title='com.ecommerce.payment.PaymentTest.testManualPaymentCheck()'><b>testManualPaymentCheck</b><br>Test class: com.ecommerce.payment.PaymentTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.payment.PaymentTest@1b2abca6</td></tr>
+<tr>
+<td title='com.ecommerce.order.OrderTest.testCreateOrder()'><b>testCreateOrder</b><br>Test class: com.ecommerce.order.OrderTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.order.OrderTest@e15b7e8</td></tr>
+<tr>
+<td title='com.ecommerce.payment.PaymentTest.testGetPaymentList()'><b>testGetPaymentList</b><br>Test class: com.ecommerce.payment.PaymentTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.payment.PaymentTest@1b2abca6</td></tr>
+<tr>
+<td title='com.ecommerce.afterSale.CustomerAfterSaleTest.testViewAfterSaleProgress()'><b>testViewAfterSaleProgress</b><br>Test class: com.ecommerce.afterSale.CustomerAfterSaleTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee</td></tr>
+<tr>
+<td title='com.ecommerce.payment.PaymentTest.testCreatePayment()'><b>testCreatePayment</b><br>Test class: com.ecommerce.payment.PaymentTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.payment.PaymentTest@1b2abca6</td></tr>
+<tr>
+<td title='com.ecommerce.afterSale.CustomerAfterSaleTest.testInitiateAfterSale()'><b>testInitiateAfterSale</b><br>Test class: com.ecommerce.afterSale.CustomerAfterSaleTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee</td></tr>
+<tr>
+<td title='com.ecommerce.payment.PaymentTest.testPaymentMethods()'><b>testPaymentMethods</b><br>Test class: com.ecommerce.payment.PaymentTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.payment.PaymentTest@1b2abca6</td></tr>
+<tr>
+<td title='com.ecommerce.address.AddressTest.testGetAddressList()'><b>testGetAddressList</b><br>Test class: com.ecommerce.address.AddressTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.address.AddressTest@7c24b813</td></tr>
+<tr>
+<td title='com.ecommerce.logistics.LogisticsTest.testGetDeliveryMethods()'><b>testGetDeliveryMethods</b><br>Test class: com.ecommerce.logistics.LogisticsTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.logistics.LogisticsTest@209da20d</td></tr>
+<tr>
+<td title='com.ecommerce.order.OrderTest.testViewHistoryOrders()'><b>testViewHistoryOrders</b><br>Test class: com.ecommerce.order.OrderTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.order.OrderTest@e15b7e8</td></tr>
+<tr>
+<td title='com.ecommerce.afterSale.CustomerAfterSaleTest.testViewAfterSaleDetail()'><b>testViewAfterSaleDetail</b><br>Test class: com.ecommerce.afterSale.CustomerAfterSaleTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee</td></tr>
+<tr>
+<td title='com.ecommerce.order.OrderTest.testOrderDetailButtons()'><b>testOrderDetailButtons</b><br>Test class: com.ecommerce.order.OrderTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.order.OrderTest@e15b7e8</td></tr>
+<tr>
+<td title='com.ecommerce.afterSale.SellerAfterSaleTest.testRejectAfterSale()'><b>testRejectAfterSale</b><br>Test class: com.ecommerce.afterSale.SellerAfterSaleTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1</td></tr>
+<tr>
+<td title='com.ecommerce.logistics.LogisticsTest.testViewLogisticsTracking()'><b>testViewLogisticsTracking</b><br>Test class: com.ecommerce.logistics.LogisticsTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.logistics.LogisticsTest@209da20d</td></tr>
+<tr>
+<td title='com.ecommerce.address.AddressTest.testSetDefaultAddress()'><b>testSetDefaultAddress</b><br>Test class: com.ecommerce.address.AddressTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.address.AddressTest@7c24b813</td></tr>
+<tr>
+<td title='com.ecommerce.address.AddressTest.testAutoFillDefaultAddress()'><b>testAutoFillDefaultAddress</b><br>Test class: com.ecommerce.address.AddressTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.address.AddressTest@7c24b813</td></tr>
+<tr>
+<td title='com.ecommerce.address.AddressTest.testAddAddress()'><b>testAddAddress</b><br>Test class: com.ecommerce.address.AddressTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.address.AddressTest@7c24b813</td></tr>
+<tr>
+<td title='com.ecommerce.payment.PaymentTest.testGetPaymentByPurchase()'><b>testGetPaymentByPurchase</b><br>Test class: com.ecommerce.payment.PaymentTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.payment.PaymentTest@1b2abca6</td></tr>
+<tr>
+<td title='com.ecommerce.afterSale.SellerAfterSaleTest.testAgreeRefund()'><b>testAgreeRefund</b><br>Test class: com.ecommerce.afterSale.SellerAfterSaleTest</td>
+<td></td>
+<td>0</td>
+<td>com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1</td></tr>
+</table><p>
+</body>
+</html>

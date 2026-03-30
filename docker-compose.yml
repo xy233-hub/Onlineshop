@@ -3,6 +3,7 @@ services:
     image: mysql:8.0
     container_name: onlineshop-mysql
     environment:
+      TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: onlineshop
       MYSQL_USER: shopuser
@@ -21,13 +22,15 @@ services:
     depends_on:
       - db
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/onlineshop?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      TZ: Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/onlineshop?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: shopuser
       SPRING_DATASOURCE_PASSWORD: shoppass
       MEDIA_UPLOAD_DIR: /app/uploads
       MEDIA_BASE_URL: http://120.55.249.112:8081/media
     volumes:
       - ./uploads:/app/uploads
+
   frontend:
     build: ./frontend/shop-front
     container_name: onlineshop-frontend
@@ -35,3 +38,5 @@ services:
       - "80:80"
     depends_on:
       - backend
+    environment:
+      TZ: Asia/Shanghai

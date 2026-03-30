@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testng-results ignored="12" total="34" passed="22" failed="0" skipped="0">
+  <reporter-output>
+  </reporter-output>
+  <suite started-at="2026-03-29T22:08:21 CST" name="Surefire suite" finished-at="2026-03-29T22:08:27 CST" duration-ms="5598">
+    <groups>
+    </groups>
+    <test started-at="2026-03-29T22:08:21 CST" name="Surefire test" finished-at="2026-03-29T22:08:27 CST" duration-ms="5598">
+      <class name="com.ecommerce.base.SimpleLoginTest">
+        <test-method is-config="true" signature="setup()[pri:0, instance:com.ecommerce.base.SimpleLoginTest@bae7dc0]" started-at="2026-03-29T22:08:26 CST" name="setup" finished-at="2026-03-29T22:08:26 CST" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setup -->
+        <test-method signature="testCustomerLogin()[pri:0, instance:com.ecommerce.base.SimpleLoginTest@bae7dc0]" started-at="2026-03-29T22:08:26 CST" name="testCustomerLogin" finished-at="2026-03-29T22:08:26 CST" duration-ms="159" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testCustomerLogin -->
+      </class> <!-- com.ecommerce.base.SimpleLoginTest -->
+      <class name="com.ecommerce.afterSale.SellerAfterSaleTest">
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testAgreeRefund()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="testAgreeRefund" finished-at="2026-03-29T22:08:26 CST" duration-ms="140" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testAgreeRefund -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testRejectAfterSale()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="testRejectAfterSale" finished-at="2026-03-29T22:08:26 CST" duration-ms="52" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testRejectAfterSale -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testViewAfterSaleList()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="testViewAfterSaleList" finished-at="2026-03-29T22:08:26 CST" duration-ms="66" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testViewAfterSaleList -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.afterSale.SellerAfterSaleTest@6fd83fc1]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+      </class> <!-- com.ecommerce.afterSale.SellerAfterSaleTest -->
+      <class name="com.ecommerce.address.AddressTest">
+        <test-method is-config="true" signature="setupSuite()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:21 CST" name="setupSuite" finished-at="2026-03-29T22:08:21 CST" duration-ms="552" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupSuite -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:22 CST" name="setupMethod" finished-at="2026-03-29T22:08:24 CST" duration-ms="2230" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testAddAddress()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:24 CST" name="testAddAddress" finished-at="2026-03-29T22:08:24 CST" duration-ms="572" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testAddAddress -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:24 CST" name="teardownMethod" finished-at="2026-03-29T22:08:24 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:24 CST" name="setupMethod" finished-at="2026-03-29T22:08:24 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testAutoFillDefaultAddress()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:24 CST" name="testAutoFillDefaultAddress" finished-at="2026-03-29T22:08:25 CST" duration-ms="292" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testAutoFillDefaultAddress -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="teardownMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="setupMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testGetAddressList()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="testGetAddressList" finished-at="2026-03-29T22:08:25 CST" duration-ms="111" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testGetAddressList -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="teardownMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="setupMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testSetDefaultAddress()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="testSetDefaultAddress" finished-at="2026-03-29T22:08:25 CST" duration-ms="211" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testSetDefaultAddress -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:25 CST" name="teardownMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="teardownSuite()[pri:0, instance:com.ecommerce.address.AddressTest@7c24b813]" started-at="2026-03-29T22:08:27 CST" name="teardownSuite" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownSuite -->
+      </class> <!-- com.ecommerce.address.AddressTest -->
+      <class name="com.ecommerce.order.OrderTest">
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testCreateOrder()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="testCreateOrder" finished-at="2026-03-29T22:08:26 CST" duration-ms="120" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testCreateOrder -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testOrderDetailButtons()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="testOrderDetailButtons" finished-at="2026-03-29T22:08:26 CST" duration-ms="81" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testOrderDetailButtons -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="2" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testViewHistoryOrders()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:26 CST" name="testViewHistoryOrders" finished-at="2026-03-29T22:08:27 CST" duration-ms="126" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testViewHistoryOrders -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.order.OrderTest@e15b7e8]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+      </class> <!-- com.ecommerce.order.OrderTest -->
+      <class name="com.ecommerce.logistics.LogisticsTest">
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.logistics.LogisticsTest@209da20d]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testGetDeliveryMethods()[pri:0, instance:com.ecommerce.logistics.LogisticsTest@209da20d]" started-at="2026-03-29T22:08:26 CST" name="testGetDeliveryMethods" finished-at="2026-03-29T22:08:26 CST" duration-ms="109" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testGetDeliveryMethods -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.logistics.LogisticsTest@209da20d]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.logistics.LogisticsTest@209da20d]" started-at="2026-03-29T22:08:26 CST" name="setupMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testViewLogisticsTracking()[pri:0, instance:com.ecommerce.logistics.LogisticsTest@209da20d]" started-at="2026-03-29T22:08:26 CST" name="testViewLogisticsTracking" finished-at="2026-03-29T22:08:26 CST" duration-ms="111" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testViewLogisticsTracking -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.logistics.LogisticsTest@209da20d]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+      </class> <!-- com.ecommerce.logistics.LogisticsTest -->
+      <class name="com.ecommerce.afterSale.CustomerAfterSaleTest">
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="setupMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testInitiateAfterSale()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="testInitiateAfterSale" finished-at="2026-03-29T22:08:25 CST" duration-ms="79" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testInitiateAfterSale -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="teardownMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="setupMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testViewAfterSaleDetail()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="testViewAfterSaleDetail" finished-at="2026-03-29T22:08:25 CST" duration-ms="312" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testViewAfterSaleDetail -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="teardownMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="setupMethod" finished-at="2026-03-29T22:08:25 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testViewAfterSaleProgress()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:25 CST" name="testViewAfterSaleProgress" finished-at="2026-03-29T22:08:26 CST" duration-ms="81" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testViewAfterSaleProgress -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.afterSale.CustomerAfterSaleTest@52af26ee]" started-at="2026-03-29T22:08:26 CST" name="teardownMethod" finished-at="2026-03-29T22:08:26 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+      </class> <!-- com.ecommerce.afterSale.CustomerAfterSaleTest -->
+      <class name="com.ecommerce.payment.PaymentTest">
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="setupMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testCreatePayment()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="testCreatePayment" finished-at="2026-03-29T22:08:27 CST" duration-ms="155" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testCreatePayment -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="setupMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testGetPaymentByPurchase()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="testGetPaymentByPurchase" finished-at="2026-03-29T22:08:27 CST" duration-ms="93" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testGetPaymentByPurchase -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="setupMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testGetPaymentList()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="testGetPaymentList" finished-at="2026-03-29T22:08:27 CST" duration-ms="95" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testGetPaymentList -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="setupMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testManualPaymentCheck()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="testManualPaymentCheck" finished-at="2026-03-29T22:08:27 CST" duration-ms="76" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testManualPaymentCheck -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="setupMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testPaymentMethods()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="testPaymentMethods" finished-at="2026-03-29T22:08:27 CST" duration-ms="3" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testPaymentMethods -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+        <test-method is-config="true" signature="setupMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="setupMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="0" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- setupMethod -->
+        <test-method signature="testPaymentTimeout()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="testPaymentTimeout" finished-at="2026-03-29T22:08:27 CST" duration-ms="44" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- testPaymentTimeout -->
+        <test-method is-config="true" signature="teardownMethod()[pri:0, instance:com.ecommerce.payment.PaymentTest@1b2abca6]" started-at="2026-03-29T22:08:27 CST" name="teardownMethod" finished-at="2026-03-29T22:08:27 CST" duration-ms="1" status="PASS">
+          <reporter-output>
+          </reporter-output>
+        </test-method> <!-- teardownMethod -->
+      </class> <!-- com.ecommerce.payment.PaymentTest -->
+    </test> <!-- Surefire test -->
+  </suite> <!-- Surefire suite -->
+</testng-results>

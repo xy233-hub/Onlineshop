@@ -668,21 +668,40 @@ const addToCart = async (product) => {
 
 const extractData = (res) => res?.data?.data ?? res?.data ?? null
 
+const mediaBaseUrl = (import.meta.env.VITE_MEDIA_BASE_URL || '').replace(/\/$/, '')
+const normalizeMediaUrl = (rawUrl) => {
+  const url = String(rawUrl || '').trim()
+  if (!url) return ''
+
+  // Relative media path: /media/xxx -> prefer configured media base, fallback current origin.
+  if (url.startsWith('/media/')) {
+    if (mediaBaseUrl) return `${mediaBaseUrl}${url}`
+    return `${window.location.origin}${url}`
+  }
+
+  // Absolute URL: keep as-is unless VITE_MEDIA_BASE_URL is provided, then rewrite only /media host.
+  if (/^https?:\/\//i.test(url)) {
+    if (!mediaBaseUrl) return url
+    return url.replace(/https?:\/\/[^/]+\/media/i, `${mediaBaseUrl}/media`)
+  }
+
+  return url
+}
+
 const normalizeProductItem = (item) => {
   const copy = { ...(item || {}) }
   let img = ''
   if (Array.isArray(copy.images) && copy.images.length) {
     const first = copy.images[0]
     if (typeof first === 'string') {
-      img = first.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+      img = normalizeMediaUrl(first)
     } else if (first && (first.image_url || first.url)) {
-      const url = first.image_url || first.url
-      img = url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+      img = normalizeMediaUrl(first.image_url || first.url)
     }
   } else if (copy.image_url) {
-    img = copy.image_url.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+    img = normalizeMediaUrl(copy.image_url)
   } else if (copy.images && typeof copy.images === 'string') {
-    img = copy.images.replace('http://120.55.249.112:8081/media', 'http://localhost:8081/media')
+    img = normalizeMediaUrl(copy.images)
   }
   copy.image_url = img || ''
   copy.product_desc = copy.product_desc ?? ''
@@ -1197,7 +1216,7 @@ const stripHtml = (input) => {
   }
 }
 
-/* 主要内容 */
+/* ��要内容 */
 .main-content {
   max-width: 1440px;
   margin: 0 auto;
@@ -2036,7 +2055,7 @@ const stripHtml = (input) => {
   margin-bottom: 8px;
 }
 
-.ai-product-desc {
+.ai-product_desc {
   margin: 0;
   color: #64748b;
   font-size: 13px;
