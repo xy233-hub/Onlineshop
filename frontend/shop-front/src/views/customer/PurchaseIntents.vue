@@ -7,21 +7,28 @@
 
     <el-table :data="intents" v-loading="loading" stripe>
       <el-table-column prop="purchase_id" label="意向 ID" width="100" />
-      <el-table-column label="商品 ID" width="100">
+      <el-table-column label="商品 ID" width="120">
         <template #default="{ row }">
-          <el-link 
-            v-if="row.items && row.items.length > 0" 
-            type="primary" 
-            @click="$router.push({ path: `/product/${row.items[0].product_id}` })"
-          >
-            {{ row.items[0].product_id }}
-          </el-link>
+          <div v-if="row.items && row.items.length > 0">
+            <div v-for="(item, idx) in row.items" :key="idx" style="margin-bottom: 4px;">
+              <el-link
+                  type="primary"
+                  @click="$router.push({ path: `/product/${item.product_id}` })"
+              >
+                {{ item.product_id }}
+              </el-link>
+            </div>
+          </div>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="商品名称">
+      <el-table-column label="商品名称" min-width="200">
         <template #default="{ row }">
-          <span v-if="row.items && row.items.length > 0">{{ row.items[0].product_name }}</span>
+          <div v-if="row.items && row.items.length > 0">
+            <div v-for="(item, idx) in row.items" :key="idx" style="margin-bottom: 4px;">
+              {{ item.product_name }}
+            </div>
+          </div>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -306,16 +313,16 @@ const fetchIntents = async () => {
     // 获取当前登录买家的 ID
     const customerInfo = JSON.parse(localStorage.getItem('customer_info') || '{}')
     const customerId = customerInfo.customer_id
-    
+
     if (!customerId) {
       ElMessage.error('未找到买家 ID，请重新登录')
       return
     }
-    
+
     // 调用卖家接口，但传递买家 ID 作为筛选条件
     // 后端需要支持按 seller_id 筛选（买家发布的商品，seller_id = customer_id）
-    const res = await purchaseAPI.getSellerPurchaseIntents({ 
-      page: page.value, 
+    const res = await purchaseAPI.getSellerPurchaseIntents({
+      page: page.value,
       size: size.value,
       seller_id: customerId  // 传递买家 ID 作为 seller_id
     })
@@ -327,10 +334,10 @@ const fetchIntents = async () => {
     }
     intents.value = Array.isArray(d.items) ? d.items : (Array.isArray(d) ? d : [])
     total.value = Number(d.total ?? intents.value.length)
-    
+
     // 提取所有唯一的 seller_id
     const sellerIds = [...new Set(intents.value.map(item => item.seller_id).filter(Boolean))]
-    
+
     // 批量获取卖家信息
     for (const sellerId of sellerIds) {
       try {
