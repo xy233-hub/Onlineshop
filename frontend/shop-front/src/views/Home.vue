@@ -4,7 +4,7 @@
     <header class="header">
       <div class="header-inner">
         <div class="nav-brand">
-          <h1>光盘行动——C版</h1>
+          <h1>光盘行动-C版</h1>
         </div>
 
         <div class="nav-links">
