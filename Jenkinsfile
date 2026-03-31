@@ -59,11 +59,11 @@ pipeline {
                 echo '=== 4. 本地部署 (启动容器) ==='
                 script {
                     sh "mkdir -p ${DEPLOY_PATH}"
-                    sh """
-                        if [ -d ${DEPLOY_PATH}/uploads/temp ]; then
-                          rm -rf ${DEPLOY_PATH}/uploads/temp/*
-                        fi
-                    """
+//                     sh """
+//                         if [ -d ${DEPLOY_PATH}/uploads/temp ]; then
+//                           rm -rf ${DEPLOY_PATH}/uploads/temp/*
+//                         fi
+//                     """
                     sh "cp docker-compose.yml ${DEPLOY_PATH}/"
                     sh "cp text1.2.sql ${DEPLOY_PATH}/"
                     dir("${DEPLOY_PATH}") {
