@@ -5,6 +5,8 @@ public class AiAssistantQueryRequest {
     private String text;
     private Integer page;
     private Integer size;
+    private String userId;
+    private String action;
 
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
@@ -14,4 +16,10 @@ public class AiAssistantQueryRequest {
 
     public Integer getSize() { return size; }
     public void setSize(Integer size) { this.size = size; }
+
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
+
+    public String getAction() { return action; }
+    public void setAction(String action) { this.action = action; }
 }

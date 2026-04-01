@@ -51,6 +51,9 @@ public class ExternalAiClient {
     @Value("${ai.api.enable-thinking:false}")
     private boolean defaultEnableThinking;
 
+    @Value("${ai.api.embedding-model:text-embedding-v4}")
+    private String embeddingModel;
+
     public ExternalAiClient(RestTemplateBuilder builder) {
         this.restTemplate = builder.build();
     }
@@ -87,6 +90,25 @@ public class ExternalAiClient {
             return content == null ? "" : content.trim();
         } catch (Exception e) {
             if (debug) System.out.println("[AI] generateDescription exception: " + e);
+            return "";
+        }
+    }
+
+    public String generateChatReply(String userText, String historyContext) {
+        try {
+            if (userText == null || userText.isBlank()) return "";
+
+            JsonNode msg = callDashScopeMessage(
+                    buildChatPrompt(userText, historyContext),
+                    defaultEnableThinking,
+                    "generateChatReply"
+            );
+            if (msg == null) return "";
+
+            String content = msg.path("content").asText("");
+            return content == null ? "" : content.trim();
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateChatReply exception: " + e);
             return "";
         }
     }
@@ -202,6 +224,44 @@ public class ExternalAiClient {
         } catch (Exception e) {
             if (debug) System.out.println("[AI] estimateProductPriceRange exception: " + e);
             return fallback;
+        }
+    }
+
+    public List<Double> generateEmbedding(String text) {
+        try {
+            if (text == null || text.isBlank()) return Collections.emptyList();
+            if (baseUrl == null || baseUrl.isBlank() || apiKey == null || apiKey.isBlank()) return Collections.emptyList();
+
+            String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+            String url = normalized + "/services/embeddings/text-embedding/text-embedding";
+
+            Map<String, Object> input = new HashMap<>();
+            input.put("texts", Collections.singletonList(text));
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", embeddingModel);
+            body.put("input", input);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + apiKey);
+
+            ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+            String raw = resp.getBody();
+            if (raw == null || raw.isBlank()) return Collections.emptyList();
+
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode embedding = root.path("output").path("embeddings").path(0).path("embedding");
+            if (!embedding.isArray() || embedding.isEmpty()) return Collections.emptyList();
+
+            List<Double> vector = new ArrayList<>(embedding.size());
+            for (JsonNode node : embedding) {
+                vector.add(node.asDouble());
+            }
+            return vector;
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateEmbedding exception: " + e);
+            return Collections.emptyList();
         }
     }
 
@@ -415,6 +475,19 @@ public class ExternalAiClient {
                 + userText + "\n"
                 + "候选商品摘要 JSON：\n"
                 + (productsSummaryJson == null ? "[]" : productsSummaryJson) + "\n";
+    }
+
+    private String buildChatPrompt(String userText, String historyContext) {
+        return ""
+                + "你是电商对话助手。请用简洁、友好的中文回复。\n"
+                + "规则：\n"
+                + "1) 优先基于历史上下文理解用户意图；\n"
+                + "2) 不确定时明确说明并追问关键信息（预算/用途/品牌偏好）；\n"
+                + "3) 不要输出思维链，不要输出多余格式。\n"
+                + "历史对话：\n"
+                + (historyContext == null || historyContext.isBlank() ? "（无）" : historyContext) + "\n"
+                + "当前用户输入：\n"
+                + userText + "\n";
     }
 
     private String buildProductDescriptionPrompt(String productName, Integer categoryId, String keywords, String productDesc) {

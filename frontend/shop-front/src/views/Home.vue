@@ -332,56 +332,50 @@
     <!-- AI 助手抽屉 -->
     <el-drawer
       v-model="aiPanelVisible"
-      title="AI 选品助手"
+      title="AI 对话助手"
       direction="rtl"
       :size="aiDrawerSize"
       class="ai-drawer"
     >
       <div class="ai-panel">
-        <el-input
-          v-model="aiInput"
-          type="textarea"
-          :rows="3"
-          resize="none"
-          placeholder="例如：我要黑神话悟空"
-          @keyup.enter.ctrl="submitAiQuery"
-        />
-        <div class="ai-actions-row">
-          <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
-          <el-button @click="clearAiResult">清空</el-button>
-          <span class="ai-tip">按 Ctrl + Enter 也可发送</span>
-        </div>
+        <div ref="aiChatBodyRef" class="ai-chat-body">
+          <div v-if="!aiMessages.length" class="ai-empty-chat">
+            <el-empty description="开始聊聊你的需求吧" />
+          </div>
 
-        <el-alert
-          class="ai-reply"
-          type="success"
-          :closable="false"
-          :title="aiReply || '请输入你的需求，AI 会返回推荐结果'"
-          show-icon
-        />
-
-        <div class="ai-carousel-wrap">
-          <el-carousel v-if="aiItems.length" :autoplay="false" indicator-position="outside" height="250px">
-            <el-carousel-item v-for="item in aiItems" :key="item.product_id">
-              <div class="ai-product-card">
-                <el-image
-                  class="ai-product-image"
-                  fit="cover"
-                  :src="item.image_url || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=minimal%20product%20placeholder%20white%20background&image_size=square'"
-                />
-                <div class="ai-product-main">
-                  <h4 class="ai-product-name">{{ item.product_name }}</h4>
-                  <div class="ai-product-meta">
-                    <span>¥{{ item.price ?? 0 }}</span>
-                    <span>库存: {{ item.stock_quantity ?? 0 }}</span>
-                  </div>
-                  <p class="ai-product-desc">{{ stripHtml(item.product_desc) }}</p>
+          <div
+            v-for="(msg, idx) in aiMessages"
+            :key="`${msg.role}-${idx}-${msg.time}`"
+            class="ai-msg-row"
+            :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
+          >
+            <div class="ai-bubble">
+              <div class="ai-msg-text">{{ msg.text }}</div>
+              <div v-if="msg.items && msg.items.length" class="ai-msg-items">
+                <div v-for="item in msg.items" :key="item.product_id" class="ai-mini-item">
+                  <span class="name">{{ item.product_name }}</span>
+                  <span class="price">¥{{ item.price ?? 0 }}</span>
                   <el-button type="primary" link @click="goToProductDetail(item.product_id)">查看详情</el-button>
                 </div>
               </div>
-            </el-carousel-item>
-          </el-carousel>
-          <el-empty v-else description="暂无推荐商品" />
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-input-box">
+          <el-input
+            v-model="aiInput"
+            type="textarea"
+            :rows="3"
+            resize="none"
+            placeholder="例如：我想买一台 5000 左右的游戏本"
+            @keyup.enter.ctrl="submitAiQuery"
+          />
+          <div class="ai-actions-row">
+            <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
+            <el-button @click="clearAiResult">清空</el-button>
+            <span class="ai-tip">按 Ctrl + Enter 发送</span>
+          </div>
         </div>
 
         <div class="ai-raw-block">
@@ -394,7 +388,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { productAPI, categoryAPI, cartAPI, aiAPI } from '@/api'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -423,6 +417,8 @@ const aiInput = ref('')
 const aiLoading = ref(false)
 const aiReply = ref('')
 const aiItems = ref([])
+const aiMessages = ref([])
+const aiChatBodyRef = ref(null)
 const aiRawResponse = ref(null)
 const aiPage = ref(1)
 const aiSize = ref(10)
@@ -598,6 +594,7 @@ watch(q, (newValue) => {
 })
 
 const LOGOUT_TOAST_KEY = 'post_reload_toast'
+const ANON_AI_USER_ID_KEY = 'anon_ai_user_id'
 
 const logout = async () => {
   try {
@@ -714,7 +711,15 @@ const clearAiResult = () => {
   aiInput.value = ''
   aiReply.value = ''
   aiItems.value = []
+  aiMessages.value = []
   aiRawResponse.value = null
+}
+
+const scrollAiToBottom = async () => {
+  await nextTick()
+  const el = aiChatBodyRef.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
 }
 
 const submitAiQuery = async () => {
@@ -724,30 +729,56 @@ const submitAiQuery = async () => {
     return
   }
 
+  aiMessages.value.push({ role: 'user', text, items: [], time: Date.now() })
   aiLoading.value = true
+  aiInput.value = ''
+  await scrollAiToBottom()
+
   try {
     const response = await aiAPI.recommend({
       text,
       page: aiPage.value,
-      size: aiSize.value
+      size: aiSize.value,
+      userId: getAiUserId()
     })
     aiRawResponse.value = response?.data ?? null
 
     const payload = extractData(response) || {}
-    aiReply.value = payload?.ai_description || '未获取到 AI 描述'
+    aiReply.value = payload?.ai_description || '未获取到 AI 回复'
     aiItems.value = Array.isArray(payload?.items) ? payload.items.map(normalizeProductItem) : []
 
-    if (!aiItems.value.length) {
-      ElMessage.info('未匹配到可推荐商品')
-    }
+    aiMessages.value.push({
+      role: 'assistant',
+      text: aiReply.value,
+      items: aiItems.value,
+      time: Date.now()
+    })
+    await scrollAiToBottom()
   } catch (error) {
-    console.error('AI 推荐请求失败:', error)
+    console.error('AI 对话请求失败:', error)
     aiReply.value = '请求失败，请稍后重试'
     aiItems.value = []
-    ElMessage.error('AI 推荐请求失败')
+    aiMessages.value.push({ role: 'assistant', text: aiReply.value, items: [], time: Date.now() })
+    ElMessage.error('AI 对话请求失败')
+    await scrollAiToBottom()
   } finally {
     aiLoading.value = false
   }
+}
+
+const getAiUserId = () => {
+  const cid = customerStore.customer?.customer_id || localStorage.getItem('customer_id')
+  if (cid !== null && cid !== undefined && String(cid).trim()) {
+    return `customer_${String(cid).trim()}`
+  }
+
+  let anonId = localStorage.getItem(ANON_AI_USER_ID_KEY)
+  if (!anonId) {
+    const randomPart = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    anonId = `anon_${randomPart}`
+    localStorage.setItem(ANON_AI_USER_ID_KEY, anonId)
+  }
+  return anonId
 }
 
 const updateAiDrawerSize = () => {
@@ -1988,82 +2019,103 @@ const stripHtml = (input) => {
 
 .ai-panel {
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: 10px;
+  padding: 12px;
+}
+
+.ai-chat-body {
   overflow-y: auto;
-}
-
-.ai-actions-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ai-tip {
-  color: #64748b;
-  font-size: 12px;
-  margin-left: auto;
-}
-
-.ai-reply {
-  margin-top: 2px;
-}
-
-.ai-carousel-wrap {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 12px;
 }
 
-.ai-product-card {
-  display: flex;
-  gap: 10px;
+.ai-empty-chat {
   height: 100%;
-  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-msg-row {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.ai-msg-row.is-user {
+  justify-content: flex-end;
+}
+
+.ai-msg-row.is-assistant {
+  justify-content: flex-start;
+}
+
+.ai-bubble {
+  max-width: 88%;
+  border-radius: 12px;
+  padding: 10px 12px;
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+.ai-msg-row.is-user .ai-bubble {
+  background: #2563eb;
+  color: #fff;
+}
+
+.ai-msg-row.is-assistant .ai-bubble {
+  background: #fff;
+  color: #1f2937;
+  border: 1px solid #e5e7eb;
+}
+
+.ai-msg-items {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.ai-mini-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.ai-mini-item .name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.ai-mini-item .price {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.ai-input-box {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
+  background: #fff;
   padding: 10px;
 }
 
-.ai-product-image {
-  width: 110px;
-  height: 110px;
-  border-radius: 10px;
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-
-.ai-product-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.ai-product-name {
-  margin: 0 0 8px;
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.ai-product-meta {
+.ai-actions-row {
   display: flex;
-  gap: 12px;
-  color: #334155;
-  font-size: 13px;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
 }
 
-.ai-product_desc {
-  margin: 0;
+.ai-tip {
   color: #64748b;
-  font-size: 13px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 12px;
+  margin-left: auto;
 }
 
 .ai-raw-block {
@@ -2081,7 +2133,7 @@ const stripHtml = (input) => {
 
 .ai-raw-json {
   margin: 0;
-  max-height: 180px;
+  max-height: 140px;
   overflow: auto;
   font-size: 12px;
   white-space: pre-wrap;

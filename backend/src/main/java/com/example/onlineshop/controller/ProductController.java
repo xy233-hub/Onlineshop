@@ -136,7 +136,8 @@ public class ProductController {
             AiAssistantProductResponse resp = aiShoppingAssistantService.recommend(
                     req == null ? null : req.getText(),
                     req == null ? null : req.getPage(),
-                    req == null ? null : req.getSize()
+                    req == null ? null : req.getSize(),
+                    req == null ? null : req.getUserId()
             );
             return ResponseUtil.success("查询成功", resp);
         } catch (IllegalArgumentException e) {
@@ -146,4 +147,3 @@ public class ProductController {
         }
     }
 }
-
