@@ -36,6 +36,8 @@ public class ProductInfoResponse {
     public String createdAt;
     @JsonProperty("updated_at")
     public String updatedAt;
+    @JsonProperty("score")
+    public Double score;
 
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -71,7 +73,3 @@ public class ProductInfoResponse {
         this.mediaResources = mediaResources != null ? mediaResources : Collections.emptyList();
     }
 }
-
-
-
-

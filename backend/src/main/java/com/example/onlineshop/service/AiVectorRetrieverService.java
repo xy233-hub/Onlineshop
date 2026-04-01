@@ -11,7 +11,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 public class AiVectorRetrieverService {
@@ -58,7 +57,10 @@ public class AiVectorRetrieverService {
         int from = Math.min((safePage - 1) * safeSize, total);
         int to = Math.min(from + safeSize, total);
 
-        List<Product> items = scores.subList(from, to).stream().map(ProductScore::product).collect(Collectors.toList());
+        List<ScoredProduct> items = new ArrayList<>();
+        for (ProductScore ps : scores.subList(from, to)) {
+            items.add(new ScoredProduct(ps.product(), ps.score()));
+        }
         return new RetrievalResult(total, items);
     }
 
@@ -162,5 +164,7 @@ public class AiVectorRetrieverService {
 
     private record ProductScore(Product product, double score) {}
 
-    public record RetrievalResult(int total, List<Product> items) {}
+    public record ScoredProduct(Product product, double score) {}
+
+    public record RetrievalResult(int total, List<ScoredProduct> items) {}
 }

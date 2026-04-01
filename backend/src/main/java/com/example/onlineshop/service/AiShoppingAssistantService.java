@@ -87,9 +87,14 @@ public class AiShoppingAssistantService {
         query.setSize(safeSize);
 
         AiVectorRetrieverService.RetrievalResult retrieval = aiVectorRetrieverService.retrieve(query, userText, safePage, safeSize);
-        List<ProductInfoResponse> items = retrieval.items().stream().map(ProductInfoResponse::new).toList();
+        List<ProductInfoResponse> items = retrieval.items().stream().map(sp -> {
+            ProductInfoResponse item = new ProductInfoResponse(sp.product());
+            item.score = sp.score();
+            return item;
+        }).toList();
 
-        String summaryJson = buildProductsSummaryJson(retrieval.items());
+        List<Product> retrievedProducts = retrieval.items().stream().map(AiVectorRetrieverService.ScoredProduct::product).toList();
+        String summaryJson = buildProductsSummaryJson(retrievedProducts);
         String aiDescription = externalAiClient.generateDescription(userText, summaryJson);
         if (aiDescription == null || aiDescription.isBlank()) {
             aiDescription = retrieval.total() > 0 ? "已为你筛选到更匹配的商品，可以按价格、成色和发布时间进一步对比。" :
