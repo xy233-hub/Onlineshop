@@ -7,6 +7,7 @@ public class AiAssistantQueryRequest {
     private Integer size;
     private String userId;
     private String action;
+    private String scene;
 
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
@@ -22,4 +23,7 @@ public class AiAssistantQueryRequest {
 
     public String getAction() { return action; }
     public void setAction(String action) { this.action = action; }
+
+    public String getScene() { return scene; }
+    public void setScene(String scene) { this.scene = scene; }
 }

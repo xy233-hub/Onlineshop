@@ -368,10 +368,13 @@
             type="textarea"
             :rows="3"
             resize="none"
-            placeholder="例如：我想买一台 5000 左右的游戏本"
+            :placeholder="aiInputPlaceholder"
             @keyup.enter.ctrl="submitAiQuery"
           />
           <div class="ai-actions-row">
+            <el-select v-model="aiScene" size="small" class="ai-scene-select" placeholder="选择模式">
+              <el-option v-for="opt in aiSceneOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </el-select>
             <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
             <el-button @click="clearAiResult">清空</el-button>
             <span class="ai-tip">按 Ctrl + Enter 发送</span>
@@ -423,6 +426,17 @@ const aiRawResponse = ref(null)
 const aiPage = ref(1)
 const aiSize = ref(10)
 const aiDrawerSize = ref('460px')
+const aiScene = ref('recommend')
+const aiSceneOptions = [
+  { label: '导购推荐', value: 'recommend' },
+  { label: '对话问答', value: 'chat' },
+  { label: '条件提取', value: 'extract_query' }
+]
+const aiInputPlaceholder = computed(() => {
+  if (aiScene.value === 'chat') return '例如：预算 3000，主要办公用，帮我选几款'
+  if (aiScene.value === 'extract_query') return '例如：帮我筛选 1000-2000 的二手手机，按价格升序'
+  return '例如：我想买一台 5000 左右的游戏本'
+})
 const aiRawText = computed(() => {
   if (!aiRawResponse.value) return '暂无数据'
   try {
@@ -715,6 +729,18 @@ const clearAiResult = () => {
   aiRawResponse.value = null
 }
 
+const buildExtractQueryText = (payload) => {
+  const query = payload?.query || {}
+  const q = query?.q || ''
+  const min = query?.minPrice ?? query?.min_price
+  const max = query?.maxPrice ?? query?.max_price
+  const status = query?.status || 'online'
+  const pageNo = query?.page ?? aiPage.value
+  const pageSize = query?.size ?? aiSize.value
+  const range = (min != null || max != null) ? `，价格区间：${min ?? '-'} ~ ${max ?? '-'}` : ''
+  return `已提取查询条件：关键词「${q || '未识别'}」、状态：${status}${range}，分页：${pageNo}/${pageSize}`
+}
+
 const scrollAiToBottom = async () => {
   await nextTick()
   const el = aiChatBodyRef.value
@@ -735,17 +761,31 @@ const submitAiQuery = async () => {
   await scrollAiToBottom()
 
   try {
+    const scene = aiScene.value || 'recommend'
     const response = await aiAPI.recommend({
       text,
       page: aiPage.value,
       size: aiSize.value,
-      userId: getAiUserId()
+      userId: getAiUserId(),
+      scene,
+      action: scene
     })
     aiRawResponse.value = response?.data ?? null
 
     const payload = extractData(response) || {}
-    aiReply.value = payload?.ai_description || '未获取到 AI 回复'
-    aiItems.value = Array.isArray(payload?.items) ? payload.items.map(normalizeProductItem) : []
+    const aiDesc = payload?.ai_description || payload?.aiDescription || ''
+    const normalizedItems = Array.isArray(payload?.items) ? payload.items.map(normalizeProductItem) : []
+
+    if (scene === 'extract_query') {
+      aiReply.value = aiDesc || buildExtractQueryText(payload)
+      aiItems.value = []
+    } else if (scene === 'chat') {
+      aiReply.value = aiDesc || '已收到你的问题，我再帮你细化一下需求。'
+      aiItems.value = []
+    } else {
+      aiReply.value = aiDesc || '未获取到 AI 回复'
+      aiItems.value = normalizedItems
+    }
 
     aiMessages.value.push({
       role: 'assistant',
@@ -2110,6 +2150,10 @@ const stripHtml = (input) => {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+}
+
+.ai-scene-select {
+  width: 120px;
 }
 
 .ai-tip {

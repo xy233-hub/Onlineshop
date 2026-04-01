@@ -1,8 +1,11 @@
 // src/main/java/com/example/onlineshop/service/AiShoppingAssistantService.java
 package com.example.onlineshop.service;
 
-import com.example.onlineshop.dto.response.AiAssistantProductResponse;
 import com.example.onlineshop.dto.ai.AiProductQuery;
+import com.example.onlineshop.dto.response.AiAssistantProductResponse;
+import com.example.onlineshop.dto.response.ProductInfoResponse;
+import com.example.onlineshop.entity.Product;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -10,7 +13,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,22 +25,36 @@ public class AiShoppingAssistantService {
     private static final int MAX_TURNS = 3;
 
     private final ExternalAiClient externalAiClient;
+    private final AiVectorRetrieverService aiVectorRetrieverService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, ChatSession> chatMemory = new ConcurrentHashMap<>();
 
     @Value("${ai.session.ttl-ms:1800000}")
     private long sessionTtlMs;
 
-    public AiShoppingAssistantService(ExternalAiClient externalAiClient) {
+    public AiShoppingAssistantService(ExternalAiClient externalAiClient, AiVectorRetrieverService aiVectorRetrieverService) {
         this.externalAiClient = externalAiClient;
+        this.aiVectorRetrieverService = aiVectorRetrieverService;
     }
 
-    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId) {
+    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action) {
         if (userText == null || userText.trim().isEmpty()) {
             throw new IllegalArgumentException("text 必填");
         }
 
         int safePage = (page != null && page > 0) ? page : 1;
         int safeSize = (size != null && size > 0) ? size : 10;
+        String mode = resolveMode(scene, action);
+
+        return switch (mode) {
+            case "chat" -> handleChat(userText, safePage, safeSize, userId);
+            case "recommend" -> handleRecommend(userText, safePage, safeSize);
+            case "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
+            default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query");
+        };
+    }
+
+    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId) {
         String memoryKey = buildMemoryKey(userId);
 
         evictExpiredSessions();
@@ -53,6 +72,72 @@ public class AiShoppingAssistantService {
         query.setSize(safeSize);
 
         return new AiAssistantProductResponse(query, aiReply, safePage, safeSize, 0, Collections.emptyList());
+    }
+
+    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize) {
+        AiProductQuery query = externalAiClient.extractQuery(userText);
+        if (query == null) {
+            query = new AiProductQuery();
+            query.setQ(userText);
+        }
+
+        if (query.getQ() == null || query.getQ().isBlank()) query.setQ(userText);
+        if (query.getStatus() == null || query.getStatus().isBlank()) query.setStatus("online");
+        query.setPage(safePage);
+        query.setSize(safeSize);
+
+        AiVectorRetrieverService.RetrievalResult retrieval = aiVectorRetrieverService.retrieve(query, userText, safePage, safeSize);
+        List<ProductInfoResponse> items = retrieval.items().stream().map(ProductInfoResponse::new).toList();
+
+        String summaryJson = buildProductsSummaryJson(retrieval.items());
+        String aiDescription = externalAiClient.generateDescription(userText, summaryJson);
+        if (aiDescription == null || aiDescription.isBlank()) {
+            aiDescription = retrieval.total() > 0 ? "已为你筛选到更匹配的商品，可以按价格、成色和发布时间进一步对比。" :
+                    "暂时没有找到特别匹配的商品，建议补充预算、品牌或用途后再试。";
+        }
+
+        return new AiAssistantProductResponse(query, aiDescription, safePage, safeSize, retrieval.total(), items);
+    }
+
+    private AiAssistantProductResponse handleExtractQuery(String userText, int safePage, int safeSize) {
+        AiProductQuery query = externalAiClient.extractQuery(userText);
+        if (query == null) {
+            query = new AiProductQuery();
+            query.setQ(userText);
+        }
+        query.setPage(safePage);
+        query.setSize(safeSize);
+
+        return new AiAssistantProductResponse(query, "已完成查询条件提取", safePage, safeSize, 0, Collections.emptyList());
+    }
+
+    private String resolveMode(String scene, String action) {
+        String raw = (scene != null && !scene.isBlank()) ? scene : action;
+        if (raw == null || raw.isBlank()) return "chat";
+
+        String mode = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_');
+        if ("conversation".equals(mode)) return "chat";
+        if ("rag".equals(mode) || "search".equals(mode)) return "recommend";
+        return mode;
+    }
+
+    private String buildProductsSummaryJson(List<Product> products) {
+        if (products == null || products.isEmpty()) return "[]";
+        List<Map<String, Object>> summary = new ArrayList<>();
+        for (Product p : products) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("product_id", p.getProductId());
+            row.put("product_name", p.getProductName());
+            row.put("price", p.getPrice());
+            row.put("short_desc", p.getShortDesc());
+            summary.add(row);
+        }
+
+        try {
+            return objectMapper.writeValueAsString(summary);
+        } catch (Exception e) {
+            return "[]";
+        }
     }
 
     private String buildMemoryKey(String userId) {

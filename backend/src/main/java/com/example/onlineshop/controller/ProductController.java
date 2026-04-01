@@ -3,7 +3,6 @@ package com.example.onlineshop.controller;
 
 import com.example.onlineshop.dto.request.AiAssistantQueryRequest;
 import com.example.onlineshop.dto.request.PurchaseIntentRequest;
-import com.example.onlineshop.dto.request.PurchaseRequest;
 import com.example.onlineshop.dto.response.AiAssistantProductResponse;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
@@ -20,7 +19,6 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/products")
@@ -137,7 +135,9 @@ public class ProductController {
                     req == null ? null : req.getText(),
                     req == null ? null : req.getPage(),
                     req == null ? null : req.getSize(),
-                    req == null ? null : req.getUserId()
+                    req == null ? null : req.getUserId(),
+                    req == null ? null : req.getScene(),
+                    req == null ? null : req.getAction()
             );
             return ResponseUtil.success("查询成功", resp);
         } catch (IllegalArgumentException e) {

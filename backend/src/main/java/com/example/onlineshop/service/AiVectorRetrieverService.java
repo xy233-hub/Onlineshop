@@ -22,7 +22,7 @@ public class AiVectorRetrieverService {
     @Value("${rag.vector.index-ttl-ms:300000}")
     private long indexTtlMs;
 
-    @Value("${rag.vector.min-score:0.15}")
+    @Value("${rag.vector.min-score:0.40}")
     private double minScore;
 
     private volatile List<IndexedProduct> cachedIndex = Collections.emptyList();
@@ -164,4 +164,3 @@ public class AiVectorRetrieverService {
 
     public record RetrievalResult(int total, List<Product> items) {}
 }
-
