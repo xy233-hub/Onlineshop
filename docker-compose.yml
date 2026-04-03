@@ -28,6 +28,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: shoppass
       MEDIA_UPLOAD_DIR: /app/uploads
       MEDIA_BASE_URL: http://120.55.249.112:8081/media
+      ALI_API_KEY: ${ALI_API_KEY}
     volumes:
       - ./uploads:/app/uploads
 

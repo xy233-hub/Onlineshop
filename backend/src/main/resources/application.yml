@@ -1,6 +1,6 @@
 ai:
   api:
-    key: sk-07be2f08f2934a768c0fd13121aff12d
+    key: ${ALI_API_KEY}
     base-url: https://dashscope.aliyuncs.com/api/v1
     connect-timeout-ms: 10000
     read-timeout-ms: 30000
