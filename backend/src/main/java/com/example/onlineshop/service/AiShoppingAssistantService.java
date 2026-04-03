@@ -48,7 +48,7 @@ public class AiShoppingAssistantService {
 
         return switch (mode) {
             case "chat" -> handleChat(userText, safePage, safeSize, userId);
-            case "recommend" -> handleRecommend(userText, safePage, safeSize);
+            case "recommend" -> handleRecommend(userText, safePage, safeSize, userId);
             case "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
             default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query");
         };
@@ -74,8 +74,12 @@ public class AiShoppingAssistantService {
         return new AiAssistantProductResponse(query, aiReply, safePage, safeSize, 0, Collections.emptyList());
     }
 
-    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize) {
-        AiProductQuery query = externalAiClient.extractQuery(userText);
+    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId) {
+        String memoryKey = buildMemoryKey(userId);
+        evictExpiredSessions();
+        String historyContext = buildRecentUserContext(memoryKey, 3);
+
+        AiProductQuery query = externalAiClient.extractQuery(userText, historyContext);
         if (query == null) {
             query = new AiProductQuery();
             query.setQ(userText);
@@ -86,7 +90,7 @@ public class AiShoppingAssistantService {
         query.setPage(safePage);
         query.setSize(safeSize);
 
-        AiVectorRetrieverService.RetrievalResult retrieval = aiVectorRetrieverService.retrieve(query, userText, safePage, safeSize);
+        AiVectorRetrieverService.RetrievalResult retrieval = aiVectorRetrieverService.retrieve(query, userText, historyContext, safePage, safeSize);
         List<ProductInfoResponse> items = retrieval.items().stream().map(sp -> {
             ProductInfoResponse item = new ProductInfoResponse(sp.product());
             item.score = sp.score();
@@ -101,6 +105,7 @@ public class AiShoppingAssistantService {
                     "暂时没有找到特别匹配的商品，建议补充预算、品牌或用途后再试。";
         }
 
+        appendTurn(memoryKey, userText, aiDescription);
         return new AiAssistantProductResponse(query, aiDescription, safePage, safeSize, retrieval.total(), items);
     }
 
@@ -161,6 +166,21 @@ public class AiShoppingAssistantService {
             lines.add("助手：" + turn.assistantText());
         }
         return String.join("\n", lines);
+    }
+
+    private String buildRecentUserContext(String memoryKey, int maxUserTurns) {
+        ChatSession session = chatMemory.get(memoryKey);
+        if (session == null || session.turns().isEmpty()) return "";
+
+        session.touch(System.currentTimeMillis());
+        List<String> recent = new ArrayList<>();
+        for (ChatTurn turn : session.turns()) {
+            String text = turn.userText();
+            if (text != null && !text.isBlank()) recent.add(text);
+        }
+
+        int from = Math.max(0, recent.size() - Math.max(maxUserTurns, 1));
+        return String.join("\n", recent.subList(from, recent.size()));
     }
 
     private void appendTurn(String memoryKey, String userText, String assistantText) {

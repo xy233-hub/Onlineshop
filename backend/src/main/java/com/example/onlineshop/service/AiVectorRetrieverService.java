@@ -32,11 +32,11 @@ public class AiVectorRetrieverService {
         this.externalAiClient = externalAiClient;
     }
 
-    public RetrievalResult retrieve(AiProductQuery query, String userText, int page, int size) {
+    public RetrievalResult retrieve(AiProductQuery query, String userText, String historyContext, int page, int size) {
         List<IndexedProduct> index = loadIndex();
         if (index.isEmpty()) return new RetrievalResult(0, Collections.emptyList());
 
-        String semanticText = buildSemanticText(query, userText);
+        String semanticText = buildSemanticText(query, userText, historyContext);
         List<Double> queryVector = externalAiClient.generateEmbedding(semanticText);
 
         List<ProductScore> scores = new ArrayList<>();
@@ -109,8 +109,9 @@ public class AiVectorRetrieverService {
         ).trim();
     }
 
-    private String buildSemanticText(AiProductQuery query, String userText) {
+    private String buildSemanticText(AiProductQuery query, String userText, String historyContext) {
         List<String> parts = new ArrayList<>();
+        if (historyContext != null && !historyContext.isBlank()) parts.add(historyContext.trim());
         if (userText != null && !userText.isBlank()) parts.add(userText.trim());
         if (query != null && query.getQ() != null && !query.getQ().isBlank()) parts.add(query.getQ().trim());
         return String.join(" ", parts).trim();

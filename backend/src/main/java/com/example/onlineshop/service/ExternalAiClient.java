@@ -59,10 +59,14 @@ public class ExternalAiClient {
     }
 
     public AiProductQuery extractQuery(String userText) {
+        return extractQuery(userText, "");
+    }
+
+    public AiProductQuery extractQuery(String userText, String historyContext) {
         try {
             if (userText == null || userText.isBlank()) return null;
 
-            JsonNode msg = callDashScopeMessage(buildExtractPrompt(userText), false, "extractQuery");
+            JsonNode msg = callDashScopeMessage(buildExtractPrompt(userText, historyContext), false, "extractQuery");
             if (msg == null) return null;
 
             String content = msg.path("content").asText("");
@@ -452,20 +456,29 @@ public class ExternalAiClient {
     }
 
     private String buildExtractPrompt(String userText) {
+        return buildExtractPrompt(userText, "");
+    }
+
+    private String buildExtractPrompt(String userText, String historyContext) {
+        String context = (historyContext == null || historyContext.isBlank()) ? "（无）" : historyContext;
         return ""
                 + "你是电商搜索条件提取器。\n"
                 + "从用户输入中提取结构化查询条件，输出严格 JSON，禁止输出多余文本。\n"
                 + "允许字段：q, categoryId, status, minPrice, maxPrice, sortBy, order, page, size。\n"
                 + "重要规则（必须遵守）：\n"
                 + "1) `q` 必须尽量保留用户的关键短语，不要只保留一个名词，用逗号分离。\n"
-                + "2) status 默认 online。\n"
-                + "3) sortBy 只能是 price / created_at / stock_quantity 之一，不提供则为 created_at。\n"
-                + "4) order 只能是 asc / desc，不提供则 desc。\n"
-                + "5) page 默认 1，size 默认 10。\n"
-                + "6) 价格区间识别：例如 100-250 元 -> minPrice=100,maxPrice=250。\n"
-                + "用户输入：\n"
+                + "2) 优先结合最近对话上下文补全省略信息（如预算、品类、用途）。\n"
+                + "3) status 默认 online。\n"
+                + "4) sortBy 只能是 price / created_at / stock_quantity 之一，不提供则为 created_at。\n"
+                + "5) order 只能是 asc / desc，不提供则 desc。\n"
+                + "6) page 默认 1，size 默认 10。\n"
+                + "7) 价格区间识别：例如 100-250 元 -> minPrice=100,maxPrice=250。\n"
+                + "最近对话（仅用户）：\n"
+                + context + "\n"
+                + "当前用户输入：\n"
                 + userText + "\n";
     }
+
     private String buildDescriptionPrompt(String userText, String productsSummaryJson) {
         return ""
                 + "你是电商导购助手。\n"
