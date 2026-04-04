@@ -10,9 +10,14 @@
             <el-breadcrumb-item>{{ product?.product_name || '加载中' }}</el-breadcrumb-item>
           </el-breadcrumb>
 
-          <el-button @click="$router.push('/')" class="btn-return" :icon="ArrowLeft" size="default">
-            返回
-          </el-button>
+          <div class="header-actions">
+            <el-button @click="toggleLanguage" class="btn-language" size="default">
+              {{ currentLanguage === 'chinese_simplified' ? 'English' : '中文' }}
+            </el-button>
+            <el-button @click="$router.push('/')" class="btn-return" :icon="ArrowLeft" size="default">
+              返回
+            </el-button>
+          </div>
         </div>
       </el-header>
 
@@ -261,8 +266,62 @@ const quantity = ref(1)
 const activeTab = ref('desc')
 const isFavorited = ref(false) // 收藏状态
 const productId = computed(() => route.params.id)
+const currentLanguage = ref('chinese_simplified')
 
 let DeltaToHtmlConverter = null
+let translateReady = false
+
+const ensureTranslateScriptLoaded = () => {
+  if (window.translate) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const scriptId = 'translate-js-cdn'
+    const existing = document.getElementById(scriptId)
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true })
+      existing.addEventListener('error', reject, { once: true })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = scriptId
+    script.src = 'https://cdn.staticfile.net/translate.js/3.18.66/translate.js'
+    script.async = true
+    script.onload = resolve
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+}
+
+const initTranslate = () => {
+  if (!window.translate || translateReady) return
+
+  window.translate.language.setLocal('chinese_simplified')
+  window.translate.service.use('client.edge')
+  window.translate.listener.start()
+  window.translate.execute()
+  translateReady = true
+}
+
+const toggleLanguage = () => {
+  if (!window.translate || !translateReady) {
+    ElMessage.warning('翻译组件加载中，请稍后重试')
+    return
+  }
+
+  const target = currentLanguage.value === 'chinese_simplified' ? 'english' : 'chinese_simplified'
+
+  if (typeof window.translate.changeLanguage === 'function') {
+    window.translate.changeLanguage(target)
+  } else if (typeof window.translate.to === 'function') {
+    window.translate.to(target)
+  } else {
+    ElMessage.warning('当前翻译组件不支持语言切换')
+    return
+  }
+
+  currentLanguage.value = target
+}
 
 const fetchProduct = async () => {
   loading.value = true
@@ -552,6 +611,13 @@ const addCart = async () => {
 
 onMounted(async () => {
   try {
+    await ensureTranslateScriptLoaded()
+    initTranslate()
+  } catch (e) {
+    console.warn('translate.js 加载失败：', e)
+  }
+
+  try {
     const mod = await import('quill-delta-to-html')
     DeltaToHtmlConverter = mod.DeltaToHtmlConverter || mod.default?.DeltaToHtmlConverter || mod.default || mod
   } catch (e) {
@@ -596,6 +662,22 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-language {
+  border: none;
+  background: rgba(0,0,0,0.02);
+  border-radius: 40px;
+  padding: 8px 18px;
+}
+.btn-language:hover {
+  background: rgba(0,0,0,0.04);
 }
 
 .breadcrumb-modern :deep(.el-breadcrumb__item) .el-breadcrumb__inner {

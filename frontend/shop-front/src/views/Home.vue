@@ -12,6 +12,9 @@
         </div>
 
         <div class="header-actions">
+          <el-button type="text" class="btn-language" @click="toggleLanguage">
+            {{ currentLanguage === 'chinese_simplified' ? 'English' : '中文' }}
+          </el-button>
           <el-button type="text" class="action-btn" @click="goToCart">
             <el-icon><ShoppingCart /></el-icon>
             <span>购物车</span>
@@ -413,6 +416,8 @@ const categories = ref([])
 const showCategoryPopover = ref(false)
 const activeTab = ref('all')
 const loading = ref(false)
+const currentLanguage = ref('chinese_simplified')
+let translateReady = false
 
 // AI 助手
 const aiPanelVisible = ref(false)
@@ -532,6 +537,58 @@ const goToOrders = () => {
 }
 const goToFavorites = () => {
   router.push('/customer/dashboard/favorites').catch(() => {})
+}
+
+const ensureTranslateScriptLoaded = () => {
+  if (window.translate) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const scriptId = 'translate-js-cdn'
+    const existing = document.getElementById(scriptId)
+    if (existing) {
+      existing.addEventListener('load', resolve, { once: true })
+      existing.addEventListener('error', reject, { once: true })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = scriptId
+    script.src = 'https://cdn.staticfile.net/translate.js/3.18.66/translate.js'
+    script.async = true
+    script.onload = resolve
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+}
+
+const initTranslate = () => {
+  if (!window.translate || translateReady) return
+
+  window.translate.language.setLocal('chinese_simplified')
+  window.translate.service.use('client.edge')
+  window.translate.listener.start()
+  window.translate.execute()
+  translateReady = true
+}
+
+const toggleLanguage = () => {
+  if (!window.translate || !translateReady) {
+    ElMessage.warning('翻译组件加载中，请稍后重试')
+    return
+  }
+
+  const target = currentLanguage.value === 'chinese_simplified' ? 'english' : 'chinese_simplified'
+
+  if (typeof window.translate.changeLanguage === 'function') {
+    window.translate.changeLanguage(target)
+  } else if (typeof window.translate.to === 'function') {
+    window.translate.to(target)
+  } else {
+    ElMessage.warning('当前翻译组件不支持语言切换')
+    return
+  }
+
+  currentLanguage.value = target
 }
 
 // 跳转到商品详情页
@@ -951,7 +1008,14 @@ const fetchBannerProducts = () => {
   ]
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    await ensureTranslateScriptLoaded()
+    initTranslate()
+  } catch (e) {
+    console.warn('translate.js 加载失败：', e)
+  }
+
   fetchCategories()
   fetchProducts()
   fetchBannerProducts()
@@ -1090,6 +1154,20 @@ const stripHtml = (input) => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.btn-language {
+  color: #64748b;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #ffffff;
+}
+
+.btn-language:hover {
+  color: #3b82f6;
+  border-color: #93c5fd;
 }
 
 .action-btn {
