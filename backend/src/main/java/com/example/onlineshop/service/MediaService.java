@@ -21,6 +21,22 @@ import java.util.HashMap;
 @Service
 public class MediaService {
 
+    public static class AssociationResult {
+        private final String tempKey;
+        private final String tempUrl;
+        private final String mediaUrl;
+
+        public AssociationResult(String tempKey, String tempUrl, String mediaUrl) {
+            this.tempKey = tempKey;
+            this.tempUrl = tempUrl;
+            this.mediaUrl = mediaUrl;
+        }
+
+        public String getTempKey() { return tempKey; }
+        public String getTempUrl() { return tempUrl; }
+        public String getMediaUrl() { return mediaUrl; }
+    }
+
     private final ProductImageMapper productImageMapper;
     private final MediaResourceMapper mediaResourceMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -130,7 +146,7 @@ public class MediaService {
     }
 
     // 在商品创建后，用 tempKey 关联到 product：读取 meta，把文件移动到正式目录并写入对应表
-    public void associateTemporaryToProduct(String tempKey, Integer productId) throws Exception {
+    public AssociationResult associateTemporaryToProduct(String tempKey, Integer productId) throws Exception {
         if (tempKey == null || tempKey.isBlank()) {
             throw new IllegalArgumentException("tempKey 为空");
         }
@@ -149,12 +165,10 @@ public class MediaService {
 
         Path tempFile = tempDir.resolve(filename);
         if (!Files.exists(tempFile)) {
-            // 清理 meta 并抛错
             Files.deleteIfExists(metaPath);
             throw new IllegalArgumentException("临时文件丢失: " + filename);
         }
 
-        // 移动到正式目录并生成新的唯一文件名
         Path destDir = Paths.get(uploadDir).toAbsolutePath().normalize();
         Files.createDirectories(destDir);
         String ext = "";
@@ -166,6 +180,7 @@ public class MediaService {
         Files.move(tempFile, destFile, StandardCopyOption.REPLACE_EXISTING);
 
         String mediaUrl = baseUrl.endsWith("/") ? baseUrl + newFilename : baseUrl + "/" + newFilename;
+        String tempUrl = (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "temp/" + filename;
 
         if ("gallery".equals(purpose)) {
             ProductImage pi = ProductImage.builder()
@@ -174,7 +189,7 @@ public class MediaService {
                     .imageOrder(displayOrder)
                     .build();
             productImageMapper.insert(pi);
-        } else { // embedded -> media_resources
+        } else {
             String mediaType = "file";
             if (contentType != null) {
                 if (contentType.startsWith("image")) mediaType = "image";
@@ -194,7 +209,7 @@ public class MediaService {
             mediaResourceMapper.insert(mr);
         }
 
-        // 删除 meta
         Files.deleteIfExists(metaPath);
+        return new AssociationResult(tempKey, tempUrl, mediaUrl);
     }
 }
