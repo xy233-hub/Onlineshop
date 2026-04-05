@@ -517,7 +517,14 @@ const categoryTabs = computed(() => {
   return tabs
 })
 
-const isCustomerLogged = computed(() => !!customerStore.token)
+const isCustomerLogged = computed(() => customerStore.isLoggedIn || !!customerStore.customerId)
+
+const getCurrentCustomerId = () => {
+  const cid = customerStore.customerId
+  if (cid === null || cid === undefined) return null
+  const normalized = String(cid).trim()
+  return normalized ? normalized : null
+}
 
 /* 导航与会话操作 */
 const goBuyerLogin = () => {
@@ -706,20 +713,14 @@ const switchTab = (tabId) => {
 
 // 加入购物车
 const addToCart = async (product) => {
-  if (!isCustomerLogged.value) {
+  const customerId = getCurrentCustomerId()
+  if (!isCustomerLogged.value || !customerId) {
     ElMessage.warning('请先登录')
     goBuyerLogin()
     return
   }
   
   try {
-    const customerId = customerStore.customer?.customer_id || localStorage.getItem('customer_id')
-    if (!customerId) {
-      ElMessage.warning('请先登录')
-      goBuyerLogin()
-      return
-    }
-    
     const payload = {
       customer_id: Number(customerId),
       product_id: product.product_id,
@@ -864,9 +865,9 @@ const submitAiQuery = async () => {
 }
 
 const getAiUserId = () => {
-  const cid = customerStore.customer?.customer_id || localStorage.getItem('customer_id')
-  if (cid !== null && cid !== undefined && String(cid).trim()) {
-    return `customer_${String(cid).trim()}`
+  const cid = getCurrentCustomerId()
+  if (cid) {
+    return `customer_${cid}`
   }
 
   let anonId = localStorage.getItem(ANON_AI_USER_ID_KEY)
