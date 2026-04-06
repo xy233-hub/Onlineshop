@@ -7,21 +7,28 @@
 
     <el-table :data="intents" v-loading="loading" stripe>
       <el-table-column prop="purchase_id" label="意向 ID" width="100" />
-      <el-table-column label="商品 ID" width="100">
+      <el-table-column label="商品 ID" width="120">
         <template #default="{ row }">
-          <el-link 
-            v-if="row.items && row.items.length > 0" 
-            type="primary" 
-            @click="$router.push({ path: `/product/${row.items[0].product_id}` })"
-          >
-            {{ row.items[0].product_id }}
-          </el-link>
+          <div v-if="row.items && row.items.length > 0">
+            <div v-for="(item, idx) in row.items" :key="idx" style="margin-bottom: 4px;">
+              <el-link 
+                type="primary" 
+                @click="$router.push({ path: `/product/${item.product_id}` })"
+              >
+                {{ item.product_id }}
+              </el-link>
+            </div>
+          </div>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="商品名称">
+      <el-table-column label="商品名称" min-width="200">
         <template #default="{ row }">
-          <span v-if="row.items && row.items.length > 0">{{ row.items[0].product_name }}</span>
+          <div v-if="row.items && row.items.length > 0">
+            <div v-for="(item, idx) in row.items" :key="idx" style="margin-bottom: 4px;">
+              {{ item.product_name }}
+            </div>
+          </div>
           <span v-else>-</span>
         </template>
       </el-table-column>

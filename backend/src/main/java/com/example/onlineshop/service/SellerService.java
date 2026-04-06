@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -272,6 +273,35 @@ public class SellerService {
      */
     public com.example.onlineshop.entity.Seller getSellerById(Integer sellerId) {
         return sellerMapper.selectById(sellerId);
+    }
+
+    @Transactional
+    public void updateProductDesc(Integer productId, String productDesc) {
+        if (productId == null || productDesc == null) return;
+        Product toUpdate = Product.builder()
+                .productId(productId)
+                .productDesc(productDesc)
+                .updatedAt(LocalDateTime.now())
+                .build();
+        productMapper.update(toUpdate);
+    }
+
+    public Product loadProductWithMedia(Integer productId) {
+        if (productId == null) return null;
+        Product product = productMapper.findById(productId);
+        if (product == null) return null;
+
+        List<ProductImage> images = productMapper.selectImagesByProductId(productId);
+        product.setImages(images == null ? Collections.emptyList() : images.stream()
+                .map(ProductImage::getImageUrl)
+                .collect(Collectors.toList()));
+
+        List<MediaResource> mediaList = productMapper.selectMediaByProductId(productId);
+        product.setMediaResources(mediaList == null ? Collections.emptyList() : mediaList.stream()
+                .map(MediaResource::getMediaUrl)
+                .collect(Collectors.toList()));
+
+        return product;
     }
 
 }

@@ -22,8 +22,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @RestController
@@ -228,38 +232,40 @@ public class SellerProductController {
             if (resp != null && resp.getCode() == 200) {
                 Integer productId = extractProductId(resp.getData());
                 if (productId != null) {
-                    Object imgs = body.get("images");
-                    if (imgs instanceof Iterable) {
-                        for (Object o : (Iterable<?>) imgs) {
-                            if (o instanceof Map) {
-                                Map<?, ?> m = (Map<?, ?>) o;
-                                if (m.containsKey("temp_key")) {
-                                    String tempKey = String.valueOf(m.get("temp_key"));
-                                    try {
-                                        mediaService.associateTemporaryToProduct(tempKey, productId);
-                                    } catch (Exception ex) {
-                                        System.err.println("associateTemporaryToProduct failed: " + ex.getMessage());
-                                    }
-                                }
-                            }
+                    Set<String> tempKeys = new LinkedHashSet<>();
+                    if (request.getImages() != null) {
+                        for (com.example.onlineshop.dto.request.ImageRequest img : request.getImages()) {
+                            if (img == null) continue;
+                            String key = img.getTempKey();
+                            if (key != null && !key.isBlank()) tempKeys.add(key.trim());
+                        }
+                    }
+                    if (request.getMediaResources() != null) {
+                        for (MediaResourceRequest media : request.getMediaResources()) {
+                            if (media == null) continue;
+                            String key = media.getTempKey();
+                            if (key != null && !key.isBlank()) tempKeys.add(key.trim());
+                        }
+                    }
+                    tempKeys.addAll(extractTempKeysFromDesc(request.getProductDesc()));
+
+                    String rewrittenDesc = request.getProductDesc();
+                    for (String tempKey : tempKeys) {
+                        try {
+                            MediaService.AssociationResult result = mediaService.associateTemporaryToProduct(tempKey, productId);
+                            rewrittenDesc = replaceTempUrlByKey(rewrittenDesc, tempKey, result.getMediaUrl());
+                        } catch (Exception ex) {
+                            System.err.println("associateTemporaryToProduct failed: " + ex.getMessage());
                         }
                     }
 
-                    Object mrs = body.get("media_resources");
-                    if (mrs instanceof Iterable) {
-                        for (Object o : (Iterable<?>) mrs) {
-                            if (o instanceof Map) {
-                                Map<?, ?> m = (Map<?, ?>) o;
-                                if (m.containsKey("temp_key")) {
-                                    String tempKey = String.valueOf(m.get("temp_key"));
-                                    try {
-                                        mediaService.associateTemporaryToProduct(tempKey, productId);
-                                    } catch (Exception ex) {
-                                        System.err.println("associateTemporaryToProduct failed: " + ex.getMessage());
-                                    }
-                                }
-                            }
-                        }
+                    if (rewrittenDesc != null && !rewrittenDesc.equals(request.getProductDesc())) {
+                        sellerService.updateProductDesc(productId, rewrittenDesc);
+                    }
+
+                    Product latest = sellerService.loadProductWithMedia(productId);
+                    if (latest != null) {
+                        return new ApiResponse(200, "发布成功", new ProductInfoResponse(latest));
                     }
                 }
             }
@@ -561,5 +567,26 @@ public class SellerProductController {
         } catch (Exception e) {
             return new ApiResponse(500, "添加失败：" + e.getMessage(), null);
         }
+    }
+
+    private static final Pattern TEMP_KEY_IN_DESC = Pattern.compile("/temp/([0-9a-fA-F\\-]{36})[^\"'<>\\s]*");
+
+    private Set<String> extractTempKeysFromDesc(String desc) {
+        Set<String> keys = new LinkedHashSet<>();
+        if (desc == null || desc.isBlank()) return keys;
+        Matcher matcher = TEMP_KEY_IN_DESC.matcher(desc);
+        while (matcher.find()) {
+            String key = matcher.group(1);
+            if (key != null && !key.isBlank()) keys.add(key);
+        }
+        return keys;
+    }
+
+    private String replaceTempUrlByKey(String desc, String tempKey, String finalUrl) {
+        if (desc == null || desc.isBlank() || tempKey == null || tempKey.isBlank() || finalUrl == null || finalUrl.isBlank()) {
+            return desc;
+        }
+        String expr = "(?i)(https?://[^\\\"'\\s<]+)?/media/temp/" + Pattern.quote(tempKey) + "[^\\\"'\\s<]*";
+        return desc.replaceAll(expr, Matcher.quoteReplacement(finalUrl));
     }
 }

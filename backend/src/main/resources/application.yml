@@ -1,7 +1,15 @@
 ai:
   api:
-    key: ${ALI_API_KEY}
+    key: ${ALI_API_KEY:}
     base-url: https://dashscope.aliyuncs.com/api/v1
     connect-timeout-ms: 10000
     read-timeout-ms: 30000
     retry-times: 2
+    embedding-model: text-embedding-v4
+  session:
+    ttl-ms: 1800000
+
+rag:
+  vector:
+    index-ttl-ms: 300000
+    min-score: 0.40

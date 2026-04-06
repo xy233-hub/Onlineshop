@@ -1,1 +1,0 @@
-{"uuid":"2b1e022e-a2f1-48ce-9037-544a1f57d780","name":"com.ecommerce.base.SimpleLoginTest","children":["74a01947-9fb9-4f6f-ab7a-1b45674dd17b"],"befores":[{"name":"setup","status":"passed","stage":"finished","description":"","steps":[],"attachments":[],"parameters":[],"start":1774792430334,"stop":1774792430334}],"afters":[],"start":1774792426309,"stop":1774792432676}

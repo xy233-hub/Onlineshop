@@ -6,3 +6,4 @@
 /backend/.idea/
 
 /ecommerce-api-test/target/
+/backend/.env

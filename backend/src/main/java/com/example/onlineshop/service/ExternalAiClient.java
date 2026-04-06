@@ -51,15 +51,22 @@ public class ExternalAiClient {
     @Value("${ai.api.enable-thinking:false}")
     private boolean defaultEnableThinking;
 
+    @Value("${ai.api.embedding-model:text-embedding-v4}")
+    private String embeddingModel;
+
     public ExternalAiClient(RestTemplateBuilder builder) {
         this.restTemplate = builder.build();
     }
 
     public AiProductQuery extractQuery(String userText) {
+        return extractQuery(userText, "");
+    }
+
+    public AiProductQuery extractQuery(String userText, String historyContext) {
         try {
             if (userText == null || userText.isBlank()) return null;
 
-            JsonNode msg = callDashScopeMessage(buildExtractPrompt(userText), false, "extractQuery");
+            JsonNode msg = callDashScopeMessage(buildExtractPrompt(userText, historyContext), false, "extractQuery");
             if (msg == null) return null;
 
             String content = msg.path("content").asText("");
@@ -87,6 +94,25 @@ public class ExternalAiClient {
             return content == null ? "" : content.trim();
         } catch (Exception e) {
             if (debug) System.out.println("[AI] generateDescription exception: " + e);
+            return "";
+        }
+    }
+
+    public String generateChatReply(String userText, String historyContext) {
+        try {
+            if (userText == null || userText.isBlank()) return "";
+
+            JsonNode msg = callDashScopeMessage(
+                    buildChatPrompt(userText, historyContext),
+                    defaultEnableThinking,
+                    "generateChatReply"
+            );
+            if (msg == null) return "";
+
+            String content = msg.path("content").asText("");
+            return content == null ? "" : content.trim();
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateChatReply exception: " + e);
             return "";
         }
     }
@@ -202,6 +228,44 @@ public class ExternalAiClient {
         } catch (Exception e) {
             if (debug) System.out.println("[AI] estimateProductPriceRange exception: " + e);
             return fallback;
+        }
+    }
+
+    public List<Double> generateEmbedding(String text) {
+        try {
+            if (text == null || text.isBlank()) return Collections.emptyList();
+            if (baseUrl == null || baseUrl.isBlank() || apiKey == null || apiKey.isBlank()) return Collections.emptyList();
+
+            String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+            String url = normalized + "/services/embeddings/text-embedding/text-embedding";
+
+            Map<String, Object> input = new HashMap<>();
+            input.put("texts", Collections.singletonList(text));
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", embeddingModel);
+            body.put("input", input);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + apiKey);
+
+            ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+            String raw = resp.getBody();
+            if (raw == null || raw.isBlank()) return Collections.emptyList();
+
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode embedding = root.path("output").path("embeddings").path(0).path("embedding");
+            if (!embedding.isArray() || embedding.isEmpty()) return Collections.emptyList();
+
+            List<Double> vector = new ArrayList<>(embedding.size());
+            for (JsonNode node : embedding) {
+                vector.add(node.asDouble());
+            }
+            return vector;
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateEmbedding exception: " + e);
+            return Collections.emptyList();
         }
     }
 
@@ -392,20 +456,29 @@ public class ExternalAiClient {
     }
 
     private String buildExtractPrompt(String userText) {
+        return buildExtractPrompt(userText, "");
+    }
+
+    private String buildExtractPrompt(String userText, String historyContext) {
+        String context = (historyContext == null || historyContext.isBlank()) ? "（无）" : historyContext;
         return ""
                 + "你是电商搜索条件提取器。\n"
                 + "从用户输入中提取结构化查询条件，输出严格 JSON，禁止输出多余文本。\n"
                 + "允许字段：q, categoryId, status, minPrice, maxPrice, sortBy, order, page, size。\n"
                 + "重要规则（必须遵守）：\n"
                 + "1) `q` 必须尽量保留用户的关键短语，不要只保留一个名词，用逗号分离。\n"
-                + "2) status 默认 online。\n"
-                + "3) sortBy 只能是 price / created_at / stock_quantity 之一，不提供则为 created_at。\n"
-                + "4) order 只能是 asc / desc，不提供则 desc。\n"
-                + "5) page 默认 1，size 默认 10。\n"
-                + "6) 价格区间识别：例如 100-250 元 -> minPrice=100,maxPrice=250。\n"
-                + "用户输入：\n"
+                + "2) 优先结合最近对话上下文补全省略信息（如预算、品类、用途）。\n"
+                + "3) status 默认 online。\n"
+                + "4) sortBy 只能是 price / created_at / stock_quantity 之一，不提供则为 created_at。\n"
+                + "5) order 只能是 asc / desc，不提供则 desc。\n"
+                + "6) page 默认 1，size 默认 10。\n"
+                + "7) 价格区间识别：例如 100-250 元 -> minPrice=100,maxPrice=250。\n"
+                + "最近对话（仅用户）：\n"
+                + context + "\n"
+                + "当前用户输入：\n"
                 + userText + "\n";
     }
+
     private String buildDescriptionPrompt(String userText, String productsSummaryJson) {
         return ""
                 + "你是电商导购助手。\n"
@@ -415,6 +488,19 @@ public class ExternalAiClient {
                 + userText + "\n"
                 + "候选商品摘要 JSON：\n"
                 + (productsSummaryJson == null ? "[]" : productsSummaryJson) + "\n";
+    }
+
+    private String buildChatPrompt(String userText, String historyContext) {
+        return ""
+                + "你是电商对话助手。请用简洁、友好的中文回复。\n"
+                + "规则：\n"
+                + "1) 优先基于历史上下文理解用户意图；\n"
+                + "2) 不确定时明确说明并追问关键信息（预算/用途/品牌偏好）；\n"
+                + "3) 不要输出思维链，不要输出多余格式。\n"
+                + "历史对话：\n"
+                + (historyContext == null || historyContext.isBlank() ? "（无）" : historyContext) + "\n"
+                + "当前用户输入：\n"
+                + userText + "\n";
     }
 
     private String buildProductDescriptionPrompt(String productName, Integer categoryId, String keywords, String productDesc) {
