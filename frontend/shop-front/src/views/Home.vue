@@ -384,10 +384,10 @@
           </div>
         </div>
 
-        <div class="ai-raw-block">
-          <div class="ai-raw-title">原始返回数据</div>
-          <pre class="ai-raw-json">{{ aiRawText }}</pre>
-        </div>
+<!--        <div class="ai-raw-block">-->
+<!--          <div class="ai-raw-title">原始返回数据</div>-->
+<!--          <pre class="ai-raw-json">{{ aiRawText }}</pre>-->
+<!--        </div>-->
       </div>
     </el-drawer>
   </div>
@@ -440,7 +440,7 @@ const aiSceneOptions = [
 const aiInputPlaceholder = computed(() => {
   if (aiScene.value === 'chat') return '例如：预算 3000，主要办公用，帮我选几款'
   if (aiScene.value === 'extract_query') return '例如：帮我筛选 1000-2000 的二手手机，按价格升序'
-  return '例如：我想买一台 5000 左右的游戏本'
+  return '例如：我想买黑神话悟空'
 })
 const aiRawText = computed(() => {
   if (!aiRawResponse.value) return '暂无数据'
