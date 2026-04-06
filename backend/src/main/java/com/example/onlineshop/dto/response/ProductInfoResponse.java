@@ -18,6 +18,8 @@ public class ProductInfoResponse {
     public String productName;
     @JsonProperty("product_desc")
     public String productDesc;
+    @JsonProperty("short_desc")
+    public String shortDesc;
     @JsonProperty("image_url")
     public String imageUrl; // 向后兼容：第一张图片
     @JsonProperty("images")
@@ -50,7 +52,8 @@ public class ProductInfoResponse {
             this.productId = p.getProductId();
             this.sellerId = p.getSellerId();
             this.productName = p.getProductName();
-            this.productDesc = p.getShortDesc();
+            this.productDesc = p.getProductDesc();
+            this.shortDesc = p.getShortDesc();
             this.price = p.getPrice();
             this.stockQuantity = p.getStockQuantity();
             this.productStatus = p.getProductStatus();

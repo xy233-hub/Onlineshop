@@ -262,8 +262,8 @@
               <div class="description">
                 <p
                     class="desc-text"
-                    :title="stripHtml(product.product_desc)"
-                    v-text="stripHtml(product.product_desc)"
+                    :title="getCardSummary(product)"
+                    v-text="getCardSummary(product)"
                 ></p>
               </div>
 
@@ -773,10 +773,18 @@ const normalizeProductItem = (item) => {
     img = normalizeMediaUrl(copy.images)
   }
   copy.image_url = img || ''
+  copy.short_desc = copy.short_desc ?? ''
   copy.product_desc = copy.product_desc ?? ''
   copy.price = copy.price ?? 0
   copy.stock_quantity = copy.stock_quantity ?? 0
   return copy
+}
+
+const getCardSummary = (product) => {
+  if (!product) return ''
+  const shortDesc = stripHtml(product.short_desc)
+  if (shortDesc) return shortDesc
+  return stripHtml(product.product_desc)
 }
 
 const clearAiResult = () => {
