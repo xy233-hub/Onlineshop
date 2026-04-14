@@ -3,7 +3,7 @@ package com.ecommerce.config;
 
 public class ApiConfig {
     // 基础配置 - 使用 8081 端口
-    public static final String BASE_URL = "http://120.55.249.112:8081";
+    public static final String BASE_URL = "http://123.56.161.48:8081";
     public static final int DEFAULT_TIMEOUT = 10000;
     
     // API端点
