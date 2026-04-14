@@ -2,12 +2,19 @@ services:
   db:
     image: mysql:8.0
     container_name: onlineshop-mysql
+    command: >
+      --innodb-buffer-pool-size=256M
+      --tmp-table-size=32M
+      --max-heap-table-size=32M
+      --max-connections=80
     environment:
       TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: onlineshop
       MYSQL_USER: shopuser
       MYSQL_PASSWORD: shoppass
+    mem_limit: 560m
+    mem_reservation: 448m
     ports:
       - "3307:3306"
     volumes:
@@ -26,11 +33,15 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/onlineshop?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: shopuser
       SPRING_DATASOURCE_PASSWORD: shoppass
+      JAVA_TOOL_OPTIONS: -XX:+UseContainerSupport -XX:InitialRAMPercentage=20 -XX:MaxRAMPercentage=60 -XX:MaxMetaspaceSize=96m -XX:+ExitOnOutOfMemoryError
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 8
       MEDIA_UPLOAD_DIR: /app/uploads
       MEDIA_BASE_URL: http://123.56.161.48:8081/media
       ALI_API_KEY: ${ALI_API_KEY}
     volumes:
       - ./uploads:/app/uploads
+    mem_limit: 640m
+    mem_reservation: 512m
 
   frontend:
     build: ./frontend/shop-front
@@ -41,3 +52,5 @@ services:
       - backend
     environment:
       TZ: Asia/Shanghai
+    mem_limit: 120m
+    mem_reservation: 96m
