@@ -41,6 +41,7 @@ api.interceptors.request.use(config => {
     
     const inferredRole = (() => {
         if (/^\/seller(\/|$)/.test(path) && !isSellerPurchaseIntentsPath && !isSellerPurchaseIntentStatusPath && !isSellerPurchaseIntentShipPath && !isSellerAfterSalesPath && !isSellerOrderLogisticsTrackPath && !isSellerProductsPath && !isSellerInfoPath) return 'seller'
+        if (/^\/admin(\/|$)/.test(path)) return 'seller'
         // **删除：地址相关的请求不需要 JWT 令牌**
         // if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
@@ -128,7 +129,23 @@ export const sellerProductAPI = {
     freezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/freeze`, payload),
     unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
     markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
+    updatePrice: (productId, payload) => api.put(`/seller/products/${productId}/price`, payload),
     updateProduct: (productId, data) => api.put(`/seller/products/${productId}`, data)
+}
+
+/**
+ * 促销管理（后端已实现 69-77）
+ */
+export const promotionAPI = {
+    createPromotion: (data) => api.post('/admin/promotions', data),
+    getPromotions: (params) => api.get('/admin/promotions', { params }),
+    getPromotionDetail: (promotionId) => api.get(`/admin/promotions/${promotionId}`),
+    updatePromotion: (promotionId, data) => api.put(`/admin/promotions/${promotionId}`, data),
+    activatePromotion: (promotionId) => api.post(`/admin/promotions/${promotionId}/activate`, { confirm: true }),
+    endPromotion: (promotionId, data = {}) => api.post(`/admin/promotions/${promotionId}/end`, data),
+    cancelPromotion: (promotionId, reason) => api.post(`/admin/promotions/${promotionId}/cancel`, { reason }),
+    getActivePromotions: (params) => api.get('/promotions/active', { params }),
+    getProductPromotions: (productId) => api.get(`/products/${productId}/promotions`)
 }
 
 export const sellerProductAIAPI = {

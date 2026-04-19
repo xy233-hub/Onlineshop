@@ -16,6 +16,7 @@ import CustomerList from '@/views/seller/CustomerList.vue'
 import CustomerDetail from '@/views/seller/CustomerDetail.vue'
 import AfterSales from '@/views/customer/AfterSales.vue'
 import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
+import PromotionManagement from '@/views/seller/PromotionManagement.vue'
 import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
 import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
 import CustomerAfterSalesManagement from '@/views/customer/AfterSalesManagement.vue'
@@ -98,6 +99,12 @@ const routes = [
                 path: 'after-sales',
                 name: 'SellerAfterSales',
                 component: AfterSalesManagement,
+                meta: { requiresAuth: true }
+            },
+            {
+                path: 'promotions',
+                name: 'SellerPromotions',
+                component: PromotionManagement,
                 meta: { requiresAuth: true }
             }
         ]
