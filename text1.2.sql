@@ -773,4 +773,13 @@ ALTER TABLE products
 UPDATE products 
 SET original_price = price,
     current_promotion_price = NULL,
-    has_active_promotion = FALSE;   
+    has_active_promotion = FALSE;
+
+ALTER TABLE products
+    ADD COLUMN active_promotion_ids JSON COMMENT '当前生效的促销活动ID数组（按优先级从高到低）';
+
+UPDATE products
+SET original_price = price,
+    current_promotion_price = NULL,
+    has_active_promotion = FALSE,
+    active_promotion_ids = JSON_ARRAY();

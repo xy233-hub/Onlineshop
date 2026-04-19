@@ -121,7 +121,9 @@
                   <div class="price-section">
                     <div class="price-wrapper">
                       <span class="price-currency">¥</span>
-                      <span class="price-value">{{ product.price != null ? product.price.toFixed(2) : '--' }}</span>
+                      <span class="price-value">{{ currentDisplayPrice != null ? currentDisplayPrice.toFixed(2) : '--' }}</span>
+                      <span v-if="hasDiscountPrice" class="price-original">¥{{ originalDisplayPrice.toFixed(2) }}</span>
+                      <span v-if="hasDiscountPrice" class="price-save">省 ¥{{ discountAmount.toFixed(2) }}</span>
                     </div>
                     <el-tag class="status-tag" :type="getStatusType(product.product_status)" effect="light" round>
                       {{ getStatusText(product.product_status) }}
@@ -239,6 +241,8 @@
     <PurchaseDialog
         v-model="showPurchaseDialog"
         :product="product"
+        :promotion-info="purchasePromotionInfo"
+        :promotion-loading="promotionLoading"
         @success="handlePurchaseSuccess"
     />
   </div>
@@ -247,7 +251,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { productAPI, favoritesAPI, cartAPI, sellerAPI } from '@/api'
+import { productAPI, favoritesAPI, cartAPI, sellerAPI, promotionAPI } from '@/api'
 import PurchaseDialog from '@/components/buyer/PurchaseDialog.vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
@@ -262,6 +266,8 @@ const showPurchaseDialog = ref(false)
 const showImageDialog = ref(false)
 const currentImageIndex = ref(0)
 const submitLoading = ref(false)
+const promotionLoading = ref(false)
+const productPromotionInfo = ref(null)
 const quantity = ref(1)
 const activeTab = ref('desc')
 const isFavorited = ref(false) // 收藏状态
@@ -330,6 +336,12 @@ const fetchProduct = async () => {
     product.value = response?.data?.data ?? null
     currentImageIndex.value = 0
 
+    if (product.value?.product_id) {
+      await fetchProductPromotionInfo(product.value.product_id)
+    } else {
+      productPromotionInfo.value = null
+    }
+
     // 获取后检查是否已收藏
     if (product.value?.product_id) {
       checkFavoriteStatus()
@@ -350,10 +362,44 @@ const fetchProduct = async () => {
   } catch (error) {
     console.error('获取商品详情失败:', error)
     product.value = null
+    productPromotionInfo.value = null
   } finally {
     loading.value = false
   }
 }
+
+const fetchProductPromotionInfo = async (id) => {
+  if (!id) {
+    productPromotionInfo.value = null
+    return
+  }
+  promotionLoading.value = true
+  try {
+    const res = await promotionAPI.getProductPromotions(id)
+    productPromotionInfo.value = res?.data?.data ?? null
+  } catch (e) {
+    console.error('获取商品促销详情失败:', e)
+    productPromotionInfo.value = null
+  } finally {
+    promotionLoading.value = false
+  }
+}
+
+const purchasePromotionInfo = computed(() => {
+  const p = product.value || {}
+  const promo = productPromotionInfo.value || {}
+  return {
+    product_id: p.product_id,
+    product_name: p.product_name,
+    original_price: promo.original_price ?? p.original_price ?? p.price ?? null,
+    current_price: promo.current_price ?? p.current_promotion_price ?? p.price ?? null,
+    current_promotion_price: promo.current_promotion_price ?? p.current_promotion_price ?? null,
+    has_active_promotion: promo.has_active_promotion ?? Boolean(p.has_active_promotion),
+    active_promotion_ids: promo.active_promotion_ids || [],
+    best_promotion: promo.best_promotion || null,
+    promotions: Array.isArray(promo.promotions) ? promo.promotions : []
+  }
+})
 
 // 检查收藏状态
 const checkFavoriteStatus = async () => {
@@ -544,6 +590,37 @@ const hasStock = computed(() => (product.value?.stock_quantity ?? 0) > 0)
 const canBuy = computed(() => canOnline.value && hasStock.value)
 const canFavorite = computed(() => canOnline.value)
 const canAddCart = computed(() => canOnline.value && hasStock.value)
+
+const toNumberPrice = (val) => {
+  const n = Number(val)
+  return Number.isFinite(n) ? n : null
+}
+
+const currentDisplayPrice = computed(() => {
+  if (!product.value) return null
+  return toNumberPrice(
+    product.value.current_promotion_price ??
+    product.value.current_price ??
+    product.value.final_price ??
+    product.value.price
+  )
+})
+
+const originalDisplayPrice = computed(() => {
+  if (!product.value) return null
+  const original = toNumberPrice(product.value.original_price)
+  return original ?? currentDisplayPrice.value
+})
+
+const hasDiscountPrice = computed(() => {
+  if (currentDisplayPrice.value == null || originalDisplayPrice.value == null) return false
+  return originalDisplayPrice.value > currentDisplayPrice.value
+})
+
+const discountAmount = computed(() => {
+  if (!hasDiscountPrice.value) return 0
+  return originalDisplayPrice.value - currentDisplayPrice.value
+})
 
 // 切换收藏状态
 const toggleFavorite = async () => {
@@ -996,6 +1073,18 @@ onMounted(async () => {
   font-weight: 700;
   color: #cf4444;
   line-height: 1;
+}
+.price-original {
+  margin-left: 10px;
+  font-size: 1rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+.price-save {
+  margin-left: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #16a34a;
 }
 .status-tag {
   font-weight: 500;

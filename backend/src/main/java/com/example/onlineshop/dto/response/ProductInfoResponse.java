@@ -28,6 +28,12 @@ public class ProductInfoResponse {
     public List<MediaResourceResponse> mediaResources;
     @JsonProperty("price")
     public BigDecimal price;
+    @JsonProperty("original_price")
+    public BigDecimal originalPrice;
+    @JsonProperty("current_promotion_price")
+    public BigDecimal currentPromotionPrice;
+    @JsonProperty("has_active_promotion")
+    public Boolean hasActivePromotion;
     @JsonProperty("stock_quantity")
     public Integer stockQuantity;
     @JsonProperty("product_status")
@@ -55,6 +61,9 @@ public class ProductInfoResponse {
             this.productDesc = p.getProductDesc();
             this.shortDesc = p.getShortDesc();
             this.price = p.getPrice();
+            this.originalPrice = p.getOriginalPrice();
+            this.currentPromotionPrice = p.getCurrentPromotionPrice();
+            this.hasActivePromotion = p.getHasActivePromotion();
             this.stockQuantity = p.getStockQuantity();
             this.productStatus = p.getProductStatus();
             this.searchKeywords = p.getSearchKeywords();

@@ -139,6 +139,13 @@ public class PromotionService {
         }
 
         promotionMapper.updateStatus(promotionId, "ACTIVE");
+
+        Integer priority = promotion.getPriority() == null ? 0 : promotion.getPriority();
+        for (Integer productId : productIds) {
+            if (productId == null) continue;
+            promotionMapper.enforceSingleActivePerPriority(productId, priority, now);
+        }
+
         refreshProductsPriceByPromotion(promotionId, "PROMOTION_START", "促销活动激活", operatorId == null ? 0 : operatorId);
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -217,11 +224,17 @@ public class PromotionService {
         if (product == null) return null;
 
         List<Map<String, Object>> rows = promotionMapper.promotionsByProduct(productId, true);
+        BigDecimal currentPromotionPrice = toDecimal(product.get("current_promotion_price"));
+        BigDecimal basePrice = toDecimal(product.get("price"));
+        BigDecimal effectiveCurrentPrice = currentPromotionPrice != null ? currentPromotionPrice : basePrice;
+
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("product_id", productId);
         data.put("product_name", product.get("product_name"));
         data.put("original_price", toDecimal(product.get("original_price")) == null ? toDecimal(product.get("price")) : toDecimal(product.get("original_price")));
-        data.put("current_price", toDecimal(product.get("price")));
+        data.put("current_price", effectiveCurrentPrice);
+        data.put("current_promotion_price", currentPromotionPrice);
+        data.put("active_promotion_ids", parsePromotionIds(product.get("active_promotion_ids")));
         data.put("has_active_promotion", rows != null && !rows.isEmpty());
         data.put("promotions", rows == null ? Collections.emptyList() : rows);
 
@@ -251,17 +264,70 @@ public class PromotionService {
             BigDecimal originalPrice = toDecimal(product.get("original_price"));
             if (originalPrice == null) originalPrice = oldPrice;
 
-            List<Map<String, Object>> active = promotionMapper.activePromotionsForProduct(productId);
-            if (active != null && !active.isEmpty()) {
-                BigDecimal bestPrice = toDecimal(active.get(0).get("final_price"));
-                promotionMapper.updateProductEffectivePrice(productId, bestPrice, originalPrice, bestPrice, true, now);
-                if (oldPrice != null && bestPrice != null && oldPrice.compareTo(bestPrice) != 0) {
-                    priceHistoryService.recordPriceChange(productId, oldPrice, bestPrice, changeType, reason, operatorId);
-                    priceAlertService.handlePriceChange(productId, oldPrice, bestPrice);
+            List<Map<String, Object>> candidates = promotionMapper.activePromotionCandidatesForProduct(productId);
+            if (candidates != null && !candidates.isEmpty()) {
+                BigDecimal combinedPrice = originalPrice;
+                List<Integer> appliedPromotionIds = new ArrayList<>();
+
+                Map<Integer, List<Map<String, Object>>> byPriority = new TreeMap<>(Comparator.reverseOrder());
+                for (Map<String, Object> row : candidates) {
+                    Integer priority = intValue(row.get("priority"), 0);
+                    byPriority.computeIfAbsent(priority, k -> new ArrayList<>()).add(row);
+                }
+
+                for (Map.Entry<Integer, List<Map<String, Object>>> entry : byPriority.entrySet()) {
+                    List<Map<String, Object>> samePriorityRows = entry.getValue();
+                    Map<String, Object> winner = null;
+                    BigDecimal winnerPrice = null;
+
+                    for (Map<String, Object> row : samePriorityRows) {
+                        Integer candidatePromotionId = intValue(row.get("promotion_id"), -1);
+                        if (candidatePromotionId == null || candidatePromotionId <= 0) {
+                            continue;
+                        }
+
+                        BigDecimal candidatePrice = calculatePriceByRule(row, combinedPrice);
+                        if (candidatePrice == null) {
+                            candidatePrice = combinedPrice;
+                        }
+                        BigDecimal candidateDiscount = combinedPrice.subtract(candidatePrice).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                        promotionMapper.updatePromotionComputedPrice(productId, candidatePromotionId, candidatePrice, candidateDiscount, now);
+
+                        if (winner == null || candidatePrice.compareTo(winnerPrice) < 0 ||
+                                (candidatePrice.compareTo(winnerPrice) == 0 && candidatePromotionId < intValue(winner.get("promotion_id"), Integer.MAX_VALUE))) {
+                            winner = row;
+                            winnerPrice = candidatePrice;
+                        }
+                    }
+
+                    Integer winnerPromotionId = winner == null ? null : intValue(winner.get("promotion_id"), -1);
+                    if (winnerPrice != null && winnerPrice.compareTo(combinedPrice) < 0 && winnerPromotionId != null && winnerPromotionId > 0) {
+                        combinedPrice = winnerPrice;
+                        appliedPromotionIds.add(winnerPromotionId);
+                    }
+                }
+
+                boolean hasApplied = !appliedPromotionIds.isEmpty();
+                BigDecimal effectivePrice = hasApplied ? combinedPrice : originalPrice;
+                String activePromotionIdsJson = toJsonArray(appliedPromotionIds);
+
+                promotionMapper.updateProductEffectivePrice(
+                        productId,
+                        effectivePrice,
+                        originalPrice,
+                        hasApplied ? effectivePrice : null,
+                        hasApplied,
+                        activePromotionIdsJson,
+                        now
+                );
+
+                if (oldPrice != null && effectivePrice != null && oldPrice.compareTo(effectivePrice) != 0) {
+                    priceHistoryService.recordPriceChange(productId, oldPrice, effectivePrice, changeType, reason, operatorId);
+                    priceAlertService.handlePriceChange(productId, oldPrice, effectivePrice);
                 }
             } else {
                 if (originalPrice == null) continue;
-                promotionMapper.updateProductEffectivePrice(productId, originalPrice, originalPrice, null, false, now);
+                promotionMapper.updateProductEffectivePrice(productId, originalPrice, originalPrice, null, false, "[]", now);
                 if (oldPrice != null && oldPrice.compareTo(originalPrice) != 0) {
                     priceHistoryService.recordPriceChange(productId, oldPrice, originalPrice, changeType, reason, operatorId);
                     priceAlertService.handlePriceChange(productId, oldPrice, originalPrice);
@@ -377,6 +443,37 @@ public class PromotionService {
         return result.setScale(2, RoundingMode.HALF_UP);
     }
 
+    private BigDecimal calculatePriceByRule(Map<String, Object> row, BigDecimal basePrice) {
+        if (row == null || basePrice == null) return basePrice;
+        String type = stringValue(row.get("promotion_type"));
+        BigDecimal discountValue = toDecimal(row.get("discount_value"));
+        if (type == null || discountValue == null || discountValue.compareTo(BigDecimal.ZERO) <= 0) {
+            return basePrice;
+        }
+
+        BigDecimal result = basePrice;
+        if ("DISCOUNT".equalsIgnoreCase(type)) {
+            result = basePrice.multiply(discountValue);
+        } else if ("FULL_REDUCTION".equalsIgnoreCase(type)) {
+            BigDecimal min = toDecimal(row.get("min_purchase_amount"));
+            if (min == null) min = BigDecimal.ZERO;
+            if (basePrice.compareTo(min) < 0) {
+                return basePrice;
+            }
+            BigDecimal reduction = discountValue;
+            BigDecimal maxDiscount = toDecimal(row.get("max_discount_amount"));
+            if (maxDiscount != null && reduction.compareTo(maxDiscount) > 0) {
+                reduction = maxDiscount;
+            }
+            result = basePrice.subtract(reduction);
+        }
+
+        if (result.compareTo(BigDecimal.ZERO) < 0) {
+            result = BigDecimal.ZERO;
+        }
+        return result.setScale(2, RoundingMode.HALF_UP);
+    }
+
     private Map<String, Object> toSimplePromotion(Promotion promotion) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("promotion_id", promotion.getPromotionId());
@@ -440,6 +537,23 @@ public class PromotionService {
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
             return "[]";
+        }
+    }
+
+    private List<Integer> parsePromotionIds(Object value) {
+        if (value == null) return Collections.emptyList();
+        try {
+            String json = String.valueOf(value);
+            if (json.isBlank()) return Collections.emptyList();
+            List<Object> raw = objectMapper.readValue(json, new TypeReference<List<Object>>() {});
+            List<Integer> ids = new ArrayList<>();
+            for (Object item : raw) {
+                if (item instanceof Number) ids.add(((Number) item).intValue());
+                else ids.add(Integer.parseInt(String.valueOf(item)));
+            }
+            return ids;
+        } catch (Exception e) {
+            return Collections.emptyList();
         }
     }
 

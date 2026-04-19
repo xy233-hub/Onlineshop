@@ -83,7 +83,11 @@ public interface PromotionMapper {
     })
     List<Integer> productIdsByCategory(@Param("categoryIds") List<Integer> categoryIds);
 
-    @Select("SELECT product_id, product_name, price, original_price, has_active_promotion FROM products WHERE product_id = #{productId} LIMIT 1")
+    @Select("SELECT p.product_id, p.product_name, p.price, p.original_price, p.current_promotion_price, p.has_active_promotion, p.active_promotion_ids, " +
+            "(SELECT pp.final_price FROM product_promotions pp JOIN promotions pr ON pr.promotion_id = pp.promotion_id " +
+            "WHERE pp.product_id = p.product_id AND pp.is_active = TRUE AND pr.status = 'ACTIVE' AND NOW() BETWEEN pr.start_time AND pr.end_time " +
+            "ORDER BY pr.priority DESC, pp.final_price ASC LIMIT 1) AS active_promotion_price " +
+            "FROM products p WHERE p.product_id = #{productId} LIMIT 1")
     Map<String, Object> productById(@Param("productId") Integer productId);
 
     @Insert("INSERT INTO product_promotions(product_id, promotion_id, final_price, discount_amount, is_active, created_at, updated_at) " +
@@ -95,24 +99,75 @@ public interface PromotionMapper {
                                @Param("discountAmount") BigDecimal discountAmount,
                                @Param("now") LocalDateTime now);
 
+    @Update("UPDATE product_promotions pp " +
+            "JOIN promotions p ON p.promotion_id = pp.promotion_id " +
+            "JOIN (" +
+            "  SELECT chosen.product_id, chosen.promotion_id " +
+            "  FROM (" +
+            "    SELECT pp2.product_id, pp2.promotion_id " +
+            "    FROM product_promotions pp2 " +
+            "    JOIN promotions p2 ON p2.promotion_id = pp2.promotion_id " +
+            "    WHERE pp2.product_id = #{productId} " +
+            "      AND pp2.is_active = TRUE " +
+            "      AND p2.status = 'ACTIVE' " +
+            "      AND NOW() BETWEEN p2.start_time AND p2.end_time " +
+            "      AND p2.priority = #{priority} " +
+            "    ORDER BY pp2.final_price ASC, pp2.promotion_id ASC " +
+            "    LIMIT 1" +
+            "  ) chosen" +
+            ") winner ON winner.product_id = pp.product_id " +
+            "SET pp.is_active = CASE WHEN pp.promotion_id = winner.promotion_id THEN TRUE ELSE FALSE END, " +
+            "    pp.updated_at = #{now} " +
+            "WHERE pp.product_id = #{productId} " +
+            "  AND p.priority = #{priority} " +
+            "  AND p.status = 'ACTIVE' " +
+            "  AND NOW() BETWEEN p.start_time AND p.end_time")
+    int enforceSingleActivePerPriority(@Param("productId") Integer productId,
+                                       @Param("priority") Integer priority,
+                                       @Param("now") LocalDateTime now);
+
+    @Select("SELECT pp.promotion_id, pp.product_id, pp.final_price, pp.discount_amount, p.priority, p.promotion_name, p.promotion_type, p.start_time, p.end_time, p.discount_value, p.min_purchase_amount, p.max_discount_amount " +
+            "FROM product_promotions pp JOIN promotions p ON p.promotion_id = pp.promotion_id " +
+            "WHERE pp.product_id = #{productId} AND pp.is_active = TRUE AND p.status = 'ACTIVE' AND NOW() BETWEEN p.start_time AND p.end_time " +
+            "ORDER BY p.priority DESC, pp.promotion_id ASC")
+    List<Map<String, Object>> activePromotionCandidatesForProduct(@Param("productId") Integer productId);
+
+    @Update("UPDATE product_promotions SET final_price = #{finalPrice}, discount_amount = #{discountAmount}, updated_at = #{now} " +
+            "WHERE product_id = #{productId} AND promotion_id = #{promotionId}")
+    int updatePromotionComputedPrice(@Param("productId") Integer productId,
+                                     @Param("promotionId") Integer promotionId,
+                                     @Param("finalPrice") BigDecimal finalPrice,
+                                     @Param("discountAmount") BigDecimal discountAmount,
+                                     @Param("now") LocalDateTime now);
+
     @Update("UPDATE product_promotions SET is_active = FALSE, updated_at = NOW() WHERE promotion_id = #{promotionId}")
     int deactivateByPromotion(@Param("promotionId") Integer promotionId);
 
     @Select("SELECT DISTINCT product_id FROM product_promotions WHERE promotion_id = #{promotionId}")
     List<Integer> productIdsByPromotion(@Param("promotionId") Integer promotionId);
 
-    @Select("SELECT pp.promotion_id, pp.product_id, pp.final_price, pp.discount_amount, p.priority, p.promotion_name, p.promotion_type, p.start_time, p.end_time, p.discount_value " +
+    @Select("SELECT pp.promotion_id, pp.product_id, pp.final_price, pp.discount_amount, p.priority, p.promotion_name, p.promotion_type, p.start_time, p.end_time, p.discount_value, p.min_purchase_amount, p.max_discount_amount " +
             "FROM product_promotions pp JOIN promotions p ON p.promotion_id = pp.promotion_id " +
             "WHERE pp.product_id = #{productId} AND pp.is_active = TRUE AND p.status = 'ACTIVE' AND NOW() BETWEEN p.start_time AND p.end_time " +
-            "ORDER BY p.priority DESC, pp.final_price ASC")
+            "AND NOT EXISTS (" +
+            "  SELECT 1 FROM product_promotions pp2 JOIN promotions p2 ON p2.promotion_id = pp2.promotion_id " +
+            "  WHERE pp2.product_id = pp.product_id " +
+            "    AND pp2.is_active = TRUE " +
+            "    AND p2.status = 'ACTIVE' " +
+            "    AND NOW() BETWEEN p2.start_time AND p2.end_time " +
+            "    AND p2.priority = p.priority " +
+            "    AND (pp2.final_price < pp.final_price OR (pp2.final_price = pp.final_price AND pp2.promotion_id < pp.promotion_id))" +
+            ") " +
+            "ORDER BY p.priority DESC, pp.final_price ASC, pp.promotion_id ASC")
     List<Map<String, Object>> activePromotionsForProduct(@Param("productId") Integer productId);
 
-    @Update("UPDATE products SET price = #{price}, original_price = #{originalPrice}, current_promotion_price = #{currentPromotionPrice}, has_active_promotion = #{hasActivePromotion}, updated_at = #{now} WHERE product_id = #{productId}")
+    @Update("UPDATE products SET price = #{price}, original_price = #{originalPrice}, current_promotion_price = #{currentPromotionPrice}, has_active_promotion = #{hasActivePromotion}, active_promotion_ids = #{activePromotionIds}, updated_at = #{now} WHERE product_id = #{productId}")
     int updateProductEffectivePrice(@Param("productId") Integer productId,
                                     @Param("price") BigDecimal price,
                                     @Param("originalPrice") BigDecimal originalPrice,
                                     @Param("currentPromotionPrice") BigDecimal currentPromotionPrice,
                                     @Param("hasActivePromotion") Boolean hasActivePromotion,
+                                    @Param("activePromotionIds") String activePromotionIds,
                                     @Param("now") LocalDateTime now);
 
     @Select({
@@ -131,8 +186,21 @@ public interface PromotionMapper {
             "SELECT p.promotion_id, p.promotion_name, p.promotion_type, p.start_time, p.end_time, p.discount_value, p.applicable_scope, p.priority, pp.final_price, pp.discount_amount",
             "FROM promotions p JOIN product_promotions pp ON p.promotion_id = pp.promotion_id",
             "WHERE pp.product_id = #{productId}",
-            "<if test='onlyActive'> AND pp.is_active = TRUE AND p.status = 'ACTIVE' AND NOW() BETWEEN p.start_time AND p.end_time </if>",
-            "ORDER BY p.priority DESC, pp.final_price ASC",
+            "<if test='onlyActive'>",
+            "  AND pp.is_active = TRUE",
+            "  AND p.status = 'ACTIVE'",
+            "  AND NOW() BETWEEN p.start_time AND p.end_time",
+            "  AND NOT EXISTS (",
+            "    SELECT 1 FROM product_promotions pp2 JOIN promotions p2 ON p2.promotion_id = pp2.promotion_id",
+            "    WHERE pp2.product_id = pp.product_id",
+            "      AND pp2.is_active = TRUE",
+            "      AND p2.status = 'ACTIVE'",
+            "      AND NOW() BETWEEN p2.start_time AND p2.end_time",
+            "      AND p2.priority = p.priority",
+            "      AND (pp2.final_price &lt; pp.final_price OR (pp2.final_price = pp.final_price AND pp2.promotion_id &lt; pp.promotion_id))",
+            "  )",
+            "</if>",
+            "ORDER BY p.priority DESC, pp.final_price ASC, pp.promotion_id ASC",
             "</script>"
     })
     List<Map<String, Object>> promotionsByProduct(@Param("productId") Integer productId, @Param("onlyActive") boolean onlyActive);

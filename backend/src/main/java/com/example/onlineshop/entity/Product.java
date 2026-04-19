@@ -23,6 +23,9 @@ public class Product implements Serializable {
     private String productName;
     private String productDesc;
     private BigDecimal price;
+    private BigDecimal originalPrice;
+    private BigDecimal currentPromotionPrice;
+    private Boolean hasActivePromotion;
     private Integer stockQuantity;
     private String productStatus;
     private String searchKeywords;

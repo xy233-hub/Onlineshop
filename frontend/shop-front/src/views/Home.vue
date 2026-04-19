@@ -253,7 +253,10 @@
               <h3 class="product-name" :title="product.product_name">{{ product.product_name }}</h3>
               
               <div class="price-section">
-                <span class="price">¥{{ product.price ?? 0 }}</span>
+                <div class="price-block">
+                  <span class="price">¥{{ getCurrentPrice(product).toFixed(2) }}</span>
+                  <span v-if="hasDiscount(product)" class="original-price">¥{{ getOriginalPrice(product).toFixed(2) }}</span>
+                </div>
                 <span class="stock" :class="{ 'low-stock': (product.stock_quantity ?? 0) < 10 }">
                   库存: {{ product.stock_quantity ?? 0 }}
                 </span>
@@ -357,7 +360,10 @@
               <div v-if="msg.items && msg.items.length" class="ai-msg-items">
                 <div v-for="item in msg.items" :key="item.product_id" class="ai-mini-item">
                   <span class="name">{{ item.product_name }}</span>
-                  <span class="price">¥{{ item.price ?? 0 }}</span>
+                  <div class="ai-mini-price-wrap">
+                    <span class="price">¥{{ getCurrentPrice(item).toFixed(2) }}</span>
+                    <span v-if="hasDiscount(item)" class="original-price">¥{{ getOriginalPrice(item).toFixed(2) }}</span>
+                  </div>
                   <el-button type="primary" link @click="goToProductDetail(item.product_id)">查看详情</el-button>
                 </div>
               </div>
@@ -775,9 +781,31 @@ const normalizeProductItem = (item) => {
   copy.image_url = img || ''
   copy.short_desc = copy.short_desc ?? ''
   copy.product_desc = copy.product_desc ?? ''
-  copy.price = copy.price ?? 0
+  copy.price = Number(copy.price ?? 0)
+  copy.current_promotion_price = copy.current_promotion_price == null ? null : Number(copy.current_promotion_price)
+  copy.original_price = copy.original_price == null ? null : Number(copy.original_price)
+  copy.has_active_promotion = Boolean(copy.has_active_promotion)
   copy.stock_quantity = copy.stock_quantity ?? 0
   return copy
+}
+
+const getCurrentPrice = (item) => {
+  const current = item?.current_promotion_price ?? item?.current_price ?? item?.final_price ?? item?.price
+  const val = Number(current)
+  return Number.isFinite(val) ? val : 0
+}
+
+const getOriginalPrice = (item) => {
+  const raw = item?.original_price
+  const val = Number(raw)
+  if (Number.isFinite(val) && val > 0) return val
+  return getCurrentPrice(item)
+}
+
+const hasDiscount = (item) => {
+  const current = getCurrentPrice(item)
+  const original = getOriginalPrice(item)
+  return Number.isFinite(original) && Number.isFinite(current) && original > current
 }
 
 const getCardSummary = (product) => {
@@ -1812,6 +1840,13 @@ const stripHtml = (input) => {
   align-items: center;
 }
 
+.price-block,
+.ai-mini-price-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .price {
   font-size: 24px;
   font-weight: 700;
@@ -1822,6 +1857,12 @@ const stripHtml = (input) => {
 
 .product-card:hover .price {
   transform: scale(1.05);
+}
+
+.original-price {
+  font-size: 13px;
+  color: #94a3b8;
+  text-decoration: line-through;
 }
 
 .stock {

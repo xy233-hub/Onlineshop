@@ -20,6 +20,9 @@ public class ProductDetailResponse {
     public List<ProductImageItem> images;
     public List<MediaItem> media_resources;
     public Double price;
+    public Double original_price;
+    public Double current_promotion_price;
+    public Boolean has_active_promotion;
     public Integer stock_quantity;
     public String product_status;
     public String search_keywords;
@@ -40,6 +43,9 @@ public class ProductDetailResponse {
         this.product_name = p.getProductName();
         this.product_desc = p.getProductDesc();
         this.price = p.getPrice() == null ? null : p.getPrice().doubleValue();
+        this.original_price = p.getOriginalPrice() == null ? null : p.getOriginalPrice().doubleValue();
+        this.current_promotion_price = p.getCurrentPromotionPrice() == null ? null : p.getCurrentPromotionPrice().doubleValue();
+        this.has_active_promotion = p.getHasActivePromotion();
         this.stock_quantity = p.getStockQuantity();
         this.product_status = p.getProductStatus();
         this.search_keywords = p.getSearchKeywords();
