@@ -51,13 +51,6 @@ vue
               <span class="label">累计优惠</span>
               <span class="value save">省 ¥{{ formatPrice(saveAmount) }}</span>
             </div>
-            <div v-if="promotionInfo?.best_promotion" class="promotion-best">
-              <div class="best-title">当前优先促销</div>
-              <div class="best-content">
-                活动ID: {{ promotionInfo.best_promotion.promotion_id }}，
-                优惠金额: ¥{{ formatPrice(promotionInfo.best_promotion.save_amount) }}
-              </div>
-            </div>
             <div v-if="promotionList.length" class="promotion-list">
               <div class="best-title">当前生效促销列表</div>
               <div v-for="item in promotionList" :key="item.promotion_id" class="promotion-item">

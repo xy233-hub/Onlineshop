@@ -8,7 +8,7 @@
         <!-- 批量下单 -->
         <el-button
             type="primary"
-            :disabled="!selectedIds.length"
+            :disabled="!selectedIds.length || promoPreviewLoading"
             @click="onBatchPurchase"
         >
           下单
@@ -44,7 +44,13 @@
 
       <el-table-column label="单价" width="120" align="center">
         <template #default="{ row }">
-          ￥{{ row.unit_price.toFixed(2) }}
+          <template v-if="hasPromotionPreview(row) && getSettledUnitPrice(row) < toPrice(row.unit_price)">
+            <div class="price-original">￥{{ toPrice(row.unit_price).toFixed(2) }}</div>
+            <div class="price-final">￥{{ getSettledUnitPrice(row).toFixed(2) }}</div>
+          </template>
+          <template v-else>
+            ￥{{ toPrice(row.unit_price).toFixed(2) }}
+          </template>
         </template>
       </el-table-column>
 
@@ -56,7 +62,29 @@
 
       <el-table-column label="小计" width="140" align="center">
         <template #default="{ row }">
-          ￥{{ (row.unit_price * row.quantity).toFixed(2) }}
+          <template v-if="hasPromotionPreview(row) && getSettledUnitPrice(row) < toPrice(row.unit_price)">
+            <div class="price-original">￥{{ (toPrice(row.unit_price) * row.quantity).toFixed(2) }}</div>
+            <div class="price-final">￥{{ (getSettledUnitPrice(row) * row.quantity).toFixed(2) }}</div>
+          </template>
+          <template v-else>
+            ￥{{ (toPrice(row.unit_price) * row.quantity).toFixed(2) }}
+          </template>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="优惠信息" min-width="220" align="center">
+        <template #default="{ row }">
+          <span v-if="!selectedIds.includes(row.cart_item_id)" class="promotion-muted">勾选后计算</span>
+          <span v-else-if="promotionPreviewByCartItemId[row.cart_item_id]?.loading" class="promotion-muted">计算中...</span>
+          <span v-else-if="promotionPreviewByCartItemId[row.cart_item_id]">
+            <el-tag
+              :type="promotionPreviewByCartItemId[row.cart_item_id].applied ? 'success' : 'info'"
+              size="small"
+            >
+              {{ promotionPreviewByCartItemId[row.cart_item_id].text }}
+            </el-tag>
+          </span>
+          <span v-else class="promotion-muted">暂无</span>
         </template>
       </el-table-column>
 
@@ -102,6 +130,8 @@
         <span class="total-amount">
           ￥{{ selectedTotalAmount.toFixed(2) }}
         </span>
+        <span v-if="selectedTotalDiscount > 0" class="discount-amount">（已优惠 ￥{{ selectedTotalDiscount.toFixed(2) }}）</span>
+        <span v-if="orderLevelPromotionText" class="order-level-text">（{{ orderLevelPromotionText }}）</span>
       </div>
       <div class="right">
         <el-pagination
@@ -141,6 +171,20 @@
           <span class="total-amount">
             ￥{{ selectedTotalAmount.toFixed(2) }}
           </span>
+          <span v-if="selectedTotalDiscount > 0" class="discount-amount">（已优惠 ￥{{ selectedTotalDiscount.toFixed(2) }}）</span>
+          <span v-if="orderLevelPromotionText" class="order-level-text">（{{ orderLevelPromotionText }}）</span>
+        </el-form-item>
+        <el-form-item label="优惠明细" v-if="selectedPreviewItems.length">
+          <div class="promotion-lines">
+            <div
+              v-for="item in selectedPreviewItems"
+              :key="item.cart_item_id"
+              class="promotion-line"
+            >
+              <span>{{ item.product_name }}</span>
+              <span :class="item.applied ? 'promotion-applied' : 'promotion-muted'">{{ item.text }}</span>
+            </div>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -165,6 +209,15 @@ import { cartAPI } from '@/api/index'
 const loading = ref(false)
 const cartItems = ref([])
 const selectedIds = ref([])
+const promotionPreviewByCartItemId = ref({})
+const promoPreviewLoading = ref(false)
+const promoRequestVersion = ref(0)
+const previewSummary = ref({
+  selected_count: 0,
+  total_amount: null,
+  discount_amount: 0,
+  order_level_promotions: []
+})
 
 const pagination = reactive({
   page: 1,
@@ -191,14 +244,210 @@ const customerInfo = (() => {
 const customerId = customerInfo.customer_id
 
 const selectedTotalAmount = computed(() => {
+  if (
+    previewSummary.value.selected_count === selectedIds.value.length &&
+    typeof previewSummary.value.total_amount === 'number'
+  ) {
+    return previewSummary.value.total_amount
+  }
   const idSet = new Set(selectedIds.value)
   return cartItems.value
       .filter(i => idSet.has(i.cart_item_id))
       .reduce((sum, i) => {
-        const price = i.unit_price || 0
+        const price = getSettledUnitPrice(i)
         return sum + price * i.quantity
       }, 0)
 })
+
+const selectedTotalDiscount = computed(() => {
+  if (
+    previewSummary.value.selected_count === selectedIds.value.length &&
+    typeof previewSummary.value.discount_amount === 'number'
+  ) {
+    return previewSummary.value.discount_amount
+  }
+  const idSet = new Set(selectedIds.value)
+  return cartItems.value
+      .filter(i => idSet.has(i.cart_item_id))
+      .reduce((sum, i) => {
+        const original = toPrice(i.unit_price)
+        const settled = getSettledUnitPrice(i)
+        const discount = Math.max(0, (original - settled) * i.quantity)
+        return sum + discount
+      }, 0)
+})
+
+const orderLevelPromotionText = computed(() => {
+  const rows = Array.isArray(previewSummary.value.order_level_promotions)
+    ? previewSummary.value.order_level_promotions
+    : []
+  if (!rows.length) return ''
+  const total = rows.reduce((sum, row) => sum + toPrice(row.discount_amount), 0)
+  if (total <= 0) return ''
+  return `订单级优惠 -￥${total.toFixed(2)}`
+})
+
+const selectedPreviewItems = computed(() => {
+  const idSet = new Set(selectedIds.value)
+  return cartItems.value
+      .filter(i => idSet.has(i.cart_item_id))
+      .map(i => {
+        const preview = promotionPreviewByCartItemId.value[i.cart_item_id]
+        return {
+          cart_item_id: i.cart_item_id,
+          product_name: i.product_name,
+          applied: !!preview?.applied,
+          text: preview?.text || '待计算'
+        }
+      })
+})
+
+const toPrice = (value) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+const getSettledUnitPrice = (row) => {
+  const preview = promotionPreviewByCartItemId.value[row.cart_item_id]
+  if (preview && typeof preview.final_unit_price === 'number' && preview.final_unit_price >= 0) {
+    return preview.final_unit_price
+  }
+  return toPrice(row.unit_price)
+}
+
+const hasPromotionPreview = (row) => {
+  return !!promotionPreviewByCartItemId.value[row.cart_item_id]
+}
+
+const mapSkippedReasonText = (reason) => {
+  switch (reason) {
+    case 'PROMOTION_PREVIEW_FAILED':
+      return '优惠计算失败'
+    case 'PROMOTION_DATA_UNAVAILABLE':
+      return '优惠数据不可用'
+    case 'SAME_PROMOTION_RULE_ALREADY_APPLIED':
+      return '同规则已触发'
+    case 'PROMOTION_NOT_BETTER':
+      return '无更优优惠'
+    case 'NO_ACTIVE_PROMOTION':
+      return '当前无活动'
+    default:
+      return '未命中优惠'
+  }
+}
+
+const refreshPromotionPreviewForRows = async (rows) => {
+  const currentVersion = ++promoRequestVersion.value
+  const selectedMap = { ...promotionPreviewByCartItemId.value }
+
+  rows.forEach(row => {
+    selectedMap[row.cart_item_id] = {
+      loading: true,
+      applied: false,
+      promotion_id: null,
+      final_unit_price: toPrice(row.unit_price),
+      discount_amount: 0,
+      skipped_reason: null,
+      text: '计算中...'
+    }
+  })
+  promotionPreviewByCartItemId.value = selectedMap
+
+  if (!rows.length) {
+    promotionPreviewByCartItemId.value = {}
+    previewSummary.value = { selected_count: 0, total_amount: null, discount_amount: 0, order_level_promotions: [] }
+    return
+  }
+
+  promoPreviewLoading.value = true
+  try {
+    const { data } = await cartAPI.batchPurchasePreview({
+      customer_id: customerId,
+      cart_item_ids: rows.map(r => r.cart_item_id)
+    })
+
+    if (data?.code !== 200 || !data?.data) {
+      throw new Error(data?.message || '预结算失败')
+    }
+
+    if (currentVersion !== promoRequestVersion.value) return
+
+    const nextMap = {}
+    const settlementRows = Array.isArray(data.data.promotion_settlement) ? data.data.promotion_settlement : []
+    settlementRows.forEach(item => {
+      const discount = toPrice(item.discount_amount)
+      const skippedReason = item.skipped_reason || null
+      const hasOrderLevel = !!item.order_level_applied
+      let text
+      if (discount > 0) {
+        text = hasOrderLevel ? `已优惠(含订单级) -￥${discount.toFixed(2)}` : `已优惠 -￥${discount.toFixed(2)}`
+      } else {
+        text = mapSkippedReasonText(skippedReason)
+      }
+
+      nextMap[item.cart_item_id] = {
+        loading: false,
+        applied: !!item.applied || discount > 0,
+        promotion_id: item.promotion_id ?? null,
+        final_unit_price: toPrice(item.final_unit_price),
+        discount_amount: discount,
+        skipped_reason: skippedReason,
+        order_level_applied: hasOrderLevel,
+        text
+      }
+    })
+
+    for (const row of rows) {
+      if (!nextMap[row.cart_item_id]) {
+        nextMap[row.cart_item_id] = {
+          loading: false,
+          applied: false,
+          promotion_id: null,
+          final_unit_price: toPrice(row.unit_price),
+          discount_amount: 0,
+          skipped_reason: 'PROMOTION_PREVIEW_FAILED',
+          order_level_applied: false,
+          text: '优惠计算失败'
+        }
+      }
+    }
+
+    promotionPreviewByCartItemId.value = nextMap
+    previewSummary.value = {
+      selected_count: Number(data.data.selected_count) || rows.length,
+      total_amount: toPrice(data.data.total_amount),
+      discount_amount: toPrice(data.data.discount_amount),
+      order_level_promotions: Array.isArray(data.data.order_level_promotions) ? data.data.order_level_promotions : []
+    }
+  } catch (e) {
+    if (currentVersion === promoRequestVersion.value) {
+      const fallbackMap = {}
+      for (const row of rows) {
+        fallbackMap[row.cart_item_id] = {
+          loading: false,
+          applied: false,
+          promotion_id: null,
+          final_unit_price: toPrice(row.unit_price),
+          discount_amount: 0,
+          skipped_reason: 'PROMOTION_PREVIEW_FAILED',
+          order_level_applied: false,
+          text: '优惠计算失败'
+        }
+      }
+      promotionPreviewByCartItemId.value = fallbackMap
+      previewSummary.value = {
+        selected_count: rows.length,
+        total_amount: null,
+        discount_amount: 0,
+        order_level_promotions: []
+      }
+    }
+  } finally {
+    if (currentVersion === promoRequestVersion.value) {
+      promoPreviewLoading.value = false
+    }
+  }
+}
 
 const statusText = (status) => {
   switch (status) {
@@ -225,6 +474,9 @@ const fetchCart = async () => {
     if (data.code === 200 && data.data) {
       const pageData = data.data
       cartItems.value = pageData.items || []
+      promotionPreviewByCartItemId.value = {}
+      previewSummary.value = { selected_count: 0, total_amount: null, discount_amount: 0, order_level_promotions: [] }
+      selectedIds.value = []
       pagination.page = pageData.page || 1
       pagination.size = pageData.size || 10
       pagination.total = pageData.total || 0
@@ -240,6 +492,7 @@ const fetchCart = async () => {
 
 const onSelectionChange = (rows) => {
   selectedIds.value = rows.map(r => r.cart_item_id)
+  refreshPromotionPreviewForRows(rows)
 }
 
 const onPageChange = (page) => {
@@ -326,7 +579,12 @@ const doBatchPurchase = async () => {
     }
     const { data } = await cartAPI.batchPurchase(payload)
     if (data.code === 200) {
+      const settlement = Array.isArray(data?.data?.promotion_settlement) ? data.data.promotion_settlement : []
+      const discountTotal = toPrice(data?.data?.discount_amount) || settlement.reduce((sum, item) => sum + toPrice(item.discount_amount), 0)
       ElMessage.success('下单成功')
+      if (discountTotal > 0) {
+        ElMessage.info(`本次已优惠 ￥${discountTotal.toFixed(2)}`)
+      }
       purchaseDialogVisible.value = false
       selectedIds.value = []
       fetchCart()
@@ -368,5 +626,45 @@ onMounted(() => {
   color: #f56c6c;
   font-weight: 600;
   font-size: 16px;
+}
+.discount-amount {
+  margin-left: 6px;
+  color: #67c23a;
+  font-size: 13px;
+}
+.order-level-text {
+  margin-left: 6px;
+  color: #409eff;
+  font-size: 13px;
+}
+.price-original {
+  color: #909399;
+  text-decoration: line-through;
+  font-size: 12px;
+}
+.price-final {
+  color: #f56c6c;
+  font-weight: 600;
+}
+.promotion-muted {
+  color: #909399;
+  font-size: 12px;
+}
+.promotion-lines {
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.promotion-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  line-height: 24px;
+}
+.promotion-applied {
+  color: #67c23a;
 }
 </style>

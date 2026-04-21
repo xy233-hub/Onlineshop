@@ -183,7 +183,7 @@ public interface PromotionMapper {
 
     @Select({
             "<script>",
-            "SELECT p.promotion_id, p.promotion_name, p.promotion_type, p.start_time, p.end_time, p.discount_value, p.applicable_scope, p.priority, pp.final_price, pp.discount_amount",
+            "SELECT p.promotion_id, p.promotion_name, p.promotion_type, p.start_time, p.end_time, p.discount_value, p.min_purchase_amount, p.max_discount_amount, p.applicable_scope, p.priority, pp.final_price, pp.discount_amount",
             "FROM promotions p JOIN product_promotions pp ON p.promotion_id = pp.promotion_id",
             "WHERE pp.product_id = #{productId}",
             "<if test='onlyActive'>",

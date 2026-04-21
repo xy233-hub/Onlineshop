@@ -202,6 +202,7 @@ export const cartAPI = {
     updateCartItem: (cartItemId, data) => api.put(`/customers/cart/items/${cartItemId}`, data),
     removeCartItem: (cartItemId) => api.delete(`/customers/cart/items/${cartItemId}`),
     removeCartItems: (payload) => api.delete('/customers/cart/items', { data: payload }),
+    batchPurchasePreview: (payload) => api.post('/customers/cart/batch-purchase-preview', payload),
     batchPurchase: (payload) => api.post('/customers/cart/batch-purchase', payload),
     batchConvertToFavorites: (payload) => api.post('/customers/cart/batch-convert-favorite', payload)
 }
