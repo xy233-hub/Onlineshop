@@ -611,3 +611,166 @@ CREATE INDEX idx_products_seller_id ON products(seller_id);
 
 ALTER TABLE products
     ADD COLUMN short_desc VARCHAR(300) NULL COMMENT '商品缩减描述（列表页/卡片展示用）'
+
+-- ============================================
+-- 18. 商品价格历史记录表
+-- ============================================
+CREATE TABLE product_price_history (
+    history_id INT NOT NULL AUTO_INCREMENT COMMENT '价格历史记录唯一ID',
+    product_id INT NOT NULL COMMENT '商品ID（外键关联products表）',
+    old_price DECIMAL(10,2) NOT NULL COMMENT '变更前价格',
+    new_price DECIMAL(10,2) NOT NULL COMMENT '变更后价格',
+    change_type ENUM('MANUAL', 'PROMOTION_START', 'PROMOTION_END', 'SYSTEM') NOT NULL DEFAULT 'MANUAL' COMMENT '变更类型：MANUAL=手动修改，PROMOTION_START=促销开始，PROMOTION_END=促销结束，SYSTEM=系统调整',
+    change_reason VARCHAR(255) COMMENT '价格变更原因/备注',
+    changed_by INT COMMENT '操作人ID（卖家ID或系统ID=0）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '价格变更时间',
+    
+    PRIMARY KEY (history_id),
+    KEY idx_product_id (product_id) COMMENT '按商品查询价格历史的索引',
+    KEY idx_created_at (created_at) COMMENT '按时间查询的索引',
+    KEY idx_change_type (change_type) COMMENT '按变更类型筛选的索引',
+    
+    CONSTRAINT fk_price_history_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '商品价格历史记录表';
+
+-- ============================================
+-- 19. 价格变动提醒配置表
+-- ============================================
+CREATE TABLE price_alert_settings (
+    alert_id INT NOT NULL AUTO_INCREMENT COMMENT '提醒配置唯一ID',
+    customer_id INT NOT NULL COMMENT '客户ID（外键关联customers表）',
+    product_id INT NOT NULL COMMENT '商品ID（外键关联products表）',
+    alert_type ENUM('FAVORITE', 'CART') NOT NULL COMMENT '提醒来源：FAVORITE=收藏商品，CART=购物车商品',
+    is_enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否启用提醒',
+    threshold_percentage DECIMAL(5,2) DEFAULT 5.00 COMMENT '价格变动阈值百分比（默认5%）',
+    last_alerted_price DECIMAL(10,2) COMMENT '上次提醒时的价格',
+    last_alerted_at DATETIME COMMENT '上次提醒时间',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (alert_id),
+    UNIQUE KEY uk_customer_product_type (customer_id, product_id, alert_type) COMMENT '同一客户对同一商品的同类型提醒唯一',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询提醒配置的索引',
+    KEY idx_product_id (product_id) COMMENT '按商品查询提醒配置的索引',
+    KEY idx_is_enabled (is_enabled) COMMENT '启用状态索引',
+    
+    CONSTRAINT fk_alert_customer FOREIGN KEY (customer_id)
+        REFERENCES customers (customer_id) ON DELETE CASCADE,
+    CONSTRAINT fk_alert_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '价格变动提醒配置表';
+
+-- ============================================
+-- 20. 价格变动通知记录表
+-- ============================================
+CREATE TABLE price_alert_notifications (
+    notification_id INT NOT NULL AUTO_INCREMENT COMMENT '通知记录唯一ID',
+    alert_id INT NOT NULL COMMENT '提醒配置ID（外键关联price_alert_settings表）',
+    customer_id INT NOT NULL COMMENT '客户ID',
+    product_id INT NOT NULL COMMENT '商品ID',
+    old_price DECIMAL(10,2) NOT NULL COMMENT '变动前价格',
+    new_price DECIMAL(10,2) NOT NULL COMMENT '变动后价格',
+    change_percentage DECIMAL(5,2) NOT NULL COMMENT '价格变动百分比',
+    change_direction ENUM('DECREASE', 'INCREASE') NOT NULL COMMENT '变动方向：DECREASE=降价，INCREASE=涨价',
+    is_read BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否已读',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '通知创建时间',
+    read_at DATETIME COMMENT '阅读时间',
+    
+    PRIMARY KEY (notification_id),
+    KEY idx_alert_id (alert_id) COMMENT '按提醒配置查询的索引',
+    KEY idx_customer_id (customer_id) COMMENT '按客户查询通知的索引',
+    KEY idx_is_read (is_read) COMMENT '未读通知索引',
+    KEY idx_created_at (created_at) COMMENT '按时间查询的索引',
+    
+    CONSTRAINT fk_notification_alert FOREIGN KEY (alert_id)
+        REFERENCES price_alert_settings (alert_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '价格变动通知记录表';
+
+-- ============================================
+-- 21. 促销活动表
+-- ============================================
+CREATE TABLE promotions (
+    promotion_id INT NOT NULL AUTO_INCREMENT COMMENT '促销活动唯一ID',
+    promotion_name VARCHAR(100) NOT NULL COMMENT '促销活动名称',
+    promotion_type ENUM('DISCOUNT', 'FULL_REDUCTION', 'COUPON', 'FLASH_SALE') NOT NULL COMMENT '促销类型：DISCOUNT=限时折扣，FULL_REDUCTION=满减，COUPON=优惠券，FLASH_SALE=秒杀',
+    description TEXT COMMENT '活动描述',
+    start_time DATETIME NOT NULL COMMENT '活动开始时间',
+    end_time DATETIME NOT NULL COMMENT '活动结束时间',
+    status ENUM('DRAFT', 'ACTIVE', 'ENDED', 'CANCELLED') NOT NULL DEFAULT 'DRAFT' COMMENT '活动状态：DRAFT=草稿，ACTIVE=进行中，ENDED=已结束，CANCELLED=已取消',
+    discount_value DECIMAL(10,2) COMMENT '折扣值（折扣类型为折扣率，满减类型为减免金额）',
+    min_purchase_amount DECIMAL(10,2) COMMENT '最低消费金额（满减活动使用）',
+    max_discount_amount DECIMAL(10,2) COMMENT '最大优惠金额（限制优惠上限）',
+    applicable_scope ENUM('ALL', 'CATEGORY', 'PRODUCT', 'USER_GROUP') NOT NULL DEFAULT 'ALL' COMMENT '适用范围：ALL=全部商品，CATEGORY=指定分类，PRODUCT=指定商品，USER_GROUP=指定用户群',
+    target_ids JSON COMMENT '目标ID列表（分类ID数组/商品ID数组/用户组ID数组，根据applicable_scope决定）',
+    priority INT NOT NULL DEFAULT 0 COMMENT '优先级（数字越大优先级越高，用于多个活动重叠时）',
+    created_by INT NOT NULL COMMENT '创建人ID（运营人员ID）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (promotion_id),
+    KEY idx_status (status) COMMENT '活动状态索引',
+    KEY idx_start_time (start_time) COMMENT '开始时间索引',
+    KEY idx_end_time (end_time) COMMENT '结束时间索引',
+    KEY idx_promotion_type (promotion_type) COMMENT '促销类型索引',
+    KEY idx_applicable_scope (applicable_scope) COMMENT '适用范围索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '促销活动表';
+
+-- ============================================
+-- 22. 促销规则详情表（支持更复杂的规则配置）
+-- ============================================
+CREATE TABLE promotion_rules (
+    rule_id INT NOT NULL AUTO_INCREMENT COMMENT '规则唯一ID',
+    promotion_id INT NOT NULL COMMENT '促销活动ID（外键关联promotions表）',
+    rule_type ENUM('TIME_RANGE', 'USER_LEVEL', 'QUANTITY_LIMIT', 'COMBINATION') NOT NULL COMMENT '规则类型：TIME_RANGE=时间段限制，USER_LEVEL=用户等级限制，QUANTITY_LIMIT=数量限制，COMBINATION=组合购买',
+    rule_config JSON NOT NULL COMMENT '规则配置JSON（根据不同rule_type存储不同结构）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    
+    PRIMARY KEY (rule_id),
+    KEY idx_promotion_id (promotion_id) COMMENT '按促销活动查询规则的索引',
+    KEY idx_rule_type (rule_type) COMMENT '规则类型索引',
+    
+    CONSTRAINT fk_rule_promotion FOREIGN KEY (promotion_id)
+        REFERENCES promotions (promotion_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '促销规则详情表';
+
+-- ============================================
+-- 23. 商品促销关联表
+-- ============================================
+CREATE TABLE product_promotions (
+    relation_id INT NOT NULL AUTO_INCREMENT COMMENT '关联关系唯一ID',
+    product_id INT NOT NULL COMMENT '商品ID',
+    promotion_id INT NOT NULL COMMENT '促销活动ID',
+    final_price DECIMAL(10,2) NOT NULL COMMENT '促销后的最终价格',
+    discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '优惠金额',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否生效',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
+    
+    PRIMARY KEY (relation_id),
+    UNIQUE KEY uk_product_promotion (product_id, promotion_id) COMMENT '商品与促销活动唯一关联',
+    KEY idx_product_id (product_id) COMMENT '按商品查询促销的索引',
+    KEY idx_promotion_id (promotion_id) COMMENT '按促销活动查询商品的索引',
+    KEY idx_is_active (is_active) COMMENT '生效状态索引',
+    
+    CONSTRAINT fk_product_promo_product FOREIGN KEY (product_id)
+        REFERENCES products (product_id) ON DELETE CASCADE,
+    CONSTRAINT fk_product_promo_promotion FOREIGN KEY (promotion_id)
+        REFERENCES promotions (promotion_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT '商品促销关联表';
+
+-- ============================================
+-- 24. 在products表中添加当前促销价格字段
+-- ============================================
+ALTER TABLE products
+    ADD COLUMN current_promotion_price DECIMAL(10,2) COMMENT '当前促销价格（如有活跃促销）',
+    ADD COLUMN original_price DECIMAL(10,2) COMMENT '原价（用于展示折扣）',
+    ADD COLUMN has_active_promotion BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否有活跃的促销活动';
+
+-- ============================================
+-- 初始化数据：为现有商品设置original_price等于当前price
+-- ============================================
+UPDATE products 
+SET original_price = price,
+    current_promotion_price = NULL,
+    has_active_promotion = FALSE;   
