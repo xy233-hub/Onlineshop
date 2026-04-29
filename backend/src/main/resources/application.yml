@@ -13,3 +13,8 @@ rag:
   vector:
     index-ttl-ms: 300000
     min-score: 0.40
+
+baidu:
+  nlp:
+    api-key: hnwBITFfIqfAuJJ0oXGJloiV
+    secret-key: 5A24zuHlN5ErP8X8Dyqj7avUFACOiOqc

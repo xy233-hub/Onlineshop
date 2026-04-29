@@ -363,4 +363,26 @@ export const paymentAPI = {
     alipayReturnRaw: (rawQuery = '') => api.get(`/payments/alipay/return${rawQuery}`)
 }
 
+/**
+ * 地址相关接口
+ */
+export const addressAPI = {
+    // AI地址识别
+    parseAddress: (data) => api.post('/customers/addresses/parse', data),
+    // 添加地址
+    addAddress: (customerId, data) => api.post('/customers/addresses', data, {
+        params: { customer_id: customerId }
+    }),
+    // 更新地址
+    updateAddress: (addressId, data) => api.put(`/customers/addresses/${addressId}`, data),
+    // 删除地址
+    deleteAddress: (addressId) => api.delete(`/customers/addresses/${addressId}`),
+    // 获取地址列表
+    getAddresses: (customerId) => api.get('/customers/addresses', {
+        params: { customer_id: customerId }
+    }),
+    // 设置默认地址
+    setDefaultAddress: (addressId) => api.put(`/customers/addresses/${addressId}/default`)
+}
+
 export default api

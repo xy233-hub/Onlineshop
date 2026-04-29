@@ -19,6 +19,7 @@ import com.example.onlineshop.service.CustomerService;
 import com.example.onlineshop.service.PurchaseIntentService;
 import com.example.onlineshop.service.LogisticsProviderService;
 import com.example.onlineshop.service.LogisticsTrackService;
+import com.example.onlineshop.service.AddressParseService;
 import com.example.onlineshop.entity.AfterSalesService;
 import com.example.onlineshop.service.AfterSalesServiceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,6 +54,9 @@ public class CustomerController {
 
     @Autowired
     private LogisticsProviderService logisticsProviderService;
+
+    @Autowired
+    private AddressParseService addressParseService;
 
 
     // 客户注册
@@ -231,6 +235,35 @@ public class CustomerController {
     }
     @Autowired
     private CustomerAddressService customerAddressService;
+
+    /**
+     * AI地址识别
+     */
+    @PostMapping(value = "/addresses/parse", produces = "application/json; charset=utf-8")
+    public ResponseEntity<ApiResponse> parseAddress(@RequestBody Map<String, String> request) {
+        try {
+            String addressText = request.get("address_text");
+            if (addressText == null || addressText.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse(400, "地址文本不能为空", null));
+            }
+
+            var parsedAddress = addressParseService.parseAddress(addressText);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("recipient_name", parsedAddress.getRecipientName());
+            result.put("recipient_phone", parsedAddress.getRecipientPhone());
+            result.put("province", parsedAddress.getProvince());
+            result.put("city", parsedAddress.getCity());
+            result.put("district", parsedAddress.getDistrict());
+            result.put("detail_address", parsedAddress.getDetailAddress());
+
+            return ResponseEntity.ok(new ApiResponse(200, "地址识别成功", result));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse(500, "地址识别失败：" + e.getMessage(), null));
+        }
+    }
 
     /**
      * 41. 客户添加收货地址
