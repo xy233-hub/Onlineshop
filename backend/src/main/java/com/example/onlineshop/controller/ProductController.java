@@ -2,6 +2,7 @@
 package com.example.onlineshop.controller;
 
 import com.example.onlineshop.dto.request.AiAssistantQueryRequest;
+import com.example.onlineshop.dto.request.AiImageSearchRequest;
 import com.example.onlineshop.dto.request.PurchaseIntentRequest;
 import com.example.onlineshop.dto.response.AiAssistantProductResponse;
 import com.example.onlineshop.dto.response.ApiResponse;
@@ -9,8 +10,10 @@ import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.Product;
 import com.example.onlineshop.entity.PurchaseIntent;
 import com.example.onlineshop.service.AiShoppingAssistantService;
+import com.example.onlineshop.service.AiVectorRetrieverService;
 import com.example.onlineshop.service.PriceHistoryService;
 import com.example.onlineshop.service.ProductService;
+import com.example.onlineshop.service.ProductVectorService;
 import com.example.onlineshop.service.PromotionService;
 import com.example.onlineshop.service.PurchaseIntentService;
 import com.example.onlineshop.util.ResponseUtil;
@@ -35,6 +38,12 @@ public class ProductController {
 
     @Autowired
     private  AiShoppingAssistantService aiShoppingAssistantService;
+
+    @Autowired
+    private AiVectorRetrieverService aiVectorRetrieverService;
+
+    @Autowired
+    private ProductVectorService productVectorService;
 
     @Autowired
     private PriceHistoryService priceHistoryService;
@@ -210,6 +219,68 @@ public class ProductController {
         } catch (Exception e) {
             return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
+    }
+
+    @PostMapping("/ai-image-search")
+    public Object aiImageSearch(@RequestBody AiImageSearchRequest req) {
+        try {
+            if (req == null || req.getImageUrl() == null || req.getImageUrl().isBlank()) {
+                return ResponseUtil.custom(400, "图片URL必填", null);
+            }
+            int page = req.getPage() != null && req.getPage() > 0 ? req.getPage() : 1;
+            int size = req.getSize() != null && req.getSize() > 0 ? req.getSize() : 10;
+
+            AiVectorRetrieverService.RetrievalResult result = aiVectorRetrieverService.searchByImage(req.getImageUrl(), page, size);
+            
+            List<ProductInfoResponse> items = result.items().stream().map(sp -> {
+                ProductInfoResponse item = new ProductInfoResponse(sp.product());
+                item.score = sp.score();
+                return item;
+            }).collect(Collectors.toList());
+
+            HashMap<String, Object> data = new HashMap<>();
+            data.put("page", page);
+            data.put("size", size);
+            data.put("total", result.total());
+            data.put("items", items);
+
+            return ResponseUtil.success("查询成功", data);
+        } catch (IllegalStateException e) {
+            return ResponseUtil.custom(503, e.getMessage(), null);
+        } catch (Exception e) {
+            return ResponseUtil.error("查询失败: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/ai-image-search/status")
+    public Object getAiImageSearchStatus() {
+        HashMap<String, Object> data = new HashMap<>();
+        data.put("status", aiVectorRetrieverService.getIndexStatus());
+        
+        ProductVectorService.VectorGenerationProgress progress = productVectorService.getProgress();
+        HashMap<String, Object> progressData = new HashMap<>();
+        progressData.put("isGenerating", progress.isGenerating());
+        progressData.put("totalProducts", progress.getTotalProducts());
+        progressData.put("processedProducts", progress.getProcessedProducts());
+        progressData.put("totalImages", progress.getTotalImages());
+        progressData.put("processedImages", progress.getProcessedImages());
+        progressData.put("lastError", progress.getLastError());
+        data.put("progress", progressData);
+        
+        return ResponseUtil.success("获取状态成功", data);
+    }
+    
+    @PostMapping("/ai-image-search/generate-vectors")
+    public Object generateVectorsForAllProducts() {
+        if (productVectorService.isGenerating()) {
+            return ResponseUtil.custom(400, "已有向量生成任务在运行中，请等待完成", null);
+        }
+        
+        productVectorService.generateAllVectorsAsync();
+        
+        HashMap<String, Object> data = new HashMap<>();
+        data.put("message", "向量生成任务已启动，请通过状态接口查询进度");
+        return ResponseUtil.success("任务已启动", data);
     }
 
     private LocalDate parseDate(String value) {

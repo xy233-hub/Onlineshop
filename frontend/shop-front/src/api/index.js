@@ -5,7 +5,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL
 
 const api = axios.create({
     baseURL: baseURL,
-    timeout: 10000
+    timeout: 30000
 })
 
 const sanitizeToken = v => {
@@ -113,7 +113,10 @@ export const productAPI = {
  * - POST /api/products/ai-recommend
  */
 export const aiAPI = {
-    recommend: (data) => api.post('/products/ai-recommend', data)
+    recommend: (data) => api.post('/products/ai-recommend', data),
+    searchImage: (data) => api.post('/products/ai-image-search', data),
+    getImageSearchStatus: () => api.get('/products/ai-image-search/status'),
+    generateVectors: () => api.post('/products/ai-image-search/generate-vectors')
 }
 
 /**

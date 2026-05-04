@@ -64,6 +64,9 @@ public class SellerProductController {
     private  ExternalAiClient externalAiClient;
 
     @Autowired
+    private ProductVectorService productVectorService;
+
+    @Autowired
     private com.example.onlineshop.mapper.PricingMapper pricingMapper;
 
     @Autowired
@@ -276,6 +279,7 @@ public class SellerProductController {
 
                     Product latest = sellerService.loadProductWithMedia(productId);
                     if (latest != null) {
+                        productVectorService.generateAndStoreAllVectorsAsync(latest);
                         return new ApiResponse(200, "发布成功", new ProductInfoResponse(latest));
                     }
                 }

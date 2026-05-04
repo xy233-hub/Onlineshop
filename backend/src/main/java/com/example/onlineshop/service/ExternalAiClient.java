@@ -11,14 +11,16 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.Base64;
 
 @Component
 public class ExternalAiClient {
 
-    private final RestTemplate restTemplate;
+    private RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ThreadLocal<String> lastFailureReason = new ThreadLocal<>();
 
@@ -31,18 +33,16 @@ public class ExternalAiClient {
     @Value("${ai.api.model:qwen3-max-2026-01-23}")
     private String model;
 
-    // 只打印摘要（默认 true 也可以，但不会刷屏）
     @Value("${ai.api.debug:false}")
     private boolean debug;
 
-    // 只有 verbose=true 才打印 Raw/完整 content 等大段文字
     @Value("${ai.api.debug-verbose:false}")
     private boolean debugVerbose;
 
-    @Value("${ai.api.connect-timeout-ms:10000}")
+    @Value("${ai.api.connect-timeout-ms:15000}")
     private long connectTimeoutMs;
 
-    @Value("${ai.api.read-timeout-ms:80000}")
+    @Value("${ai.api.read-timeout-ms:120000}")
     private long readTimeoutMs;
 
     @Value("${ai.api.retry-times:1}")
@@ -55,7 +55,10 @@ public class ExternalAiClient {
     private String embeddingModel;
 
     public ExternalAiClient(RestTemplateBuilder builder) {
-        this.restTemplate = builder.build();
+        this.restTemplate = builder
+                .setConnectTimeout(Duration.ofSeconds(120))
+                .setReadTimeout(Duration.ofSeconds(180))
+                .build();
     }
 
     public AiProductQuery extractQuery(String userText) {
@@ -233,8 +236,14 @@ public class ExternalAiClient {
 
     public List<Double> generateEmbedding(String text) {
         try {
-            if (text == null || text.isBlank()) return Collections.emptyList();
-            if (baseUrl == null || baseUrl.isBlank() || apiKey == null || apiKey.isBlank()) return Collections.emptyList();
+            if (text == null || text.isBlank()) {
+                System.out.println("[AI] generateEmbedding: 文本为空");
+                return Collections.emptyList();
+            }
+            if (baseUrl == null || baseUrl.isBlank() || apiKey == null || apiKey.isBlank()) {
+                System.out.println("[AI] generateEmbedding: API配置缺失");
+                return Collections.emptyList();
+            }
 
             String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
             String url = normalized + "/services/embeddings/text-embedding/text-embedding";
@@ -250,23 +259,142 @@ public class ExternalAiClient {
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set("Authorization", "Bearer " + apiKey);
 
+            System.out.println("[AI] generateEmbedding: 调用API, 文本长度=" + text.length());
             ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
             String raw = resp.getBody();
-            if (raw == null || raw.isBlank()) return Collections.emptyList();
+            if (raw == null || raw.isBlank()) {
+                System.out.println("[AI] generateEmbedding: 响应为空");
+                return Collections.emptyList();
+            }
 
             JsonNode root = objectMapper.readTree(raw);
             JsonNode embedding = root.path("output").path("embeddings").path(0).path("embedding");
-            if (!embedding.isArray() || embedding.isEmpty()) return Collections.emptyList();
+            if (!embedding.isArray() || embedding.isEmpty()) {
+                System.out.println("[AI] generateEmbedding: 无法解析embedding, raw=" + raw.substring(0, Math.min(200, raw.length())));
+                return Collections.emptyList();
+            }
 
             List<Double> vector = new ArrayList<>(embedding.size());
             for (JsonNode node : embedding) {
                 vector.add(node.asDouble());
             }
+            System.out.println("[AI] generateEmbedding: 成功, 向量维度=" + vector.size());
             return vector;
         } catch (Exception e) {
-            if (debug) System.out.println("[AI] generateEmbedding exception: " + e);
+            System.out.println("[AI] generateEmbedding exception: " + e.getMessage());
+            e.printStackTrace();
             return Collections.emptyList();
         }
+    }
+
+    @Value("${media.upload-dir:}")
+    private String mediaUploadDir;
+
+    @Value("${media.base-url:}")
+    private String mediaBaseUrl;
+
+    public String generateImageDescription(String imageUrl, String productContext) {
+        try {
+            if (imageUrl == null || imageUrl.isBlank()) {
+                System.out.println("[AI] generateImageDescription: 图片URL为空");
+                return "";
+            }
+            if (baseUrl == null || baseUrl.isBlank() || apiKey == null || apiKey.isBlank()) {
+                System.out.println("[AI] generateImageDescription: API配置缺失");
+                return "";
+            }
+
+            String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+            String url = normalized + "/services/aigc/multimodal-generation/generation";
+
+            String imageToSend = convertLocalImageToBase64(imageUrl);
+            System.out.println("[AI] generateImageDescription: 图片URL=" + imageUrl + ", 转换后长度=" + (imageToSend != null ? imageToSend.length() : 0));
+
+            List<Map<String, Object>> contentList = new ArrayList<>();
+            Map<String, Object> imgMap = new HashMap<>();
+            imgMap.put("image", imageToSend);
+            contentList.add(imgMap);
+
+            Map<String, Object> txtMap = new HashMap<>();
+            if (productContext != null && !productContext.isBlank()) {
+                txtMap.put("text", "请详细描述这张商品图片的内容，并结合以下商品信息：\n" + productContext + "\n提取出它的主要特征（颜色、类别、材质、卖点等），用于向量检索。");
+            } else {
+                txtMap.put("text", "请详细描述这张商品图片的内容，提取它的主要特征（颜色、类别、材质、卖点等），用于商品检索。");
+            }
+            contentList.add(txtMap);
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("role", "user");
+            message.put("content", contentList);
+
+            Map<String, Object> input = new HashMap<>();
+            input.put("messages", Collections.singletonList(message));
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", "qwen-vl-max");
+            body.put("input", input);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + apiKey);
+
+            System.out.println("[AI] generateImageDescription: 调用qwen-vl-max API...");
+            ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+            String raw = resp.getBody();
+            if (raw == null || raw.isBlank()) {
+                System.out.println("[AI] generateImageDescription: 响应为空");
+                return "";
+            }
+
+            JsonNode root = objectMapper.readTree(raw);
+            JsonNode choices = root.path("output").path("choices");
+            if (choices.isArray() && choices.size() > 0) {
+                JsonNode contentArr = choices.path(0).path("message").path("content");
+                if (contentArr.isArray() && contentArr.size() > 0) {
+                    for (JsonNode cNode : contentArr) {
+                        if (cNode.has("text")) {
+                            String result = cNode.path("text").asText("");
+                            System.out.println("[AI] generateImageDescription: 成功, 描述长度=" + result.length());
+                            return result;
+                        }
+                    }
+                }
+            }
+            System.out.println("[AI] generateImageDescription: 无法解析响应, raw=" + raw.substring(0, Math.min(300, raw.length())));
+            return "";
+        } catch (Exception e) {
+            System.out.println("[AI] generateImageDescription exception: " + e.getMessage());
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+    private String convertLocalImageToBase64(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return imageUrl;
+        
+        if (mediaBaseUrl != null && !mediaBaseUrl.isBlank() && imageUrl.startsWith(mediaBaseUrl)) {
+            try {
+                String relativePath = imageUrl.substring(mediaBaseUrl.length());
+                if (relativePath.startsWith("/")) relativePath = relativePath.substring(1);
+                
+                java.nio.file.Path filePath = java.nio.file.Paths.get(mediaUploadDir, relativePath);
+                if (java.nio.file.Files.exists(filePath)) {
+                    byte[] fileBytes = java.nio.file.Files.readAllBytes(filePath);
+                    String base64 = Base64.getEncoder().encodeToString(fileBytes);
+                    
+                    String mimeType = "image/png";
+                    String fileName = filePath.getFileName().toString().toLowerCase();
+                    if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) mimeType = "image/jpeg";
+                    else if (fileName.endsWith(".gif")) mimeType = "image/gif";
+                    else if (fileName.endsWith(".webp")) mimeType = "image/webp";
+                    
+                    return "data:" + mimeType + ";base64," + base64;
+                }
+            } catch (Exception e) {
+                if (debug) System.out.println("[AI] convertLocalImageToBase64 exception: " + e);
+            }
+        }
+        return imageUrl;
     }
 
     private JsonNode callDashScopeMessage(String prompt, boolean enableThinking, String op) throws Exception {
@@ -314,11 +442,6 @@ public class ExternalAiClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("Authorization", "Bearer " + apiKey);
-
-        if (restTemplate.getRequestFactory() instanceof org.springframework.http.client.SimpleClientHttpRequestFactory f) {
-            f.setConnectTimeout((int) connectTimeoutMs);
-            f.setReadTimeout((int) readTimeoutMs);
-        }
 
         long t0 = System.currentTimeMillis();
         ResponseEntity<String> resp;

@@ -189,6 +189,22 @@
               <el-icon><Search /></el-icon>
               搜索
             </el-button>
+            <el-upload
+              class="image-search-upload"
+              action="#"
+              :http-request="handleImageSearchUpload"
+              :show-file-list="false"
+              accept=".jpg,.jpeg,.png,.webp"
+              :disabled="loading"
+            >
+              <el-button type="success" class="image-search-btn" :loading="loading">
+                <el-icon><Camera /></el-icon>
+                识图
+              </el-button>
+            </el-upload>
+            <el-button v-if="isImageSearchMode" @click="clearImageSearch" style="margin-left: 10px;">
+              清除识图
+            </el-button>
           </div>
         </div>
         <!-- 热门搜索标签 -->
@@ -401,12 +417,12 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
-import { productAPI, categoryAPI, cartAPI, aiAPI } from '@/api'
+import { productAPI, categoryAPI, cartAPI, aiAPI, mediaAPI } from '@/api'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCustomerStore } from '@/stores/customer'
-import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop, ChatDotRound } from '@element-plus/icons-vue'
+import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop, ChatDotRound, Camera } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -931,28 +947,98 @@ const fetchCategories = async () => {
   }
 }
 
+const isImageSearchMode = ref(false)
+const currentSearchImageUrl = ref('')
+
+const handleImageSearchUpload = async (options) => {
+  const { file } = options
+  try {
+    loading.value = true
+    // 1. 上传图片到我们已有的 /api/media/upload 接口作为临时文件
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('purpose', 'gallery')
+
+    // 调用 mediaAPI 上传
+    const uploadRes = await mediaAPI.upload(formData)
+    const payload = uploadRes.data?.data || uploadRes.data
+    const uploadedUrl = payload?.media_url || payload?.mediaUrl || payload?.temp_url || payload?.url
+
+    if (!uploadedUrl) {
+      throw new Error('上传图片失败，无法获取 URL')
+    }
+
+    currentSearchImageUrl.value = uploadedUrl
+    isImageSearchMode.value = true
+    page.value = 1
+
+    // 清空现有的文本分类条件
+    q.value = ''
+    categoryId.value = null
+
+    await fetchProducts()
+
+    ElMessage.success('识图成功！')
+  } catch (error) {
+    console.error('识图失败:', error)
+    ElMessage.error(error.message || '图片识别失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const clearImageSearch = () => {
+  isImageSearchMode.value = false
+  currentSearchImageUrl.value = ''
+  page.value = 1
+  fetchProducts()
+}
+
 const fetchProducts = async (p = page.value, s = size.value) => {
   try {
     const params = { page: p, size: s }
     if (q.value && q.value.toString().trim()) params.q = q.value.toString().trim()
     if (categoryId.value) params.category_id = categoryId.value
 
-    const response = await productAPI.getProducts(params)
-    console.log('获取商品列表响应:', response)
-    const payload = extractData(response)
-    console.log('提取的payload:', payload)
     let items = []
 
-    if (!payload) {
-      items = []
-    } else if (Array.isArray(payload.items) && payload.items.length) {
-      items = payload.items
-    } else if (Array.isArray(payload) && payload.length) {
-      items = payload
-    } else if (payload && (payload.product_id || payload.product_id === 0)) {
-      items = [payload]
+    if (isImageSearchMode.value && currentSearchImageUrl.value) {
+      const response = await aiAPI.searchImage({
+        image_url: currentSearchImageUrl.value,
+        page: p,
+        size: s
+      })
+      const payload = response.data?.data || response.data
+
+      if (payload && Array.isArray(payload.items)) {
+        items = payload.items
+        total.value = payload.total || items.length
+      } else {
+        items = []
+        total.value = 0
+      }
     } else {
-      items = []
+      // 普通文本检索
+      const response = await productAPI.getProducts(params)
+      console.log('获取商品列表响应:', response)
+      const payload = extractData(response)
+      console.log('提取的payload:', payload)
+
+      if (!payload) {
+        items = []
+      } else if (Array.isArray(payload.items) && payload.items.length) {
+        items = payload.items
+        total.value = Number(payload.total) || items.length
+      } else if (Array.isArray(payload) && payload.length) {
+        items = payload
+        total.value = items.length
+      } else if (payload && (payload.product_id || payload.product_id === 0)) {
+        items = [payload]
+        total.value = 1
+      } else {
+        items = []
+        total.value = 0
+      }
     }
 
     // 规范化字段
@@ -960,7 +1046,6 @@ const fetchProducts = async (p = page.value, s = size.value) => {
 
     page.value = p
     size.value = s
-    total.value = Number(payload?.total ?? items.length ?? 0)
     products.value = items
   } catch (error) {
     console.error('获取商品失败:', error)
