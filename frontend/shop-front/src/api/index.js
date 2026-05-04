@@ -144,6 +144,7 @@ export const promotionAPI = {
     activatePromotion: (promotionId) => api.post(`/admin/promotions/${promotionId}/activate`, { confirm: true }),
     endPromotion: (promotionId, data = {}) => api.post(`/admin/promotions/${promotionId}/end`, data),
     cancelPromotion: (promotionId, reason) => api.post(`/admin/promotions/${promotionId}/cancel`, { reason }),
+    getRuleDefinitions: () => api.get('/admin/promotions/rule-definitions'),
     getActivePromotions: (params) => api.get('/promotions/active', { params }),
     getProductPromotions: (productId) => api.get(`/products/${productId}/promotions`)
 }

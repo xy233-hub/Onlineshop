@@ -566,6 +566,39 @@ public class PromotionService {
         }
     }
 
+    public List<Map<String, Object>> getRuleDefinitions() {
+        List<Map<String, Object>> definitions = new ArrayList<>();
+
+        Map<String, Object> discountRule = new LinkedHashMap<>();
+        discountRule.put("rule_type", "DISCOUNT");
+        discountRule.put("name", "折扣优惠");
+        discountRule.put("fields", List.of(
+            Map.of("key", "discount_value", "label", "折扣比例", "type", "number", "required", true)
+        ));
+        definitions.add(discountRule);
+
+        Map<String, Object> fullReductionRule = new LinkedHashMap<>();
+        fullReductionRule.put("rule_type", "FULL_REDUCTION");
+        fullReductionRule.put("name", "满减优惠");
+        fullReductionRule.put("fields", List.of(
+            Map.of("key", "min_purchase_amount", "label", "满减门槛", "type", "number", "required", true),
+            Map.of("key", "discount_value", "label", "减免金额", "type", "number", "required", true),
+            Map.of("key", "max_discount_amount", "label", "最高减免", "type", "number", "required", false)
+        ));
+        definitions.add(fullReductionRule);
+
+        Map<String, Object> customRule = new LinkedHashMap<>();
+        customRule.put("rule_type", "CUSTOM");
+        customRule.put("name", "自定义规则");
+        customRule.put("fields", List.of(
+            Map.of("key", "rule_expression", "label", "规则表达式", "type", "string", "required", true),
+            Map.of("key", "description", "label", "规则说明", "type", "string", "required", false)
+        ));
+        definitions.add(customRule);
+
+        return definitions;
+    }
+
     private List<Integer> parseTargetIds(String json) {
         if (json == null || json.isBlank()) return Collections.emptyList();
         try {

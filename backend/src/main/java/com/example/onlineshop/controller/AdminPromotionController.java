@@ -134,6 +134,11 @@ public class AdminPromotionController {
         }
     }
 
+    @GetMapping("/rule-definitions")
+    public ApiResponse ruleDefinitions() {
+        return new ApiResponse(200, "查询成功", promotionService.getRuleDefinitions());
+    }
+
     private LocalDate parseDate(String value) {
         if (value == null || value.isBlank()) return null;
         try {
@@ -143,4 +148,3 @@ public class AdminPromotionController {
         }
     }
 }
-

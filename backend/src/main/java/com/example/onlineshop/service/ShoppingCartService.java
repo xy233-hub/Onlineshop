@@ -478,8 +478,8 @@ public class ShoppingCartService {
 
             BigDecimal minPurchase = toMoney(promotion.get("min_purchase_amount"));
             if (minPurchase == null) minPurchase = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
-            // 订单级门槛按卖家子单总额判定。
-            if (sellerSubtotal.compareTo(minPurchase) < 0) continue;
+            // 订单级门槛按符合规则的商品总额判定。
+            if (eligibleSubtotal.compareTo(minPurchase) < 0) continue;
 
             BigDecimal reduction = toMoney(promotion.get("discount_value"));
             if (reduction == null || reduction.compareTo(BigDecimal.ZERO) <= 0) continue;

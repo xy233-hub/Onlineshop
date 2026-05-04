@@ -29,8 +29,7 @@
             style="width: 180px"
             @change="fetchPromotions(1)"
         >
-          <el-option label="限时折扣" value="DISCOUNT" />
-          <el-option label="满减" value="FULL_REDUCTION" />
+          <el-option v-for="rule in ruleDefinitions" :key="rule.rule_type" :label="rule.name" :value="rule.rule_type" />
         </el-select>
       </div>
 
@@ -86,9 +85,8 @@
         </el-form-item>
 
         <el-form-item label="活动类型">
-          <el-select v-model="form.promotion_type" style="width: 100%">
-            <el-option label="限时折扣" value="DISCOUNT" />
-            <el-option label="满减" value="FULL_REDUCTION" />
+          <el-select v-model="form.promotion_type" style="width: 100%" @change="handleTypeChange">
+            <el-option v-for="rule in ruleDefinitions" :key="rule.rule_type" :label="rule.name" :value="rule.rule_type" />
           </el-select>
         </el-form-item>
 
@@ -119,7 +117,7 @@
           <span class="inline-hint">0.80 表示 8 折</span>
         </el-form-item>
 
-        <template v-else>
+        <template v-else-if="form.promotion_type === 'FULL_REDUCTION'">
           <el-form-item label="减免金额">
             <el-input-number v-model="form.discount_value" :min="0.01" :step="1" :precision="2" />
           </el-form-item>
@@ -129,6 +127,14 @@
           <el-form-item label="最大优惠金额">
             <el-input-number v-model="form.max_discount_amount" :min="0" :step="1" :precision="2" />
           </el-form-item>
+        </template>
+
+        <template v-else>
+           <!-- 兼容扩展的 CUSTOM 或其他规则，默认提供一个折扣数值输入以便满足基本参数 -->
+           <el-form-item label="配置值">
+             <el-input-number v-model="form.discount_value" :min="0" :step="1" :precision="2" />
+             <span class="inline-hint">请输入数值配置，具体功能视所选规则决定</span>
+           </el-form-item>
         </template>
 
         <el-form-item label="适用范围">
@@ -201,16 +207,29 @@ export default {
       },
       dialogVisible: false,
       dialogTitle: '创建促销活动',
-      form: defaultForm()
+      form: defaultForm(),
+      ruleDefinitions: []
     }
   },
   async mounted() {
-    await Promise.all([this.fetchCategories(), this.fetchProducts()])
+    await Promise.all([this.fetchCategories(), this.fetchProducts(), this.fetchRuleDefinitions()])
     this.fetchPromotions(1)
   },
   methods: {
     promotionTypeText(type) {
+      if (!type) return type;
+      const matched = this.ruleDefinitions.find(r => r.rule_type === type);
+      if (matched) return matched.name;
       return { DISCOUNT: '限时折扣', FULL_REDUCTION: '满减', COUPON: '优惠券', FLASH_SALE: '秒杀' }[type] || type
+    },
+    handleTypeChange(val) {
+      if (val === 'DISCOUNT') {
+        this.form.discount_value = 0.8;
+      } else if (val === 'FULL_REDUCTION') {
+        this.form.discount_value = 0;
+        this.form.min_purchase_amount = 0;
+        this.form.max_discount_amount = null;
+      }
     },
     promotionStatusText(status) {
       return { DRAFT: '草稿', ACTIVE: '进行中', ENDED: '已结束', CANCELLED: '已取消' }[status] || status
@@ -236,6 +255,18 @@ export default {
         ElMessage.error(e?.response?.data?.message || '获取促销活动失败')
       } finally {
         this.loading = false
+      }
+    },
+    async fetchRuleDefinitions() {
+      try {
+        const res = await promotionAPI.getRuleDefinitions()
+        this.ruleDefinitions = Array.isArray(res?.data?.data) ? res.data.data : []
+      } catch (e) {
+        console.error('Failed to fetch rule definitions', e);
+        this.ruleDefinitions = [
+          { rule_type: 'DISCOUNT', name: '限时折扣' },
+          { rule_type: 'FULL_REDUCTION', name: '满减' }
+        ]
       }
     },
     async fetchCategories() {
