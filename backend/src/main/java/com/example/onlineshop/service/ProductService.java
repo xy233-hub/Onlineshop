@@ -21,8 +21,13 @@ import java.util.stream.Collectors;
 @Service
 public class ProductService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProductService.class);
+
     @Autowired
     private ProductMapper productMapper;
+
+    @Autowired
+    private PromotionPriceService promotionPriceService;
 
 
     public Product getProductById(Integer productId) {
@@ -137,7 +142,15 @@ public class ProductService {
         List<ProductImage> imgs = productMapper.selectImagesByProductId(productId);
         List<MediaResource> medias = productMapper.selectMediaByProductId(productId);
         com.example.onlineshop.entity.Category cat = productMapper.selectCategoryById(p.getCategoryId());
-        return new ProductDetailResponse(p, imgs, medias, cat);
+
+        BigDecimal basePrice = p.getPrice();
+        BigDecimal originalPrice = p.getOriginalPrice() != null ? p.getOriginalPrice() : basePrice;
+        Integer categoryId = p.getCategoryId();
+
+        PromotionPriceService.PromotionPriceResult promoResult = promotionPriceService.calculateProductPromotionPrice(
+                productId, basePrice, originalPrice, categoryId);
+
+        return new ProductDetailResponse(p, imgs, medias, cat, promoResult);
     }
 
     public boolean isProductOnline(Integer productId) {

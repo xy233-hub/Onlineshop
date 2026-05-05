@@ -14,6 +14,7 @@ import com.example.onlineshop.service.AiVectorRetrieverService;
 import com.example.onlineshop.service.PriceHistoryService;
 import com.example.onlineshop.service.ProductService;
 import com.example.onlineshop.service.ProductVectorService;
+import com.example.onlineshop.service.PromotionPriceService;
 import com.example.onlineshop.service.PromotionService;
 import com.example.onlineshop.service.PurchaseIntentService;
 import com.example.onlineshop.util.ResponseUtil;
@@ -50,6 +51,9 @@ public class ProductController {
 
     @Autowired
     private PromotionService promotionService;
+
+    @Autowired
+    private PromotionPriceService promotionPriceService;
 
     /**
      * 搜索/分页/排序获取商品列表
@@ -95,7 +99,13 @@ public class ProductController {
             int total = productService.countProducts(q, categoryId, status, minPrice, maxPrice);
 
             List<ProductInfoResponse> items = products.stream()
-                    .map(ProductInfoResponse::new)
+                    .map(p -> {
+                        BigDecimal basePrice = p.getPrice();
+                        BigDecimal originalPrice = p.getOriginalPrice() != null ? p.getOriginalPrice() : basePrice;
+                        PromotionPriceService.PromotionPriceResult promoResult = promotionPriceService.calculateProductPromotionPrice(
+                                p.getProductId(), basePrice, originalPrice, p.getCategoryId());
+                        return new ProductInfoResponse(p, null, null, promoResult);
+                    })
                     .collect(Collectors.toList());
 
             HashMap<String, Object> data = new HashMap<>();

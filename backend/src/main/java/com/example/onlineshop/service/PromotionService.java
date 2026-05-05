@@ -29,6 +29,9 @@ public class PromotionService {
     @Autowired
     private PriceAlertService priceAlertService;
 
+    @Autowired
+    private PromotionPriceService promotionPriceService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -140,6 +143,8 @@ public class PromotionService {
 
         promotionMapper.updateStatus(promotionId, "ACTIVE");
 
+        promotionPriceService.invalidatePromotionsCache();
+
         Integer priority = promotion.getPriority() == null ? 0 : promotion.getPriority();
         for (Integer productId : productIds) {
             if (productId == null) continue;
@@ -166,6 +171,7 @@ public class PromotionService {
 
         promotionMapper.updateStatus(promotionId, "ENDED");
         promotionMapper.deactivateByPromotion(promotionId);
+        promotionPriceService.invalidatePromotionsCache();
         refreshProductsPriceByPromotion(promotionId, "PROMOTION_END", "促销活动结束", operatorId == null ? 0 : operatorId);
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -187,6 +193,7 @@ public class PromotionService {
 
         promotionMapper.updateStatus(promotionId, "CANCELLED");
         promotionMapper.deactivateByPromotion(promotionId);
+        promotionPriceService.invalidatePromotionsCache();
         refreshProductsPriceByPromotion(promotionId, "PROMOTION_END", "促销活动取消", operatorId == null ? 0 : operatorId);
 
         Map<String, Object> data = new LinkedHashMap<>();
