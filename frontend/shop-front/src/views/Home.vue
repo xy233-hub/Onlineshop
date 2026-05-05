@@ -19,7 +19,27 @@
             <el-icon><ShoppingCart /></el-icon>
             <span>购物车</span>
           </el-button>
-          <template v-if="!isCustomerLogged">
+          <template v-if="isSellerLogged && !isCustomerLogged">
+            <el-button type="warning" text class="seller-back-btn" @click="goSellerDashboard">
+              <el-icon><Shop /></el-icon>
+              <span>卖家后台</span>
+            </el-button>
+            <el-dropdown>
+              <el-button type="default" class="user-btn seller-user-btn">
+                <el-icon><Shop /></el-icon>
+                <span>{{ sellerStore.seller?.username || '卖家' }}</span>
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="goSellerDashboard">卖家后台</el-dropdown-item>
+                  <el-dropdown-item @click="goBuyerLogin">切换买家登录</el-dropdown-item>
+                  <el-dropdown-item divided @click="sellerLogout">退出卖家账号</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+          <template v-else-if="!isCustomerLogged">
             <el-dropdown>
               <el-button type="primary" class="login-dropdown-btn">
                 <el-icon><User /></el-icon>
@@ -50,6 +70,7 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item @click="goDashboard">个人中心</el-dropdown-item>
+                  <el-dropdown-item v-if="isSellerLogged" @click="goSellerDashboard">卖家后台</el-dropdown-item>
                   <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -448,11 +469,13 @@ import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCustomerStore } from '@/stores/customer'
+import { useSellerStore } from '@/stores/seller'
 import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop, ChatDotRound, Camera } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const customerStore = useCustomerStore()
+const sellerStore = useSellerStore()
 
 const page = ref(1)
 const size = ref(8)
@@ -558,6 +581,7 @@ const categoryTabs = computed(() => {
 })
 
 const isCustomerLogged = computed(() => customerStore.isLoggedIn || !!customerStore.customerId)
+const isSellerLogged = computed(() => sellerStore.isLoggedIn)
 
 const getCurrentCustomerId = () => {
   const cid = customerStore.customerId
@@ -572,6 +596,13 @@ const goBuyerLogin = () => {
 }
 const goSellerLogin = () => {
   router.push('/seller').catch(() => {})
+}
+const goSellerDashboard = () => {
+  router.push('/seller/dashboard').catch(() => {})
+}
+const sellerLogout = () => {
+  sellerStore.logout()
+  ElMessage.success('已退出卖家账号')
 }
 const goDashboard = () => {
   router.push('/customer/dashboard').catch(() => {})
@@ -1439,6 +1470,25 @@ const stripHtml = (input) => {
   background: linear-gradient(135deg, #2563eb, #7c3aed);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.seller-back-btn {
+  font-weight: 500;
+  color: #e6a23c;
+}
+
+.seller-back-btn:hover {
+  color: #cf8d1e;
+}
+
+.seller-user-btn {
+  border-color: #e6a23c;
+  color: #e6a23c;
+}
+
+.seller-user-btn:hover {
+  border-color: #cf8d1e;
+  color: #cf8d1e;
 }
 
 .login-dropdown-btn {

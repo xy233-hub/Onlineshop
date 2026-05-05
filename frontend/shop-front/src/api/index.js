@@ -75,25 +75,49 @@ api.interceptors.request.use(config => {
     return config
 }, error => Promise.reject(error))
 
-// 响应拦截器保留原样...
 api.interceptors.response.use(
     response => response,
     error => {
         const status = error?.response?.status
         const url = error?.config?.url || ''
 
-        // 规范化到 path，兼容绝对/相对 url
         const path = url.startsWith('http') ? new URL(url).pathname : url
 
-        // 登录接口：401 交给页面处理，不做整页跳转
         const isLoginApi =
             /^\/seller\/login(\/|$)/.test(path) ||
             /^\/customers\/login(\/|$)/.test(path)
 
         if (status === 401 && !isLoginApi) {
-            localStorage.removeItem('seller_token')
-            localStorage.removeItem('customer_token')
-            try { window.location.href = '/seller' } catch (e) {}
+            const isSellerPath = /^\/(seller|admin)(\/|$)/.test(path)
+            const isCustomerPath = /^\/customers?(\/|$)/.test(path) ||
+                                   /^\/payments(\/|$)/.test(path) ||
+                                   /^\/products\/purchase-intents(\/|$)/.test(path)
+
+            if (isSellerPath) {
+                localStorage.removeItem('seller_token')
+                localStorage.removeItem('seller_info')
+                try { window.location.href = '/seller' } catch (e) {}
+            } else if (isCustomerPath) {
+                localStorage.removeItem('customer_token')
+                localStorage.removeItem('customer_info')
+                localStorage.removeItem('customer')
+                localStorage.removeItem('customer_id')
+            } else {
+                const usedToken = error?.config?.headers?.Authorization
+                if (usedToken) {
+                    const sellerToken = sanitizeToken(localStorage.getItem('seller_token'))
+                    if (sellerToken && usedToken.includes(sellerToken)) {
+                        localStorage.removeItem('seller_token')
+                        localStorage.removeItem('seller_info')
+                        try { window.location.href = '/seller' } catch (e) {}
+                    } else {
+                        localStorage.removeItem('customer_token')
+                        localStorage.removeItem('customer_info')
+                        localStorage.removeItem('customer')
+                        localStorage.removeItem('customer_id')
+                    }
+                }
+            }
         }
 
         return Promise.reject(error)
