@@ -4,6 +4,8 @@ package com.example.onlineshop.service;
 import com.example.onlineshop.dto.ai.AiProductQuery;
 import com.example.onlineshop.dto.response.AiAssistantProductResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
+import com.example.onlineshop.entity.ChatMessage;
+import com.example.onlineshop.entity.ChatSession;
 import com.example.onlineshop.entity.Product;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,18 +28,21 @@ public class AiShoppingAssistantService {
 
     private final ExternalAiClient externalAiClient;
     private final AiVectorRetrieverService aiVectorRetrieverService;
+    private final ChatService chatService;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Map<String, ChatSession> chatMemory = new ConcurrentHashMap<>();
+    private final Map<String, MemoryChatSession> chatMemory = new ConcurrentHashMap<>();
 
     @Value("${ai.session.ttl-ms:1800000}")
     private long sessionTtlMs;
 
-    public AiShoppingAssistantService(ExternalAiClient externalAiClient, AiVectorRetrieverService aiVectorRetrieverService) {
+    public AiShoppingAssistantService(ExternalAiClient externalAiClient, AiVectorRetrieverService aiVectorRetrieverService, ChatService chatService) {
         this.externalAiClient = externalAiClient;
         this.aiVectorRetrieverService = aiVectorRetrieverService;
+        this.chatService = chatService;
     }
 
-    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action) {
+    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action, Integer sessionId) {
+        System.out.println("[AI] recommend called, sessionId=" + sessionId + ", userId=" + userId);
         if (userText == null || userText.trim().isEmpty()) {
             throw new IllegalArgumentException("text 必填");
         }
@@ -45,23 +50,47 @@ public class AiShoppingAssistantService {
         int safePage = (page != null && page > 0) ? page : 1;
         int safeSize = (size != null && size > 0) ? size : 10;
         
-        // 如果没有指定场景/动作，使用大模型进行意图识别
+        ChatSession session = null;
+        if (sessionId != null) {
+            session = chatService.getSession(sessionId);
+            System.out.println("[AI] 查询到的 session: " + (session != null ? session.getId() : "null"));
+        }
+
+        String historyContext = "";
+        if (session != null) {
+            historyContext = chatService.buildHistoryContext(sessionId, 3);
+        }
+
         String mode = resolveMode(scene, action);
         if ("auto".equals(mode)) {
-            String historyContext = buildRecentUserContext(buildMemoryKey(userId), 3);
             mode = externalAiClient.analyzeIntent(userText, historyContext);
             System.out.println("[AI Agent] 意图识别结果: " + mode);
         }
 
-        return switch (mode) {
-            case "chat" -> handleChat(userText, safePage, safeSize, userId);
-            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId);
+        AiAssistantProductResponse response = switch (mode) {
+            case "chat" -> handleChat(userText, safePage, safeSize, userId, sessionId);
+            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId, sessionId);
             case "extract", "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
             default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query, auto");
         };
+
+        if (sessionId != null) {
+            System.out.println("[AI] 保存消息到数据库, sessionId=" + sessionId);
+            chatService.addMessage(sessionId, "user", userText);
+            String replyText = response.getAiDescription();
+            System.out.println("[AI] AI回复长度: " + (replyText != null ? replyText.length() : 0));
+            if (replyText != null && !replyText.isBlank()) {
+                chatService.addMessage(sessionId, "assistant", replyText);
+                System.out.println("[AI] 消息已保存到数据库");
+            }
+        } else {
+            System.out.println("[AI] sessionId 为空，不保存消息");
+        }
+
+        return response;
     }
 
-    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId) {
+    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId, Integer sessionId) {
         String memoryKey = buildMemoryKey(userId);
 
         evictExpiredSessions();
@@ -81,7 +110,7 @@ public class AiShoppingAssistantService {
         return new AiAssistantProductResponse(query, aiReply, safePage, safeSize, 0, Collections.emptyList());
     }
 
-    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId) {
+    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId, Integer sessionId) {
         String memoryKey = buildMemoryKey(userId);
         evictExpiredSessions();
         String historyContext = buildRecentUserContext(memoryKey, 3);
@@ -163,7 +192,7 @@ public class AiShoppingAssistantService {
     }
 
     private String buildHistoryContext(String memoryKey) {
-        ChatSession session = chatMemory.get(memoryKey);
+        MemoryChatSession session = chatMemory.get(memoryKey);
         if (session == null || session.turns().isEmpty()) return "";
 
         session.touch(System.currentTimeMillis());
@@ -176,7 +205,7 @@ public class AiShoppingAssistantService {
     }
 
     private String buildRecentUserContext(String memoryKey, int maxUserTurns) {
-        ChatSession session = chatMemory.get(memoryKey);
+        MemoryChatSession session = chatMemory.get(memoryKey);
         if (session == null || session.turns().isEmpty()) return "";
 
         session.touch(System.currentTimeMillis());
@@ -193,7 +222,7 @@ public class AiShoppingAssistantService {
     private void appendTurn(String memoryKey, String userText, String assistantText) {
         long now = System.currentTimeMillis();
         chatMemory.compute(memoryKey, (k, oldSession) -> {
-            ChatSession session = oldSession == null ? new ChatSession(new ArrayDeque<>(), now) : oldSession;
+            MemoryChatSession session = oldSession == null ? new MemoryChatSession(new ArrayDeque<>(), now) : oldSession;
             Deque<ChatTurn> turns = session.turns();
             turns.addLast(new ChatTurn(userText.trim(), assistantText.trim()));
             while (turns.size() > MAX_TURNS) {
@@ -212,11 +241,11 @@ public class AiShoppingAssistantService {
 
     private record ChatTurn(String userText, String assistantText) {}
 
-    private static final class ChatSession {
+    private static final class MemoryChatSession {
         private final Deque<ChatTurn> turns;
         private volatile long lastAccessAt;
 
-        private ChatSession(Deque<ChatTurn> turns, long lastAccessAt) {
+        private MemoryChatSession(Deque<ChatTurn> turns, long lastAccessAt) {
             this.turns = turns;
             this.lastAccessAt = lastAccessAt;
         }

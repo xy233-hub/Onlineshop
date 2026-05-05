@@ -211,7 +211,8 @@ public class ProductController {
                     req == null ? null : req.getSize(),
                     req == null ? null : req.getUserId(),
                     req == null ? null : req.getScene(),
-                    req == null ? null : req.getAction()
+                    req == null ? null : req.getAction(),
+                    req == null ? null : req.getSessionId()
             );
             return ResponseUtil.success("查询成功", resp);
         } catch (IllegalArgumentException e) {

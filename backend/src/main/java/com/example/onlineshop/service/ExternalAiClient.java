@@ -101,6 +101,33 @@ public class ExternalAiClient {
         }
     }
 
+    public String generateSessionName(String context) {
+        try {
+            if (context == null || context.isBlank()) return null;
+
+            JsonNode msg = callDashScopeMessage(
+                    buildSessionNamePrompt(context),
+                    false,
+                    "generateSessionName"
+            );
+            if (msg == null) return null;
+
+            String content = msg.path("content").asText("");
+            return content == null ? null : content.trim();
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] generateSessionName exception: " + e);
+            return null;
+        }
+    }
+
+    private String buildSessionNamePrompt(String context) {
+        return ""
+                + "根据以下对话内容，为这个对话生成一个简短的名称（不超过10个字）。\n"
+                + "只输出名称，不要输出其他内容。\n"
+                + "对话内容：\n"
+                + context + "\n";
+    }
+
     public String generateChatReply(String userText, String historyContext) {
         try {
             if (userText == null || userText.isBlank()) return "";

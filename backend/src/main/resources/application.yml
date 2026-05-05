@@ -12,4 +12,4 @@ ai:
 rag:
   vector:
     index-ttl-ms: 300000
-    min-score: 0.60
+    min-score: 0.50

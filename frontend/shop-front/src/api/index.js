@@ -120,6 +120,19 @@ export const aiAPI = {
 }
 
 /**
+ * 聊天会话管理
+ */
+export const chatAPI = {
+    createSession: (userId, name) => api.post('/chat/sessions', null, { params: { userId, name } }),
+    getUserSessions: (userId) => api.get('/chat/sessions', { params: { userId } }),
+    getSession: (sessionId) => api.get(`/chat/sessions/${sessionId}`),
+    getSessionMessages: (sessionId) => api.get(`/chat/sessions/${sessionId}/messages`),
+    renameSession: (sessionId, userId, name) => api.put(`/chat/sessions/${sessionId}`, null, { params: { userId, name } }),
+    renameSessionWithAi: (sessionId, userId) => api.post(`/chat/sessions/${sessionId}/rename-with-ai`, null, { params: { userId } }),
+    deleteSession: (sessionId, userId) => api.delete(`/chat/sessions/${sessionId}`, { params: { userId } })
+}
+
+/**
  * 卖家商品管理（文档：POST /api/seller/products,
  * GET /api/seller/products,
  * PUT /api/seller/products/{product_id}/freeze,

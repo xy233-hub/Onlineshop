@@ -8,6 +8,7 @@ public class AiAssistantQueryRequest {
     private String userId;
     private String action;
     private String scene;
+    private Integer sessionId;
 
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
@@ -26,4 +27,7 @@ public class AiAssistantQueryRequest {
 
     public String getScene() { return scene; }
     public void setScene(String scene) { this.scene = scene; }
+
+    public Integer getSessionId() { return sessionId; }
+    public void setSessionId(Integer sessionId) { this.sessionId = sessionId; }
 }

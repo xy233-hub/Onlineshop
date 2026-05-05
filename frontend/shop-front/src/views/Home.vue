@@ -360,6 +360,35 @@
       class="ai-drawer"
     >
       <div class="ai-panel">
+        <!-- 会话列表区域 -->
+        <div class="ai-sessions-bar">
+          <div class="ai-sessions-header">
+            <span class="ai-sessions-title">会话列表</span>
+            <el-button type="primary" size="small" @click="createNewSession">新建对话</el-button>
+          </div>
+          <div class="ai-sessions-list">
+            <div
+              v-for="session in chatSessions"
+              :key="session.id"
+              class="ai-session-item"
+              :class="{ active: currentSessionId === session.id }"
+              @click="switchSession(session)"
+            >
+              <span class="session-name">{{ session.session_name || '新对话' }}</span>
+              <el-button
+                type="danger"
+                size="small"
+                link
+                @click.stop="deleteSession(session.id)"
+                class="delete-btn"
+              >×</el-button>
+            </div>
+            <div v-if="!chatSessions.length" class="ai-sessions-empty">
+              暂无会话
+            </div>
+          </div>
+        </div>
+
         <div ref="aiChatBodyRef" class="ai-chat-body">
           <div v-if="!aiMessages.length" class="ai-empty-chat">
             <el-empty description="开始聊聊你的需求吧" />
@@ -414,7 +443,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
-import { productAPI, categoryAPI, cartAPI, aiAPI, mediaAPI } from '@/api'
+import { productAPI, categoryAPI, cartAPI, aiAPI, mediaAPI, chatAPI } from '@/api'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -446,6 +475,8 @@ const aiReply = ref('')
 const aiItems = ref([])
 const aiMessages = ref([])
 const aiChatBodyRef = ref(null)
+const chatSessions = ref([])
+const currentSessionId = ref(null)
 const aiRawResponse = ref(null)
 const aiPage = ref(1)
 const aiSize = ref(10)
@@ -669,14 +700,19 @@ const selectHotTag = (tag) => {
 // 监听搜索输入变化
 watch(q, (newValue) => {
   if (newValue) {
-    // 模拟搜索建议
-    searchSuggestions.value = hotSearchTags.value.filter(tag => 
+    searchSuggestions.value = hotSearchTags.value.filter(tag =>
       tag.includes(newValue)
     )
     showSuggestions.value = true
   } else {
     searchSuggestions.value = []
     showSuggestions.value = false
+  }
+})
+
+watch(aiPanelVisible, (newVal) => {
+  if (newVal && !chatSessions.value.length) {
+    loadChatSessions()
   }
 })
 
@@ -826,6 +862,74 @@ const clearAiResult = () => {
   aiRawResponse.value = null
 }
 
+const loadChatSessions = async () => {
+  try {
+    const userId = getAiUserId()
+    const response = await chatAPI.getUserSessions(userId)
+    chatSessions.value = response?.data?.data || []
+  } catch (e) {
+    console.error('加载会话列表失败:', e)
+  }
+}
+
+const createNewSession = async () => {
+  try {
+    const userId = getAiUserId()
+    const response = await chatAPI.createSession(userId, '新对话')
+    const newSession = response?.data?.data
+    if (newSession) {
+      chatSessions.value.unshift(newSession)
+      await switchSession(newSession)
+    }
+  } catch (e) {
+    console.error('创建会话失败:', e)
+    ElMessage.error('创建会话失败')
+  }
+}
+
+const switchSession = async (session) => {
+  currentSessionId.value = session.id
+  aiMessages.value = []
+  aiReply.value = ''
+  aiItems.value = []
+  aiRawResponse.value = null
+
+  try {
+    const response = await chatAPI.getSessionMessages(session.id)
+    const messages = response?.data?.data || []
+    aiMessages.value = messages.map(msg => ({
+      role: msg.role,
+      text: msg.content,
+      items: [],
+      time: new Date(msg.created_at).getTime()
+    }))
+    await nextTick()
+    await scrollAiToBottom()
+  } catch (e) {
+    console.error('加载会话消息失败:', e)
+  }
+}
+
+const deleteSession = async (sessionId) => {
+  try {
+    const userId = getAiUserId()
+    await chatAPI.deleteSession(sessionId, userId)
+    chatSessions.value = chatSessions.value.filter(s => s.id !== sessionId)
+    if (currentSessionId.value === sessionId) {
+      if (chatSessions.value.length > 0) {
+        await switchSession(chatSessions.value[0])
+      } else {
+        currentSessionId.value = null
+        aiMessages.value = []
+      }
+    }
+    ElMessage.success('会话已删除')
+  } catch (e) {
+    console.error('删除会话失败:', e)
+    ElMessage.error('删除会话失败')
+  }
+}
+
 const buildExtractQueryText = (payload) => {
   const query = payload?.query || {}
   const q = query?.q || ''
@@ -852,18 +956,36 @@ const submitAiQuery = async () => {
     return
   }
 
+  if (!currentSessionId.value) {
+    try {
+      const userId = getAiUserId()
+      console.log('[AI] 创建会话, userId:', userId, '标题:', text.slice(0, 20))
+      const response = await chatAPI.createSession(userId, text.slice(0, 20))
+      console.log('[AI] 创建会话响应:', response)
+      const newSession = response?.data?.data
+      console.log('[AI] newSession:', newSession)
+      if (newSession) {
+        chatSessions.value.unshift(newSession)
+        currentSessionId.value = newSession.id
+        console.log('[AI] 设置 currentSessionId:', currentSessionId.value)
+      }
+    } catch (e) {
+      console.error('自动创建会话失败:', e)
+    }
+  }
+
   aiMessages.value.push({ role: 'user', text, items: [], time: Date.now() })
   aiLoading.value = true
   aiInput.value = ''
   await scrollAiToBottom()
 
   try {
-    // 不传递 scene/action，让后端大模型自动识别意图
     const response = await aiAPI.recommend({
       text,
       page: aiPage.value,
       size: aiSize.value,
-      userId: getAiUserId()
+      user_id: getAiUserId(),
+      session_id: currentSessionId.value
     })
     aiRawResponse.value = response?.data ?? null
 
@@ -881,6 +1003,10 @@ const submitAiQuery = async () => {
       time: Date.now()
     })
     await scrollAiToBottom()
+
+    if (currentSessionId.value) {
+      await loadChatSessions()
+    }
   } catch (error) {
     console.error('AI 对话请求失败:', error)
     aiReply.value = '请求失败，请稍后重试'
@@ -2249,10 +2375,77 @@ const stripHtml = (input) => {
 
 .ai-panel {
   height: 100%;
-  display: grid;
-  grid-template-rows: 1fr auto auto;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 12px;
+}
+
+.ai-sessions-bar {
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.ai-sessions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ai-sessions-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ai-sessions-list {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.ai-session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ai-session-item:hover {
+  background: #e2e8f0;
+}
+
+.ai-session-item.active {
+  background: #dbeafe;
+}
+
+.ai-session-item .session-name {
+  font-size: 13px;
+  color: #475569;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-session-item .delete-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ai-session-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.ai-sessions-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 8px;
 }
 
 .ai-chat-body {
