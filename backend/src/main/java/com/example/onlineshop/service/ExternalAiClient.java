@@ -673,6 +673,58 @@ public class ExternalAiClient {
         return m;
     }
 
+    // 智能体意图识别：判断用户意图是聊天、搜索还是提取
+    public String analyzeIntent(String userText, String historyContext) {
+        try {
+            if (userText == null || userText.isBlank()) return "chat";
+
+            JsonNode msg = callDashScopeMessage(
+                    buildIntentPrompt(userText, historyContext),
+                    false,
+                    "analyzeIntent"
+            );
+            if (msg == null) return "chat";
+
+            String content = msg.path("content").asText("").trim().toLowerCase();
+            if (content.isBlank()) return "chat";
+
+            // 提取意图类型
+            if (content.contains("search") || content.contains("搜索") || content.contains("查找") || content.contains("推荐")) {
+                return "search";
+            } else if (content.contains("extract") || content.contains("提取") || content.contains("条件")) {
+                return "extract";
+            } else if (content.contains("chat") || content.contains("对话") || content.contains("闲聊") || content.contains("问")) {
+                return "chat";
+            }
+
+            // 默认根据内容判断
+            String lower = userText.toLowerCase();
+            if (lower.contains("找") || lower.contains("买") || lower.contains("推荐") || 
+                lower.contains("搜索") || lower.contains("商品") || lower.contains("价格")) {
+                return "search";
+            }
+            return "chat";
+        } catch (Exception e) {
+            if (debug) System.out.println("[AI] analyzeIntent exception: " + e);
+            return "chat";
+        }
+    }
+
+    private String buildIntentPrompt(String userText, String historyContext) {
+        String context = (historyContext == null || historyContext.isBlank()) ? "（无）" : historyContext;
+        return ""
+                + "你是电商智能体意图识别器。\n"
+                + "根据用户输入和历史对话，判断用户意图类型。\n"
+                + "意图类型说明：\n"
+                + "- chat: 闲聊、问候、咨询问题，不需要搜索商品\n"
+                + "- search: 需要搜索商品、推荐商品、查找特定物品\n"
+                + "- extract: 需要提取查询条件用于后续处理\n"
+                + "输出格式：只输出意图类型英文单词（chat/search/extract），不要输出其他内容。\n"
+                + "历史对话：\n"
+                + context + "\n"
+                + "当前用户输入：\n"
+                + userText + "\n";
+    }
     private void setFailureReason(String reason) {
         lastFailureReason.set(reason == null || reason.isBlank() ? "unknown" : reason);
     }

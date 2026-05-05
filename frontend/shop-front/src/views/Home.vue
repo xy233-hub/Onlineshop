@@ -397,9 +397,6 @@
             @keyup.enter.ctrl="submitAiQuery"
           />
           <div class="ai-actions-row">
-            <el-select v-model="aiScene" size="small" class="ai-scene-select" placeholder="选择模式">
-              <el-option v-for="opt in aiSceneOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-            </el-select>
             <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
             <el-button @click="clearAiResult">清空</el-button>
             <span class="ai-tip">按 Ctrl + Enter 发送</span>
@@ -453,17 +450,7 @@ const aiRawResponse = ref(null)
 const aiPage = ref(1)
 const aiSize = ref(10)
 const aiDrawerSize = ref('460px')
-const aiScene = ref('recommend')
-const aiSceneOptions = [
-  { label: '导购推荐', value: 'recommend' },
-  { label: '对话问答', value: 'chat' },
-  { label: '条件提取', value: 'extract_query' }
-]
-const aiInputPlaceholder = computed(() => {
-  if (aiScene.value === 'chat') return '例如：预算 3000，主要办公用，帮我选几款'
-  if (aiScene.value === 'extract_query') return '例如：帮我筛选 1000-2000 的二手手机，按价格升序'
-  return '例如：我想买黑神话悟空'
-})
+const aiInputPlaceholder = ref('例如：我想买黑神话悟空，预算 3000 元')
 const aiRawText = computed(() => {
   if (!aiRawResponse.value) return '暂无数据'
   try {
@@ -871,14 +858,12 @@ const submitAiQuery = async () => {
   await scrollAiToBottom()
 
   try {
-    const scene = aiScene.value || 'recommend'
+    // 不传递 scene/action，让后端大模型自动识别意图
     const response = await aiAPI.recommend({
       text,
       page: aiPage.value,
       size: aiSize.value,
-      userId: getAiUserId(),
-      scene,
-      action: scene
+      userId: getAiUserId()
     })
     aiRawResponse.value = response?.data ?? null
 
@@ -886,16 +871,8 @@ const submitAiQuery = async () => {
     const aiDesc = payload?.ai_description || payload?.aiDescription || ''
     const normalizedItems = Array.isArray(payload?.items) ? payload.items.map(normalizeProductItem) : []
 
-    if (scene === 'extract_query') {
-      aiReply.value = aiDesc || buildExtractQueryText(payload)
-      aiItems.value = []
-    } else if (scene === 'chat') {
-      aiReply.value = aiDesc || '已收到你的问题，我再帮你细化一下需求。'
-      aiItems.value = []
-    } else {
-      aiReply.value = aiDesc || '未获取到 AI 回复'
-      aiItems.value = normalizedItems
-    }
+    aiReply.value = aiDesc || '未获取到 AI 回复'
+    aiItems.value = normalizedItems
 
     aiMessages.value.push({
       role: 'assistant',

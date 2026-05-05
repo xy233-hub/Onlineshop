@@ -783,7 +783,7 @@ SET original_price = price,
     current_promotion_price = NULL,
     has_active_promotion = FALSE,
     active_promotion_ids = JSON_ARRAY();
-
+n
 -- 商品向量存储表
 CREATE TABLE IF NOT EXISTS product_vectors (
                                                id INT AUTO_INCREMENT PRIMARY KEY,

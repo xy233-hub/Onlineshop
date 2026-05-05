@@ -44,13 +44,20 @@ public class AiShoppingAssistantService {
 
         int safePage = (page != null && page > 0) ? page : 1;
         int safeSize = (size != null && size > 0) ? size : 10;
+        
+        // 如果没有指定场景/动作，使用大模型进行意图识别
         String mode = resolveMode(scene, action);
+        if ("auto".equals(mode)) {
+            String historyContext = buildRecentUserContext(buildMemoryKey(userId), 3);
+            mode = externalAiClient.analyzeIntent(userText, historyContext);
+            System.out.println("[AI Agent] 意图识别结果: " + mode);
+        }
 
         return switch (mode) {
             case "chat" -> handleChat(userText, safePage, safeSize, userId);
-            case "recommend" -> handleRecommend(userText, safePage, safeSize, userId);
-            case "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
-            default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query");
+            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId);
+            case "extract", "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
+            default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query, auto");
         };
     }
 
@@ -123,7 +130,7 @@ public class AiShoppingAssistantService {
 
     private String resolveMode(String scene, String action) {
         String raw = (scene != null && !scene.isBlank()) ? scene : action;
-        if (raw == null || raw.isBlank()) return "chat";
+        if (raw == null || raw.isBlank()) return "auto";
 
         String mode = raw.trim().toLowerCase(Locale.ROOT).replace('-', '_');
         if ("conversation".equals(mode)) return "chat";
