@@ -200,6 +200,11 @@
                     <el-button type="default" @click="$router.push({ path: '/seller', query: {} })" class="btn-contact" :icon="Message" plain block>
                       联系卖家
                     </el-button>
+
+                    <!-- 第四行：AI助手 -->
+                    <el-button type="success" @click="aiPanelVisible = true" class="btn-ai" :icon="ChatDotRound" plain block>
+                      AI 智能助手
+                    </el-button>
                   </div>
 
                   <div class="product-footer">
@@ -245,18 +250,90 @@
         :promotion-loading="promotionLoading"
         @success="handlePurchaseSuccess"
     />
+
+    <!-- AI 对话助手抽屉 -->
+    <el-drawer
+      v-model="aiPanelVisible"
+      title="AI 对话助手"
+      direction="rtl"
+      size="460px"
+      class="ai-drawer"
+    >
+      <div class="ai-panel">
+        <div class="ai-sessions-bar">
+          <div class="ai-sessions-header">
+            <span class="ai-sessions-title">会话列表</span>
+            <el-button type="primary" size="small" @click="createNewSession">新建对话</el-button>
+          </div>
+          <div class="ai-sessions-list">
+            <div
+              v-for="session in chatSessions"
+              :key="session.id"
+              class="ai-session-item"
+              :class="{ active: currentSessionId === session.id }"
+              @click="switchSession(session)"
+            >
+              <span class="session-name">{{ session.session_name || '新对话' }}</span>
+              <el-button
+                type="danger"
+                size="small"
+                link
+                @click.stop="deleteSession(session.id)"
+                class="delete-btn"
+              >×</el-button>
+            </div>
+            <div v-if="!chatSessions.length" class="ai-sessions-empty">
+              暂无会话
+            </div>
+          </div>
+        </div>
+
+        <div ref="aiChatBodyRef" class="ai-chat-body">
+          <div v-if="!aiMessages.length" class="ai-empty-chat">
+            <el-empty description="有什么想问的吗？" />
+          </div>
+
+          <div
+            v-for="(msg, idx) in aiMessages"
+            :key="`${msg.role}-${idx}-${msg.time}`"
+            class="ai-msg-row"
+            :class="msg.role === 'user' ? 'is-user' : 'is-assistant'"
+          >
+            <div class="ai-bubble">
+              <div class="ai-msg-text">{{ msg.text }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-input-box">
+          <el-input
+            v-model="aiInput"
+            type="textarea"
+            :rows="3"
+            resize="none"
+            placeholder="例如：这个商品有什么优惠？"
+            @keyup.enter.ctrl="submitAiQuery"
+          />
+          <div class="ai-actions-row">
+            <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
+            <el-button @click="clearAiResult">清空</el-button>
+            <span class="ai-tip">按 Ctrl + Enter 发送</span>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { productAPI, favoritesAPI, cartAPI, sellerAPI, promotionAPI } from '@/api'
+import { productAPI, favoritesAPI, cartAPI, sellerAPI, promotionAPI, aiAPI, chatAPI } from '@/api'
 import PurchaseDialog from '@/components/buyer/PurchaseDialog.vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, ZoomIn, ShoppingCart, Star, Plus, Message, Headset, Document, Goods } from '@element-plus/icons-vue'
+import { ArrowLeft, ZoomIn, ShoppingCart, Star, Plus, Message, Headset, Document, Goods, ChatDotRound } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const product = ref(null)
@@ -270,9 +347,171 @@ const promotionLoading = ref(false)
 const productPromotionInfo = ref(null)
 const quantity = ref(1)
 const activeTab = ref('desc')
-const isFavorited = ref(false) // 收藏状态
+const isFavorited = ref(false)
 const productId = computed(() => route.params.id)
 const currentLanguage = ref('chinese_simplified')
+
+const aiPanelVisible = ref(false)
+const aiInput = ref('')
+const aiLoading = ref(false)
+const aiMessages = ref([])
+const aiChatBodyRef = ref(null)
+const chatSessions = ref([])
+const currentSessionId = ref(null)
+
+const ANON_AI_USER_ID_KEY = 'anon_ai_user_id'
+
+const getAiUserId = () => {
+  const cid = localStorage.getItem('customer_id')
+  if (cid) {
+    return `customer_${cid}`
+  }
+  let anonId = localStorage.getItem(ANON_AI_USER_ID_KEY)
+  if (!anonId) {
+    const randomPart = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    anonId = `anon_${randomPart}`
+    localStorage.setItem(ANON_AI_USER_ID_KEY, anonId)
+  }
+  return anonId
+}
+
+const loadChatSessions = async () => {
+  try {
+    const userId = getAiUserId()
+    const response = await chatAPI.getUserSessions(userId)
+    chatSessions.value = response?.data?.data || []
+  } catch (e) {
+    console.error('加载会话列表失败:', e)
+  }
+}
+
+const createNewSession = async () => {
+  try {
+    const userId = getAiUserId()
+    const response = await chatAPI.createSession(userId, '新对话')
+    const newSession = response?.data?.data
+    if (newSession) {
+      chatSessions.value.unshift(newSession)
+      await switchSession(newSession)
+    }
+  } catch (e) {
+    console.error('创建会话失败:', e)
+    ElMessage.error('创建会话失败')
+  }
+}
+
+const switchSession = async (session) => {
+  currentSessionId.value = session.id
+  aiMessages.value = []
+
+  try {
+    const response = await chatAPI.getSessionMessages(session.id)
+    const messages = response?.data?.data || []
+    aiMessages.value = messages.map(msg => ({
+      role: msg.role,
+      text: msg.content,
+      items: [],
+      time: new Date(msg.created_at).getTime()
+    }))
+    await nextTick()
+    await scrollAiToBottom()
+  } catch (e) {
+    console.error('加载会话消息失败:', e)
+  }
+}
+
+const deleteSession = async (sessionId) => {
+  try {
+    const userId = getAiUserId()
+    await chatAPI.deleteSession(sessionId, userId)
+    chatSessions.value = chatSessions.value.filter(s => s.id !== sessionId)
+    if (currentSessionId.value === sessionId) {
+      if (chatSessions.value.length > 0) {
+        await switchSession(chatSessions.value[0])
+      } else {
+        currentSessionId.value = null
+        aiMessages.value = []
+      }
+    }
+    ElMessage.success('会话已删除')
+  } catch (e) {
+    console.error('删除会话失败:', e)
+    ElMessage.error('删除会话失败')
+  }
+}
+
+const scrollAiToBottom = async () => {
+  await nextTick()
+  const el = aiChatBodyRef.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+}
+
+const submitAiQuery = async () => {
+  const text = (aiInput.value || '').trim()
+  if (!text) {
+    ElMessage.warning('请输入问题后再发送')
+    return
+  }
+
+  if (!currentSessionId.value) {
+    try {
+      const userId = getAiUserId()
+      const response = await chatAPI.createSession(userId, text.slice(0, 20))
+      const newSession = response?.data?.data
+      if (newSession) {
+        chatSessions.value.unshift(newSession)
+        currentSessionId.value = newSession.id
+      }
+    } catch (e) {
+      console.error('自动创建会话失败:', e)
+    }
+  }
+
+  aiMessages.value.push({ role: 'user', text, items: [], time: Date.now() })
+  aiLoading.value = true
+  aiInput.value = ''
+  await scrollAiToBottom()
+
+  try {
+    console.log('[AI] 发送请求, product_id:', product.value?.product_id, 'session_id:', currentSessionId.value)
+    const response = await aiAPI.recommend({
+      text,
+      page: 1,
+      size: 10,
+      user_id: getAiUserId(),
+      session_id: currentSessionId.value,
+      product_id: product.value?.product_id
+    })
+
+    const payload = response?.data?.data || {}
+    const aiDesc = payload?.ai_description || payload?.aiDescription || ''
+
+    aiMessages.value.push({
+      role: 'assistant',
+      text: aiDesc || '未获取到 AI 回复',
+      items: [],
+      time: Date.now()
+    })
+    await scrollAiToBottom()
+
+    if (currentSessionId.value) {
+      await loadChatSessions()
+    }
+  } catch (error) {
+    console.error('AI 对话请求失败:', error)
+    aiMessages.value.push({ role: 'assistant', text: '请求失败，请稍后重试', items: [], time: Date.now() })
+    ElMessage.error('AI 对话请求失败')
+    await scrollAiToBottom()
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+const clearAiResult = () => {
+  aiInput.value = ''
+  aiMessages.value = []
+}
 
 let DeltaToHtmlConverter = null
 let translateReady = false
@@ -720,6 +959,8 @@ onMounted(async () => {
   if (productId.value) {
     fetchProduct()
   }
+
+  loadChatSessions()
 })
 </script>
 
@@ -1347,5 +1588,152 @@ onMounted(async () => {
     top: 0;
     margin-top: 20px;
   }
+}
+
+.btn-ai {
+  margin-top: 8px;
+}
+
+.ai-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.ai-sessions-bar {
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.ai-sessions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ai-sessions-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ai-sessions-list {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.ai-session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ai-session-item:hover {
+  background: #e2e8f0;
+}
+
+.ai-session-item.active {
+  background: #dbeafe;
+}
+
+.ai-session-item .session-name {
+  font-size: 13px;
+  color: #475569;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-session-item .delete-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ai-session-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.ai-sessions-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 8px;
+}
+
+.ai-chat-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.ai-empty-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.ai-msg-row {
+  margin-bottom: 10px;
+}
+
+.ai-msg-row.is-user {
+  text-align: right;
+}
+
+.ai-msg-row.is-user .ai-bubble {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.ai-msg-row.is-assistant .ai-bubble {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.ai-bubble {
+  display: inline-block;
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  word-break: break-word;
+  text-align: left;
+}
+
+.ai-msg-text {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ai-input-box {
+  padding: 8px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.ai-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ai-tip {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: auto;
 }
 </style>

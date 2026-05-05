@@ -7,6 +7,7 @@ import com.example.onlineshop.dto.response.ProductInfoResponse;
 import com.example.onlineshop.entity.ChatMessage;
 import com.example.onlineshop.entity.ChatSession;
 import com.example.onlineshop.entity.Product;
+import com.example.onlineshop.mapper.ProductMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -29,20 +30,22 @@ public class AiShoppingAssistantService {
     private final ExternalAiClient externalAiClient;
     private final AiVectorRetrieverService aiVectorRetrieverService;
     private final ChatService chatService;
+    private final ProductMapper productMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, MemoryChatSession> chatMemory = new ConcurrentHashMap<>();
 
     @Value("${ai.session.ttl-ms:1800000}")
     private long sessionTtlMs;
 
-    public AiShoppingAssistantService(ExternalAiClient externalAiClient, AiVectorRetrieverService aiVectorRetrieverService, ChatService chatService) {
+    public AiShoppingAssistantService(ExternalAiClient externalAiClient, AiVectorRetrieverService aiVectorRetrieverService, ChatService chatService, ProductMapper productMapper) {
         this.externalAiClient = externalAiClient;
         this.aiVectorRetrieverService = aiVectorRetrieverService;
         this.chatService = chatService;
+        this.productMapper = productMapper;
     }
 
-    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action, Integer sessionId) {
-        System.out.println("[AI] recommend called, sessionId=" + sessionId + ", userId=" + userId);
+    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action, Integer sessionId, Integer productId) {
+        System.out.println("[AI] recommend called, sessionId=" + sessionId + ", userId=" + userId + ", productId=" + productId);
         if (userText == null || userText.trim().isEmpty()) {
             throw new IllegalArgumentException("text 必填");
         }
@@ -61,6 +64,12 @@ public class AiShoppingAssistantService {
             historyContext = chatService.buildHistoryContext(sessionId, 3);
         }
 
+        String productContext = buildProductContext(productId);
+        System.out.println("[AI] productContext: " + (productContext.isEmpty() ? "空" : productContext.substring(0, Math.min(50, productContext.length())) + "..."));
+        if (!productContext.isEmpty()) {
+            historyContext = productContext + "\n" + historyContext;
+        }
+
         String mode = resolveMode(scene, action);
         if ("auto".equals(mode)) {
             mode = externalAiClient.analyzeIntent(userText, historyContext);
@@ -68,8 +77,8 @@ public class AiShoppingAssistantService {
         }
 
         AiAssistantProductResponse response = switch (mode) {
-            case "chat" -> handleChat(userText, safePage, safeSize, userId, sessionId);
-            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId, sessionId);
+            case "chat" -> handleChat(userText, safePage, safeSize, userId, sessionId, productContext);
+            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId, sessionId, productContext);
             case "extract", "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
             default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query, auto");
         };
@@ -90,11 +99,16 @@ public class AiShoppingAssistantService {
         return response;
     }
 
-    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId, Integer sessionId) {
+    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId, Integer sessionId, String productContext) {
         String memoryKey = buildMemoryKey(userId);
 
         evictExpiredSessions();
         String historyContext = buildHistoryContext(memoryKey);
+        
+        if (productContext != null && !productContext.isEmpty()) {
+            historyContext = productContext + "\n" + historyContext;
+        }
+        
         String aiReply = externalAiClient.generateChatReply(userText, historyContext);
         if (aiReply == null || aiReply.isBlank()) {
             aiReply = "我明白你的需求了，可以再补充下预算、用途或偏好，我会给你更准确的建议。";
@@ -110,10 +124,14 @@ public class AiShoppingAssistantService {
         return new AiAssistantProductResponse(query, aiReply, safePage, safeSize, 0, Collections.emptyList());
     }
 
-    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId, Integer sessionId) {
+    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId, Integer sessionId, String productContext) {
         String memoryKey = buildMemoryKey(userId);
         evictExpiredSessions();
         String historyContext = buildRecentUserContext(memoryKey, 3);
+
+        if (productContext != null && !productContext.isEmpty()) {
+            historyContext = productContext + "\n" + historyContext;
+        }
 
         AiProductQuery query = externalAiClient.extractQuery(userText, historyContext);
         if (query == null) {
@@ -237,6 +255,34 @@ public class AiShoppingAssistantService {
         long now = System.currentTimeMillis();
         long ttl = Math.max(sessionTtlMs, 60_000L);
         chatMemory.entrySet().removeIf(e -> (now - e.getValue().lastAccessAt()) > ttl);
+    }
+
+    private String buildProductContext(Integer productId) {
+        if (productId == null) {
+            return "";
+        }
+        Product product = productMapper.findById(productId);
+        if (product == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("【当前商品信息】\n");
+        sb.append("商品ID：").append(product.getProductId()).append("\n");
+        sb.append("商品名称：").append(product.getProductName()).append("\n");
+        if (product.getProductDesc() != null && !product.getProductDesc().isEmpty()) {
+            sb.append("商品描述：").append(product.getProductDesc()).append("\n");
+        }
+        sb.append("价格：¥").append(product.getPrice()).append("\n");
+        if (product.getOriginalPrice() != null && product.getOriginalPrice().compareTo(product.getPrice()) > 0) {
+            sb.append("原价：¥").append(product.getOriginalPrice()).append("\n");
+        }
+        if (product.getStockQuantity() != null) {
+            sb.append("库存：").append(product.getStockQuantity()).append("\n");
+        }
+        if (product.getProductStatus() != null) {
+            sb.append("状态：").append(product.getProductStatus()).append("\n");
+        }
+        return sb.toString();
     }
 
     private record ChatTurn(String userText, String assistantText) {}
