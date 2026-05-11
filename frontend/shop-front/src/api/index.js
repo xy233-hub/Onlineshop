@@ -5,7 +5,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL
 
 const api = axios.create({
     baseURL: baseURL,
-    timeout: 10000
+    timeout: 30000
 })
 
 const sanitizeToken = v => {
@@ -41,6 +41,7 @@ api.interceptors.request.use(config => {
     
     const inferredRole = (() => {
         if (/^\/seller(\/|$)/.test(path) && !isSellerPurchaseIntentsPath && !isSellerPurchaseIntentStatusPath && !isSellerPurchaseIntentShipPath && !isSellerAfterSalesPath && !isSellerOrderLogisticsTrackPath && !isSellerProductsPath && !isSellerInfoPath) return 'seller'
+        if (/^\/admin(\/|$)/.test(path)) return 'seller'
         // **删除：地址相关的请求不需要 JWT 令牌**
         // if (/^\/customers\/addresses(\/|$)/.test(path)) return null
         if (/^\/customers?(\/|$)/.test(path)) return 'customer'
@@ -74,25 +75,49 @@ api.interceptors.request.use(config => {
     return config
 }, error => Promise.reject(error))
 
-// 响应拦截器保留原样...
 api.interceptors.response.use(
     response => response,
     error => {
         const status = error?.response?.status
         const url = error?.config?.url || ''
 
-        // 规范化到 path，兼容绝对/相对 url
         const path = url.startsWith('http') ? new URL(url).pathname : url
 
-        // 登录接口：401 交给页面处理，不做整页跳转
         const isLoginApi =
             /^\/seller\/login(\/|$)/.test(path) ||
             /^\/customers\/login(\/|$)/.test(path)
 
         if (status === 401 && !isLoginApi) {
-            localStorage.removeItem('seller_token')
-            localStorage.removeItem('customer_token')
-            try { window.location.href = '/seller' } catch (e) {}
+            const isSellerPath = /^\/(seller|admin)(\/|$)/.test(path)
+            const isCustomerPath = /^\/customers?(\/|$)/.test(path) ||
+                                   /^\/payments(\/|$)/.test(path) ||
+                                   /^\/products\/purchase-intents(\/|$)/.test(path)
+
+            if (isSellerPath) {
+                localStorage.removeItem('seller_token')
+                localStorage.removeItem('seller_info')
+                try { window.location.href = '/seller' } catch (e) {}
+            } else if (isCustomerPath) {
+                localStorage.removeItem('customer_token')
+                localStorage.removeItem('customer_info')
+                localStorage.removeItem('customer')
+                localStorage.removeItem('customer_id')
+            } else {
+                const usedToken = error?.config?.headers?.Authorization
+                if (usedToken) {
+                    const sellerToken = sanitizeToken(localStorage.getItem('seller_token'))
+                    if (sellerToken && usedToken.includes(sellerToken)) {
+                        localStorage.removeItem('seller_token')
+                        localStorage.removeItem('seller_info')
+                        try { window.location.href = '/seller' } catch (e) {}
+                    } else {
+                        localStorage.removeItem('customer_token')
+                        localStorage.removeItem('customer_info')
+                        localStorage.removeItem('customer')
+                        localStorage.removeItem('customer_id')
+                    }
+                }
+            }
         }
 
         return Promise.reject(error)
@@ -112,7 +137,23 @@ export const productAPI = {
  * - POST /api/products/ai-recommend
  */
 export const aiAPI = {
-    recommend: (data) => api.post('/products/ai-recommend', data)
+    recommend: (data) => api.post('/products/ai-recommend', data),
+    searchImage: (data) => api.post('/products/ai-image-search', data),
+    getImageSearchStatus: () => api.get('/products/ai-image-search/status'),
+    generateVectors: () => api.post('/products/ai-image-search/generate-vectors')
+}
+
+/**
+ * 聊天会话管理
+ */
+export const chatAPI = {
+    createSession: (userId, name) => api.post('/chat/sessions', null, { params: { userId, name } }),
+    getUserSessions: (userId) => api.get('/chat/sessions', { params: { userId } }),
+    getSession: (sessionId) => api.get(`/chat/sessions/${sessionId}`),
+    getSessionMessages: (sessionId) => api.get(`/chat/sessions/${sessionId}/messages`),
+    renameSession: (sessionId, userId, name) => api.put(`/chat/sessions/${sessionId}`, null, { params: { userId, name } }),
+    renameSessionWithAi: (sessionId, userId) => api.post(`/chat/sessions/${sessionId}/rename-with-ai`, null, { params: { userId } }),
+    deleteSession: (sessionId, userId) => api.delete(`/chat/sessions/${sessionId}`, { params: { userId } })
 }
 
 /**
@@ -128,7 +169,24 @@ export const sellerProductAPI = {
     freezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/freeze`, payload),
     unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
     markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
+    updatePrice: (productId, payload) => api.put(`/seller/products/${productId}/price`, payload),
     updateProduct: (productId, data) => api.put(`/seller/products/${productId}`, data)
+}
+
+/**
+ * 促销管理（后端已实现 69-77）
+ */
+export const promotionAPI = {
+    createPromotion: (data) => api.post('/admin/promotions', data),
+    getPromotions: (params) => api.get('/admin/promotions', { params }),
+    getPromotionDetail: (promotionId) => api.get(`/admin/promotions/${promotionId}`),
+    updatePromotion: (promotionId, data) => api.put(`/admin/promotions/${promotionId}`, data),
+    activatePromotion: (promotionId) => api.post(`/admin/promotions/${promotionId}/activate`, { confirm: true }),
+    endPromotion: (promotionId, data = {}) => api.post(`/admin/promotions/${promotionId}/end`, data),
+    cancelPromotion: (promotionId, reason) => api.post(`/admin/promotions/${promotionId}/cancel`, { reason }),
+    getRuleDefinitions: () => api.get('/admin/promotions/rule-definitions'),
+    getActivePromotions: (params) => api.get('/promotions/active', { params }),
+    getProductPromotions: (productId) => api.get(`/products/${productId}/promotions`)
 }
 
 export const sellerProductAIAPI = {
@@ -185,6 +243,7 @@ export const cartAPI = {
     updateCartItem: (cartItemId, data) => api.put(`/customers/cart/items/${cartItemId}`, data),
     removeCartItem: (cartItemId) => api.delete(`/customers/cart/items/${cartItemId}`),
     removeCartItems: (payload) => api.delete('/customers/cart/items', { data: payload }),
+    batchPurchasePreview: (payload) => api.post('/customers/cart/batch-purchase-preview', payload),
     batchPurchase: (payload) => api.post('/customers/cart/batch-purchase', payload),
     batchConvertToFavorites: (payload) => api.post('/customers/cart/batch-convert-favorite', payload)
 }
@@ -361,28 +420,6 @@ export const paymentAPI = {
 
     // Keep original signed query as-is to avoid signature mismatch after re-encoding.
     alipayReturnRaw: (rawQuery = '') => api.get(`/payments/alipay/return${rawQuery}`)
-}
-
-/**
- * 地址相关接口
- */
-export const addressAPI = {
-    // AI地址识别
-    parseAddress: (data) => api.post('/customers/addresses/parse', data),
-    // 添加地址
-    addAddress: (customerId, data) => api.post('/customers/addresses', data, {
-        params: { customer_id: customerId }
-    }),
-    // 更新地址
-    updateAddress: (addressId, data) => api.put(`/customers/addresses/${addressId}`, data),
-    // 删除地址
-    deleteAddress: (addressId) => api.delete(`/customers/addresses/${addressId}`),
-    // 获取地址列表
-    getAddresses: (customerId) => api.get('/customers/addresses', {
-        params: { customer_id: customerId }
-    }),
-    // 设置默认地址
-    setDefaultAddress: (addressId) => api.put(`/customers/addresses/${addressId}/default`)
 }
 
 export default api

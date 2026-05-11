@@ -19,7 +19,27 @@
             <el-icon><ShoppingCart /></el-icon>
             <span>购物车</span>
           </el-button>
-          <template v-if="!isCustomerLogged">
+          <template v-if="isSellerLogged && !isCustomerLogged">
+            <el-button type="warning" text class="seller-back-btn" @click="goSellerDashboard">
+              <el-icon><Shop /></el-icon>
+              <span>卖家后台</span>
+            </el-button>
+            <el-dropdown>
+              <el-button type="default" class="user-btn seller-user-btn">
+                <el-icon><Shop /></el-icon>
+                <span>{{ sellerStore.seller?.username || '卖家' }}</span>
+                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="goSellerDashboard">卖家后台</el-dropdown-item>
+                  <el-dropdown-item @click="goBuyerLogin">切换买家登录</el-dropdown-item>
+                  <el-dropdown-item divided @click="sellerLogout">退出卖家账号</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </template>
+          <template v-else-if="!isCustomerLogged">
             <el-dropdown>
               <el-button type="primary" class="login-dropdown-btn">
                 <el-icon><User /></el-icon>
@@ -50,6 +70,7 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item @click="goDashboard">个人中心</el-dropdown-item>
+                  <el-dropdown-item v-if="isSellerLogged" @click="goSellerDashboard">卖家后台</el-dropdown-item>
                   <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -189,6 +210,22 @@
               <el-icon><Search /></el-icon>
               搜索
             </el-button>
+            <el-upload
+              class="image-search-upload"
+              action="#"
+              :http-request="handleImageSearchUpload"
+              :show-file-list="false"
+              accept=".jpg,.jpeg,.png,.webp"
+              :disabled="loading"
+            >
+              <el-button type="success" class="image-search-btn" :loading="loading">
+                <el-icon><Camera /></el-icon>
+                识图
+              </el-button>
+            </el-upload>
+            <el-button v-if="isImageSearchMode" @click="clearImageSearch" style="margin-left: 10px;">
+              清除识图
+            </el-button>
           </div>
         </div>
         <!-- 热门搜索标签 -->
@@ -253,7 +290,10 @@
               <h3 class="product-name" :title="product.product_name">{{ product.product_name }}</h3>
               
               <div class="price-section">
-                <span class="price">¥{{ product.price ?? 0 }}</span>
+                <div class="price-block">
+                  <span class="price">¥{{ getCurrentPrice(product).toFixed(2) }}</span>
+                  <span v-if="hasDiscount(product)" class="original-price">¥{{ getOriginalPrice(product).toFixed(2) }}</span>
+                </div>
                 <span class="stock" :class="{ 'low-stock': (product.stock_quantity ?? 0) < 10 }">
                   库存: {{ product.stock_quantity ?? 0 }}
                 </span>
@@ -341,6 +381,35 @@
       class="ai-drawer"
     >
       <div class="ai-panel">
+        <!-- 会话列表区域 -->
+        <div class="ai-sessions-bar">
+          <div class="ai-sessions-header">
+            <span class="ai-sessions-title">会话列表</span>
+            <el-button type="primary" size="small" @click="createNewSession">新建对话</el-button>
+          </div>
+          <div class="ai-sessions-list">
+            <div
+              v-for="session in chatSessions"
+              :key="session.id"
+              class="ai-session-item"
+              :class="{ active: currentSessionId === session.id }"
+              @click="switchSession(session)"
+            >
+              <span class="session-name">{{ session.session_name || '新对话' }}</span>
+              <el-button
+                type="danger"
+                size="small"
+                link
+                @click.stop="deleteSession(session.id)"
+                class="delete-btn"
+              >×</el-button>
+            </div>
+            <div v-if="!chatSessions.length" class="ai-sessions-empty">
+              暂无会话
+            </div>
+          </div>
+        </div>
+
         <div ref="aiChatBodyRef" class="ai-chat-body">
           <div v-if="!aiMessages.length" class="ai-empty-chat">
             <el-empty description="开始聊聊你的需求吧" />
@@ -357,7 +426,10 @@
               <div v-if="msg.items && msg.items.length" class="ai-msg-items">
                 <div v-for="item in msg.items" :key="item.product_id" class="ai-mini-item">
                   <span class="name">{{ item.product_name }}</span>
-                  <span class="price">¥{{ item.price ?? 0 }}</span>
+                  <div class="ai-mini-price-wrap">
+                    <span class="price">¥{{ getCurrentPrice(item).toFixed(2) }}</span>
+                    <span v-if="hasDiscount(item)" class="original-price">¥{{ getOriginalPrice(item).toFixed(2) }}</span>
+                  </div>
                   <el-button type="primary" link @click="goToProductDetail(item.product_id)">查看详情</el-button>
                 </div>
               </div>
@@ -375,9 +447,6 @@
             @keyup.enter.ctrl="submitAiQuery"
           />
           <div class="ai-actions-row">
-            <el-select v-model="aiScene" size="small" class="ai-scene-select" placeholder="选择模式">
-              <el-option v-for="opt in aiSceneOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-            </el-select>
             <el-button type="primary" :loading="aiLoading" @click="submitAiQuery">发送</el-button>
             <el-button @click="clearAiResult">清空</el-button>
             <span class="ai-tip">按 Ctrl + Enter 发送</span>
@@ -395,16 +464,18 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
-import { productAPI, categoryAPI, cartAPI, aiAPI } from '@/api'
+import { productAPI, categoryAPI, cartAPI, aiAPI, mediaAPI, chatAPI } from '@/api'
 import PaginationBar from '@/components/PaginationBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useCustomerStore } from '@/stores/customer'
-import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop, ChatDotRound } from '@element-plus/icons-vue'
+import { useSellerStore } from '@/stores/seller'
+import { ShoppingCart, User, ArrowDown, Grid, Search, Plus, View, Shop, ChatDotRound, Camera } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const customerStore = useCustomerStore()
+const sellerStore = useSellerStore()
 
 const page = ref(1)
 const size = ref(8)
@@ -427,21 +498,13 @@ const aiReply = ref('')
 const aiItems = ref([])
 const aiMessages = ref([])
 const aiChatBodyRef = ref(null)
+const chatSessions = ref([])
+const currentSessionId = ref(null)
 const aiRawResponse = ref(null)
 const aiPage = ref(1)
 const aiSize = ref(10)
 const aiDrawerSize = ref('460px')
-const aiScene = ref('recommend')
-const aiSceneOptions = [
-  { label: '导购推荐', value: 'recommend' },
-  { label: '对话问答', value: 'chat' },
-  { label: '条件提取', value: 'extract_query' }
-]
-const aiInputPlaceholder = computed(() => {
-  if (aiScene.value === 'chat') return '例如：预算 3000，主要办公用，帮我选几款'
-  if (aiScene.value === 'extract_query') return '例如：帮我筛选 1000-2000 的二手手机，按价格升序'
-  return '例如：我想买黑神话悟空'
-})
+const aiInputPlaceholder = ref('例如：我想买黑神话悟空，预算 3000 元')
 const aiRawText = computed(() => {
   if (!aiRawResponse.value) return '暂无数据'
   try {
@@ -518,6 +581,7 @@ const categoryTabs = computed(() => {
 })
 
 const isCustomerLogged = computed(() => customerStore.isLoggedIn || !!customerStore.customerId)
+const isSellerLogged = computed(() => sellerStore.isLoggedIn)
 
 const getCurrentCustomerId = () => {
   const cid = customerStore.customerId
@@ -532,6 +596,13 @@ const goBuyerLogin = () => {
 }
 const goSellerLogin = () => {
   router.push('/seller').catch(() => {})
+}
+const goSellerDashboard = () => {
+  router.push('/seller/dashboard').catch(() => {})
+}
+const sellerLogout = () => {
+  sellerStore.logout()
+  ElMessage.success('已退出卖家账号')
 }
 const goDashboard = () => {
   router.push('/customer/dashboard').catch(() => {})
@@ -660,14 +731,19 @@ const selectHotTag = (tag) => {
 // 监听搜索输入变化
 watch(q, (newValue) => {
   if (newValue) {
-    // 模拟搜索建议
-    searchSuggestions.value = hotSearchTags.value.filter(tag => 
+    searchSuggestions.value = hotSearchTags.value.filter(tag =>
       tag.includes(newValue)
     )
     showSuggestions.value = true
   } else {
     searchSuggestions.value = []
     showSuggestions.value = false
+  }
+})
+
+watch(aiPanelVisible, (newVal) => {
+  if (newVal && !chatSessions.value.length) {
+    loadChatSessions()
   }
 })
 
@@ -775,9 +851,31 @@ const normalizeProductItem = (item) => {
   copy.image_url = img || ''
   copy.short_desc = copy.short_desc ?? ''
   copy.product_desc = copy.product_desc ?? ''
-  copy.price = copy.price ?? 0
+  copy.price = Number(copy.price ?? 0)
+  copy.current_promotion_price = copy.current_promotion_price == null ? null : Number(copy.current_promotion_price)
+  copy.original_price = copy.original_price == null ? null : Number(copy.original_price)
+  copy.has_active_promotion = Boolean(copy.has_active_promotion)
   copy.stock_quantity = copy.stock_quantity ?? 0
   return copy
+}
+
+const getCurrentPrice = (item) => {
+  const current = item?.current_promotion_price ?? item?.current_price ?? item?.final_price ?? item?.price
+  const val = Number(current)
+  return Number.isFinite(val) ? val : 0
+}
+
+const getOriginalPrice = (item) => {
+  const raw = item?.original_price
+  const val = Number(raw)
+  if (Number.isFinite(val) && val > 0) return val
+  return getCurrentPrice(item)
+}
+
+const hasDiscount = (item) => {
+  const current = getCurrentPrice(item)
+  const original = getOriginalPrice(item)
+  return Number.isFinite(original) && Number.isFinite(current) && original > current
 }
 
 const getCardSummary = (product) => {
@@ -793,6 +891,74 @@ const clearAiResult = () => {
   aiItems.value = []
   aiMessages.value = []
   aiRawResponse.value = null
+}
+
+const loadChatSessions = async () => {
+  try {
+    const userId = getAiUserId()
+    const response = await chatAPI.getUserSessions(userId)
+    chatSessions.value = response?.data?.data || []
+  } catch (e) {
+    console.error('加载会话列表失败:', e)
+  }
+}
+
+const createNewSession = async () => {
+  try {
+    const userId = getAiUserId()
+    const response = await chatAPI.createSession(userId, '新对话')
+    const newSession = response?.data?.data
+    if (newSession) {
+      chatSessions.value.unshift(newSession)
+      await switchSession(newSession)
+    }
+  } catch (e) {
+    console.error('创建会话失败:', e)
+    ElMessage.error('创建会话失败')
+  }
+}
+
+const switchSession = async (session) => {
+  currentSessionId.value = session.id
+  aiMessages.value = []
+  aiReply.value = ''
+  aiItems.value = []
+  aiRawResponse.value = null
+
+  try {
+    const response = await chatAPI.getSessionMessages(session.id)
+    const messages = response?.data?.data || []
+    aiMessages.value = messages.map(msg => ({
+      role: msg.role,
+      text: msg.content,
+      items: [],
+      time: new Date(msg.created_at).getTime()
+    }))
+    await nextTick()
+    await scrollAiToBottom()
+  } catch (e) {
+    console.error('加载会话消息失败:', e)
+  }
+}
+
+const deleteSession = async (sessionId) => {
+  try {
+    const userId = getAiUserId()
+    await chatAPI.deleteSession(sessionId, userId)
+    chatSessions.value = chatSessions.value.filter(s => s.id !== sessionId)
+    if (currentSessionId.value === sessionId) {
+      if (chatSessions.value.length > 0) {
+        await switchSession(chatSessions.value[0])
+      } else {
+        currentSessionId.value = null
+        aiMessages.value = []
+      }
+    }
+    ElMessage.success('会话已删除')
+  } catch (e) {
+    console.error('删除会话失败:', e)
+    ElMessage.error('删除会话失败')
+  }
 }
 
 const buildExtractQueryText = (payload) => {
@@ -821,20 +987,36 @@ const submitAiQuery = async () => {
     return
   }
 
+  if (!currentSessionId.value) {
+    try {
+      const userId = getAiUserId()
+      console.log('[AI] 创建会话, userId:', userId, '标题:', text.slice(0, 20))
+      const response = await chatAPI.createSession(userId, text.slice(0, 20))
+      console.log('[AI] 创建会话响应:', response)
+      const newSession = response?.data?.data
+      console.log('[AI] newSession:', newSession)
+      if (newSession) {
+        chatSessions.value.unshift(newSession)
+        currentSessionId.value = newSession.id
+        console.log('[AI] 设置 currentSessionId:', currentSessionId.value)
+      }
+    } catch (e) {
+      console.error('自动创建会话失败:', e)
+    }
+  }
+
   aiMessages.value.push({ role: 'user', text, items: [], time: Date.now() })
   aiLoading.value = true
   aiInput.value = ''
   await scrollAiToBottom()
 
   try {
-    const scene = aiScene.value || 'recommend'
     const response = await aiAPI.recommend({
       text,
       page: aiPage.value,
       size: aiSize.value,
-      userId: getAiUserId(),
-      scene,
-      action: scene
+      user_id: getAiUserId(),
+      session_id: currentSessionId.value
     })
     aiRawResponse.value = response?.data ?? null
 
@@ -842,16 +1024,8 @@ const submitAiQuery = async () => {
     const aiDesc = payload?.ai_description || payload?.aiDescription || ''
     const normalizedItems = Array.isArray(payload?.items) ? payload.items.map(normalizeProductItem) : []
 
-    if (scene === 'extract_query') {
-      aiReply.value = aiDesc || buildExtractQueryText(payload)
-      aiItems.value = []
-    } else if (scene === 'chat') {
-      aiReply.value = aiDesc || '已收到你的问题，我再帮你细化一下需求。'
-      aiItems.value = []
-    } else {
-      aiReply.value = aiDesc || '未获取到 AI 回复'
-      aiItems.value = normalizedItems
-    }
+    aiReply.value = aiDesc || '未获取到 AI 回复'
+    aiItems.value = normalizedItems
 
     aiMessages.value.push({
       role: 'assistant',
@@ -860,6 +1034,10 @@ const submitAiQuery = async () => {
       time: Date.now()
     })
     await scrollAiToBottom()
+
+    if (currentSessionId.value) {
+      await loadChatSessions()
+    }
   } catch (error) {
     console.error('AI 对话请求失败:', error)
     aiReply.value = '请求失败，请稍后重试'
@@ -903,28 +1081,98 @@ const fetchCategories = async () => {
   }
 }
 
+const isImageSearchMode = ref(false)
+const currentSearchImageUrl = ref('')
+
+const handleImageSearchUpload = async (options) => {
+  const { file } = options
+  try {
+    loading.value = true
+    // 1. 上传图片到我们已有的 /api/media/upload 接口作为临时文件
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('purpose', 'gallery')
+
+    // 调用 mediaAPI 上传
+    const uploadRes = await mediaAPI.upload(formData)
+    const payload = uploadRes.data?.data || uploadRes.data
+    const uploadedUrl = payload?.media_url || payload?.mediaUrl || payload?.temp_url || payload?.url
+
+    if (!uploadedUrl) {
+      throw new Error('上传图片失败，无法获取 URL')
+    }
+
+    currentSearchImageUrl.value = uploadedUrl
+    isImageSearchMode.value = true
+    page.value = 1
+
+    // 清空现有的文本分类条件
+    q.value = ''
+    categoryId.value = null
+
+    await fetchProducts()
+
+    ElMessage.success('识图成功！')
+  } catch (error) {
+    console.error('识图失败:', error)
+    ElMessage.error(error.message || '图片识别失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const clearImageSearch = () => {
+  isImageSearchMode.value = false
+  currentSearchImageUrl.value = ''
+  page.value = 1
+  fetchProducts()
+}
+
 const fetchProducts = async (p = page.value, s = size.value) => {
   try {
     const params = { page: p, size: s }
     if (q.value && q.value.toString().trim()) params.q = q.value.toString().trim()
     if (categoryId.value) params.category_id = categoryId.value
 
-    const response = await productAPI.getProducts(params)
-    console.log('获取商品列表响应:', response)
-    const payload = extractData(response)
-    console.log('提取的payload:', payload)
     let items = []
 
-    if (!payload) {
-      items = []
-    } else if (Array.isArray(payload.items) && payload.items.length) {
-      items = payload.items
-    } else if (Array.isArray(payload) && payload.length) {
-      items = payload
-    } else if (payload && (payload.product_id || payload.product_id === 0)) {
-      items = [payload]
+    if (isImageSearchMode.value && currentSearchImageUrl.value) {
+      const response = await aiAPI.searchImage({
+        image_url: currentSearchImageUrl.value,
+        page: p,
+        size: s
+      })
+      const payload = response.data?.data || response.data
+
+      if (payload && Array.isArray(payload.items)) {
+        items = payload.items
+        total.value = payload.total || items.length
+      } else {
+        items = []
+        total.value = 0
+      }
     } else {
-      items = []
+      // 普通文本检索
+      const response = await productAPI.getProducts(params)
+      console.log('获取商品列表响应:', response)
+      const payload = extractData(response)
+      console.log('提取的payload:', payload)
+
+      if (!payload) {
+        items = []
+      } else if (Array.isArray(payload.items) && payload.items.length) {
+        items = payload.items
+        total.value = Number(payload.total) || items.length
+      } else if (Array.isArray(payload) && payload.length) {
+        items = payload
+        total.value = items.length
+      } else if (payload && (payload.product_id || payload.product_id === 0)) {
+        items = [payload]
+        total.value = 1
+      } else {
+        items = []
+        total.value = 0
+      }
     }
 
     // 规范化字段
@@ -932,7 +1180,6 @@ const fetchProducts = async (p = page.value, s = size.value) => {
 
     page.value = p
     size.value = s
-    total.value = Number(payload?.total ?? items.length ?? 0)
     products.value = items
   } catch (error) {
     console.error('获取商品失败:', error)
@@ -1223,6 +1470,25 @@ const stripHtml = (input) => {
   background: linear-gradient(135deg, #2563eb, #7c3aed);
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.seller-back-btn {
+  font-weight: 500;
+  color: #e6a23c;
+}
+
+.seller-back-btn:hover {
+  color: #cf8d1e;
+}
+
+.seller-user-btn {
+  border-color: #e6a23c;
+  color: #e6a23c;
+}
+
+.seller-user-btn:hover {
+  border-color: #cf8d1e;
+  color: #cf8d1e;
 }
 
 .login-dropdown-btn {
@@ -1812,6 +2078,13 @@ const stripHtml = (input) => {
   align-items: center;
 }
 
+.price-block,
+.ai-mini-price-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
 .price {
   font-size: 24px;
   font-weight: 700;
@@ -1822,6 +2095,12 @@ const stripHtml = (input) => {
 
 .product-card:hover .price {
   transform: scale(1.05);
+}
+
+.original-price {
+  font-size: 13px;
+  color: #94a3b8;
+  text-decoration: line-through;
 }
 
 .stock {
@@ -2146,10 +2425,77 @@ const stripHtml = (input) => {
 
 .ai-panel {
   height: 100%;
-  display: grid;
-  grid-template-rows: 1fr auto auto;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 12px;
+}
+
+.ai-sessions-bar {
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.ai-sessions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ai-sessions-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.ai-sessions-list {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.ai-session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ai-session-item:hover {
+  background: #e2e8f0;
+}
+
+.ai-session-item.active {
+  background: #dbeafe;
+}
+
+.ai-session-item .session-name {
+  font-size: 13px;
+  color: #475569;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-session-item .delete-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ai-session-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.ai-sessions-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 8px;
 }
 
 .ai-chat-body {

@@ -28,8 +28,40 @@ vue
           </el-image>
           <div>
             <div class="product-name">{{ product?.product_name }}</div>
-            <div class="product-price">¥{{ product?.price }}</div>
+            <div class="product-price">
+              <span class="price-current">¥{{ formatPrice(displayCurrentPrice) }}</span>
+              <span v-if="hasPromotion" class="price-original">¥{{ formatPrice(displayOriginalPrice) }}</span>
+            </div>
           </div>
+        </div>
+      </el-form-item>
+
+      <el-form-item label="优惠信息">
+        <div class="promotion-box" v-loading="promotionLoading">
+          <template v-if="hasPromotion">
+            <div class="promotion-line">
+              <span class="label">优惠后价格</span>
+              <span class="value highlight">¥{{ formatPrice(displayCurrentPrice) }}</span>
+            </div>
+            <div class="promotion-line">
+              <span class="label">原价</span>
+              <span class="value">¥{{ formatPrice(displayOriginalPrice) }}</span>
+            </div>
+            <div class="promotion-line">
+              <span class="label">累计优惠</span>
+              <span class="value save">省 ¥{{ formatPrice(saveAmount) }}</span>
+            </div>
+            <div v-if="promotionList.length" class="promotion-list">
+              <div class="best-title">当前生效促销列表</div>
+              <div v-for="item in promotionList" :key="item.promotion_id" class="promotion-item">
+                #{{ item.promotion_id }} {{ item.promotion_name || item.promotion_type || '促销活动' }}
+                <span class="item-price">¥{{ formatPrice(item.final_price) }}</span>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="no-promo">当前无可用促销，按商品原价下单。</div>
+          </template>
         </div>
       </el-form-item>
 
@@ -107,7 +139,15 @@ import api, { purchaseAPI } from '@/api'
 
 const props = defineProps({
   modelValue: Boolean,
-  product: Object
+  product: Object,
+  promotionInfo: {
+    type: Object,
+    default: () => null
+  },
+  promotionLoading: {
+    type: Boolean,
+    default: false
+  }
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])
@@ -228,6 +268,42 @@ const productImageUrl = computed(() => {
   }
   return p.image_url || p.media_url || p.imageUrl || p.cover_url || p.cover || ''
 })
+
+const toNumberPrice = (val) => {
+  const n = Number(val)
+  return Number.isFinite(n) ? n : null
+}
+
+const displayCurrentPrice = computed(() => {
+  const p = props.promotionInfo || {}
+  return toNumberPrice(p.current_price ?? p.current_promotion_price ?? props.product?.price)
+})
+
+const displayOriginalPrice = computed(() => {
+  const p = props.promotionInfo || {}
+  return toNumberPrice(p.original_price ?? props.product?.original_price ?? props.product?.price)
+})
+
+const hasPromotion = computed(() => {
+  if (!props.promotionInfo?.has_active_promotion) return false
+  if (displayCurrentPrice.value == null || displayOriginalPrice.value == null) return false
+  return displayOriginalPrice.value > displayCurrentPrice.value
+})
+
+const saveAmount = computed(() => {
+  if (!hasPromotion.value) return 0
+  return displayOriginalPrice.value - displayCurrentPrice.value
+})
+
+const promotionList = computed(() => {
+  const list = props.promotionInfo?.promotions
+  return Array.isArray(list) ? list : []
+})
+
+const formatPrice = (val) => {
+  const n = toNumberPrice(val)
+  return n == null ? '--' : n.toFixed(2)
+}
 
 /** 校验规则（原样保留） **/
 const rules = {
@@ -352,8 +428,81 @@ const handleSubmit = async () => {
 }
 
 .product-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.price-current {
   color: #f56c6c;
   font-size: 16px;
   font-weight: bold;
+}
+
+.price-original {
+  color: #909399;
+  font-size: 13px;
+  text-decoration: line-through;
+}
+
+.promotion-box {
+  width: 100%;
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.promotion-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.promotion-line .label {
+  color: #606266;
+}
+
+.promotion-line .value {
+  color: #303133;
+}
+
+.promotion-line .highlight {
+  color: #f56c6c;
+  font-weight: 700;
+}
+
+.promotion-line .save {
+  color: #67c23a;
+  font-weight: 600;
+}
+
+.promotion-best,
+.promotion-list {
+  margin-top: 8px;
+  border-top: 1px dashed #dcdfe6;
+  padding-top: 8px;
+}
+
+.best-title {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+.best-content,
+.promotion-item,
+.no-promo {
+  font-size: 13px;
+  color: #606266;
+}
+
+.promotion-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.item-price {
+  color: #f56c6c;
 }
 </style>

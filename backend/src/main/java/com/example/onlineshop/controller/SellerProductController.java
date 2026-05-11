@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,6 +62,18 @@ public class SellerProductController {
 
     @Autowired
     private  ExternalAiClient externalAiClient;
+
+    @Autowired
+    private ProductVectorService productVectorService;
+
+    @Autowired
+    private com.example.onlineshop.mapper.PricingMapper pricingMapper;
+
+    @Autowired
+    private PriceHistoryService priceHistoryService;
+
+    @Autowired
+    private PriceAlertService priceAlertService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -265,6 +279,7 @@ public class SellerProductController {
 
                     Product latest = sellerService.loadProductWithMedia(productId);
                     if (latest != null) {
+                        productVectorService.generateAndStoreAllVectorsAsync(latest);
                         return new ApiResponse(200, "发布成功", new ProductInfoResponse(latest));
                     }
                 }
@@ -324,6 +339,75 @@ public class SellerProductController {
             return ResponseUtil.success("查询成功", data);
         } catch (Exception e) {
             return ResponseUtil.error("查询失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    @PutMapping("/products/{product_id}/price")
+    public ApiResponse updateProductPrice(@RequestHeader("Authorization") String token,
+                                          @PathVariable("product_id") Integer productId,
+                                          @RequestBody Map<String, Object> body) {
+        try {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            Integer publisherId = customerId != null ? customerId : sellerIdFromToken;
+            
+            if (publisherId == null) {
+                return ApiResponse.error(401, "未授权");
+            }
+
+            Product product = productService.getProductById(productId);
+            if (product == null) {
+                return ApiResponse.error(404, "商品不存在");
+            }
+            if (!publisherId.equals(product.getSellerId())) {
+                return ApiResponse.error(403, "无权修改该商品价格");
+            }
+
+            BigDecimal newPrice = parseDecimal(body == null ? null : body.get("new_price"));
+            String reason = body == null || body.get("change_reason") == null ? null : String.valueOf(body.get("change_reason"));
+            if (newPrice == null || newPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                return ApiResponse.error(400, "new_price 必须大于0");
+            }
+
+            java.util.Map<String, Object> pricing = pricingMapper.selectProductPricingInfo(productId);
+            if (pricing == null) {
+                return ApiResponse.error(404, "商品不存在");
+            }
+
+            BigDecimal oldPrice = (BigDecimal) pricing.get("price");
+            if (oldPrice.compareTo(newPrice) == 0) {
+                return new ApiResponse(200, "价格未发生变化", java.util.Map.of(
+                        "product_id", productId,
+                        "old_price", oldPrice,
+                        "new_price", newPrice,
+                        "change_type", "MANUAL",
+                        "updated_at", LocalDateTime.now(),
+                        "alerts_triggered", 0
+                ));
+            }
+
+            BigDecimal originalPrice = (BigDecimal) pricing.get("original_price");
+            Boolean hasActivePromotion = Boolean.TRUE.equals(pricing.get("has_active_promotion"));
+            if (originalPrice == null || !hasActivePromotion) {
+                originalPrice = newPrice;
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            pricingMapper.deactivateProductPromotions(productId, now);
+            pricingMapper.updateProductPrice(productId, newPrice, originalPrice, null, false, now);
+            priceHistoryService.recordPriceChange(productId, oldPrice, newPrice, "MANUAL", reason, publisherId);
+            int alerts = priceAlertService.handlePriceChange(productId, oldPrice, newPrice);
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("product_id", productId);
+            data.put("old_price", oldPrice);
+            data.put("new_price", newPrice);
+            data.put("change_type", "MANUAL");
+            data.put("updated_at", now);
+            data.put("alerts_triggered", alerts);
+            return new ApiResponse(200, "价格修改成功", data);
+        } catch (Exception e) {
+            return ApiResponse.error(500, "价格修改失败: " + e.getMessage());
         }
     }
 
@@ -588,5 +672,16 @@ public class SellerProductController {
         }
         String expr = "(?i)(https?://[^\\\"'\\s<]+)?/media/temp/" + Pattern.quote(tempKey) + "[^\\\"'\\s<]*";
         return desc.replaceAll(expr, Matcher.quoteReplacement(finalUrl));
+    }
+
+    private BigDecimal parseDecimal(Object value) {
+        if (value == null) return null;
+        if (value instanceof BigDecimal) return (BigDecimal) value;
+        if (value instanceof Number) return BigDecimal.valueOf(((Number) value).doubleValue());
+        try {
+            return new BigDecimal(String.valueOf(value));
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

@@ -1,4 +1,4 @@
- package com.example.onlineshop.dto.request;
+package com.example.onlineshop.dto.request;
 
 import lombok.Data;
 import java.math.BigDecimal;

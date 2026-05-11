@@ -23,6 +23,9 @@ public class Product implements Serializable {
     private String productName;
     private String productDesc;
     private BigDecimal price;
+    private BigDecimal originalPrice;
+    private BigDecimal currentPromotionPrice;
+    private Boolean hasActivePromotion;
     private Integer stockQuantity;
     private String productStatus;
     private String searchKeywords;
@@ -34,9 +37,6 @@ public class Product implements Serializable {
     // 新增：封面图片 URL（来自 product_images 第一张图，非持久化）
     private String coverImage;
 
-    private BigDecimal currentPromotionPrice;
-    private BigDecimal originalPrice;
-    private Boolean hasActivePromotion;
 
     // 新增：由 ProductService 填充，用于响应中的图片列表（仅 URL 列表）
     @Builder.Default

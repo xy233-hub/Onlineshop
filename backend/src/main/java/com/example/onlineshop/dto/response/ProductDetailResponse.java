@@ -6,9 +6,11 @@ import com.example.onlineshop.entity.Category;
 import com.example.onlineshop.entity.MediaResource;
 import com.example.onlineshop.entity.Product;
 import com.example.onlineshop.entity.ProductImage;
+import com.example.onlineshop.service.PromotionPriceService;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ProductDetailResponse {
@@ -20,6 +22,11 @@ public class ProductDetailResponse {
     public List<ProductImageItem> images;
     public List<MediaItem> media_resources;
     public Double price;
+    public Double original_price;
+    public Double current_promotion_price;
+    public Boolean has_active_promotion;
+    public List<Integer> active_promotion_ids;
+    public List<Map<String, Object>> promotions;
     public Integer stock_quantity;
     public String product_status;
     public String search_keywords;
@@ -32,7 +39,8 @@ public class ProductDetailResponse {
     public ProductDetailResponse(Product p,
                                  List<ProductImage> imgs,
                                  List<MediaResource> medias,
-                                 Category cat) {
+                                 Category cat,
+                                 PromotionPriceService.PromotionPriceResult promoResult) {
         if (p == null) return;
         this.product_id = p.getProductId();
         this.seller_id = p.getSellerId();
@@ -40,6 +48,7 @@ public class ProductDetailResponse {
         this.product_name = p.getProductName();
         this.product_desc = p.getProductDesc();
         this.price = p.getPrice() == null ? null : p.getPrice().doubleValue();
+        this.original_price = p.getOriginalPrice() == null ? null : p.getOriginalPrice().doubleValue();
         this.stock_quantity = p.getStockQuantity();
         this.product_status = p.getProductStatus();
         this.search_keywords = p.getSearchKeywords();
@@ -51,6 +60,18 @@ public class ProductDetailResponse {
         this.media_resources = medias == null ? null :
                 medias.stream().map(MediaItem::new).collect(Collectors.toList());
         this.category = cat == null ? null : new CategoryItem(cat);
+
+        if (promoResult != null) {
+            this.original_price = promoResult.originalPrice != null ? promoResult.originalPrice.doubleValue() : null;
+            this.current_promotion_price = promoResult.currentPromotionPrice != null ? promoResult.currentPromotionPrice.doubleValue() : null;
+            this.has_active_promotion = promoResult.hasActivePromotion;
+            this.active_promotion_ids = promoResult.activePromotionIds;
+            this.promotions = promoResult.promotions;
+        } else {
+            this.has_active_promotion = false;
+            this.active_promotion_ids = List.of();
+            this.promotions = List.of();
+        }
     }
 
     public String getStatus() {

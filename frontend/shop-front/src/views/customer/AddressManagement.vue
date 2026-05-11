@@ -53,27 +53,9 @@
     <el-dialog
       v-model="addressDialogVisible"
       :title="isEditing ? '编辑收货地址' : '添加收货地址'"
-      width="700px"
+      width="600px"
     >
       <el-form :model="addressForm" :rules="addressRules" ref="addressFormRef" label-width="100px">
-        <el-form-item label="智能识别" v-if="!isEditing">
-          <el-input
-            v-model="addressText"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入完整地址，例如：张三 13800138000 北京市朝阳区建国路100号"
-            style="margin-bottom: 10px;"
-          ></el-input>
-          <el-button 
-            type="success" 
-            @click="handleAddressParse" 
-            :loading="parsing"
-            style="width: 100%;"
-          >
-            AI智能识别地址
-          </el-button>
-        </el-form-item>
-        <el-divider v-if="!isEditing"></el-divider>
         <el-form-item label="收货人姓名" prop="recipientName">
           <el-input v-model="addressForm.recipientName" placeholder="请输入收货人姓名"></el-input>
         </el-form-item>
@@ -114,7 +96,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import api, { addressAPI } from '@/api/index.js'
+import api from '@/api/index.js' // 确保路径指向你给的 index.js 导出的默认 api
 
 const addresses = ref([])
 const loading = ref(false)
@@ -122,8 +104,6 @@ const addressDialogVisible = ref(false)
 const isEditing = ref(false)
 const addressFormRef = ref(null)
 const currentAddressId = ref(null)
-const addressText = ref('')
-const parsing = ref(false)
 
 const addressForm = ref({
   recipientName: '',
@@ -193,43 +173,9 @@ const fetchAddresses = async () => {
   }
 }
 
-const handleAddressParse = async () => {
-  if (!addressText.value || !addressText.value.trim()) {
-    ElMessage.warning('请输入要识别的地址文本')
-    return
-  }
-
-  parsing.value = true
-  try {
-    const { data: result } = await addressAPI.parseAddress({
-      address_text: addressText.value
-    })
-
-    if (result.code === 200) {
-      const parsed = result.data
-      addressForm.value.recipientName = parsed.recipient_name || ''
-      addressForm.value.recipientPhone = parsed.recipient_phone || ''
-      addressForm.value.province = parsed.province || ''
-      addressForm.value.city = parsed.city || ''
-      addressForm.value.district = parsed.district || ''
-      addressForm.value.detailAddress = parsed.detail_address || ''
-      
-      ElMessage.success('地址识别成功，请检查并确认信息')
-    } else {
-      ElMessage.error(result.message || '地址识别失败')
-    }
-  } catch (error) {
-    console.error('地址识别失败:', error)
-    ElMessage.error('地址识别失败，请手动填写')
-  } finally {
-    parsing.value = false
-  }
-}
-
 const showAddAddressDialog = () => {
   isEditing.value = false
   currentAddressId.value = null
-  addressText.value = ''
   addressForm.value = {
     recipientName: '',
     recipientPhone: '',
@@ -245,7 +191,6 @@ const showAddAddressDialog = () => {
 const showEditAddressDialog = (address) => {
   isEditing.value = true
   currentAddressId.value = address.address_id
-  addressText.value = ''
   addressForm.value = {
     recipientName: address.recipient_name,
     recipientPhone: address.recipient_phone,
@@ -259,98 +204,95 @@ const showEditAddressDialog = (address) => {
 }
 
 const saveAddress = async () => {
-  if (!addressFormRef.value) return
-
   try {
-    await addressFormRef.value.validate()
-    
     const customerId = getCustomerIdFromStorage()
     if (!customerId) {
       ElMessage.error('未获取到客户信息，请重新登录')
       return
     }
 
-    if (isEditing.value) {
-      const { data: result } = await addressAPI.updateAddress(currentAddressId.value, addressForm.value)
-      if (result.code === 200) {
-        ElMessage.success('地址更新成功')
-        addressDialogVisible.value = false
-        fetchAddresses()
-      } else {
-        ElMessage.error(result.message || '地址更新失败')
-      }
+    // body 里不要放 customer_id，后端用 @RequestParam 取
+    const body = {
+      recipient_name: String(addressForm.value.recipientName),
+      recipient_phone: String(addressForm.value.recipientPhone),
+      province: String(addressForm.value.province),
+      city: String(addressForm.value.city),
+      district: String(addressForm.value.district),
+      detail_address: String(addressForm.value.detailAddress),
+      is_default: Boolean(addressForm.value.isDefault)
+    }
+
+    let result
+    if (isEditing.value && currentAddressId.value) {
+      const { data } = await api.put(`/customers/addresses/${currentAddressId.value}`, body)
+      result = data
     } else {
-      const { data: result } = await addressAPI.addAddress(customerId, addressForm.value)
-      if (result.code === 200) {
-        ElMessage.success('地址添加成功')
-        addressDialogVisible.value = false
-        fetchAddresses()
-      } else {
-        ElMessage.error(result.message || '地址添加失败')
-      }
+      const { data } = await api.post('/customers/addresses', body, {
+        params: { customer_id: customerId }
+      })
+      result = data
+    }
+
+    if (result.code === 200) {
+      ElMessage.success(isEditing.value ? '地址更新成功' : '地址添加成功')
+      addressDialogVisible.value = false
+      await fetchAddresses()
+    } else {
+      ElMessage.error(result.message || (isEditing.value ? '地址更新失败' : '地址添加失败'))
     }
   } catch (error) {
-    if (error !== false) {
-      console.error('保存地址失败:', error)
-      ElMessage.error('保存失败，请重试')
-    }
+    console.error('保存地址失败:', error)
+    ElMessage.error('网络错误，请重试')
   }
 }
 
 const confirmDeleteAddress = (address) => {
   ElMessageBox.confirm(
-    `确定要删除地址「${address.province} ${address.city} ${address.district} ${address.detail_address}」吗？`,
-    '警告',
-    {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }
+      `确定要删除地址 ${address.recipient_name} (${address.recipient_phone}) 吗？`,
+      '删除地址',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
   ).then(async () => {
     try {
-      const { data: result } = await addressAPI.deleteAddress(address.address_id)
+      const { data: result } = await api.delete(`/customers/addresses/${address.address_id}`)
       if (result.code === 200) {
         ElMessage.success('地址删除成功')
-        fetchAddresses()
+        await fetchAddresses()
       } else {
         ElMessage.error(result.message || '地址删除失败')
       }
     } catch (error) {
       console.error('删除地址失败:', error)
-      ElMessage.error('删除失败，请重试')
+      ElMessage.error('网络错误，请重试')
     }
   }).catch(() => {})
 }
 
 const setDefaultAddress = async (addressId) => {
   try {
-    const { data: result } = await addressAPI.setDefaultAddress(addressId)
+    const { data: result } = await api.patch(`/customers/addresses/${addressId}/default`)
     if (result.code === 200) {
-      ElMessage.success('设置默认地址成功')
-      fetchAddresses()
+      ElMessage.success('默认地址设置成功')
+      await fetchAddresses()
     } else {
-      ElMessage.error(result.message || '设置默认地址失败')
+      ElMessage.error(result.message || '默认地址设置失败')
     }
   } catch (error) {
     console.error('设置默认地址失败:', error)
-    ElMessage.error('设置失败，请重试')
+    ElMessage.error('网络错误，请重试')
   }
 }
 
-const formatTime = (time) => {
-  if (!time) return ''
-  const date = new Date(time)
-  return date.toLocaleString('zh-CN')
+const formatTime = (t) => {
+  if (!t) return ''
+  try { return new Date(t).toLocaleString() } catch (e) { return t }
 }
 
-onMounted(() => {
-  fetchAddresses()
-})
+onMounted(fetchAddresses)
 </script>
 
 <style scoped>
 .address-management {
-  padding: 20px;
+  padding: 16px;
 }
 
 .header-row {
@@ -362,30 +304,29 @@ onMounted(() => {
 
 .header-row h2 {
   margin: 0;
+  color: #333;
 }
 
 .address-list {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 16px;
 }
 
 .address-card {
-  transition: all 0.3s;
-}
-
-.address-card:hover {
-  transform: translateY(-2px);
+  padding: 16px;
 }
 
 .address-content {
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .address-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
+  align-items: flex-start;
 }
 
 .recipient-info {
@@ -394,13 +335,13 @@ onMounted(() => {
   gap: 12px;
 }
 
-.recipient-info .name {
+.name {
   font-weight: bold;
   font-size: 16px;
 }
 
-.recipient-info .phone {
-  color: #606266;
+.phone {
+  color: #666;
 }
 
 .address-actions {
@@ -409,17 +350,30 @@ onMounted(() => {
 }
 
 .address-detail {
-  color: #303133;
-  line-height: 1.6;
-  margin-bottom: 8px;
+  color: #333;
+  line-height: 1.5;
 }
 
 .address-meta {
-  color: #909399;
+  color: #999;
   font-size: 12px;
 }
 
 .empty-addresses {
   padding: 40px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .address-list {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

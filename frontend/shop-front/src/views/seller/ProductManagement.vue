@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { sellerProductAPI, categoryAPI } from '@/api'
+import { sellerProductAPI, categoryAPI, aiAPI } from '@/api'
 import ProductForm from '@/components/seller/ProductForm.vue'
 
-/** 状态 */
 const q = ref('')
 const categoryId = ref(null as number | null)
-const status = ref('') // '', 'online','frozen','sold','outOfStock'
+const status = ref('')
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
@@ -18,6 +17,10 @@ const showCreate = ref(false)
 const categories = ref<any[]>([])
 const router = useRouter()
 const selectedProducts = ref<any[]>([])
+const vectorLoading = ref(false)
+const vectorStatus = ref('')
+const vectorProgress = ref<any>(null)
+let progressTimer: ReturnType<typeof setInterval> | null = null
 
 const extractData = (res: any) => res?.data?.data ?? res?.data ?? null
 
@@ -120,7 +123,63 @@ const fetchProducts = async (p = page.value, s = size.value) => {
 onMounted(() => {
   fetchCategories()
   fetchProducts()
+  fetchVectorStatus()
 })
+
+onUnmounted(() => {
+  stopProgressPolling()
+})
+
+const startProgressPolling = () => {
+  if (progressTimer) return
+  progressTimer = setInterval(fetchVectorStatus, 2000)
+}
+
+const stopProgressPolling = () => {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+}
+
+const fetchVectorStatus = async () => {
+  try {
+    const res = await aiAPI.getImageSearchStatus()
+    const d = extractData(res)
+    vectorStatus.value = d?.status || ''
+    vectorProgress.value = d?.progress || null
+    
+    if (vectorProgress.value?.isGenerating) {
+      vectorLoading.value = true
+      startProgressPolling()
+    } else {
+      vectorLoading.value = false
+      stopProgressPolling()
+    }
+  } catch (e) {
+    vectorStatus.value = ''
+    vectorProgress.value = null
+  }
+}
+
+const handleGenerateVectors = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '将为所有在线商品生成向量数据，用于图片搜索功能。此操作可能需要较长时间，确认继续？',
+      '生成向量',
+      { type: 'info' }
+    )
+    vectorLoading.value = true
+    const res = await aiAPI.generateVectors()
+    ElMessage.success('向量生成任务已启动')
+    startProgressPolling()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.message || '向量生成失败')
+    }
+    vectorLoading.value = false
+  }
+}
 
 const handleSearch = () => {
   page.value = 1
@@ -190,6 +249,23 @@ const onProductCreated = (payload: any) => {
       >
         批量上架
       </el-button>
+
+      <el-button
+          type="warning"
+          :loading="vectorLoading"
+          @click="handleGenerateVectors"
+      >
+        生成搜索向量
+      </el-button>
+      
+      <span v-if="vectorProgress?.isGenerating" style="color:#409EFF; font-size:12px;">
+        生成中: 商品 {{ vectorProgress.processedProducts }}/{{ vectorProgress.totalProducts }}, 
+        图片 {{ vectorProgress.processedImages }}/{{ vectorProgress.totalImages || '?' }}
+      </span>
+      <span v-else-if="vectorProgress && !vectorProgress.isGenerating && vectorProgress.processedProducts > 0" style="color:#67C23A; font-size:12px;">
+        已完成: {{ vectorProgress.processedProducts }} 商品, {{ vectorProgress.processedImages }} 图片
+      </span>
+      <span v-else-if="vectorStatus" style="color:#888; font-size:12px;">{{ vectorStatus }}</span>
 
       <div style="margin-left:auto; color:#888">共 {{ total }} 条</div>
     </div>

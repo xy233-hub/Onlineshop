@@ -2,6 +2,7 @@
 package com.example.onlineshop.dto.response;
 
 import com.example.onlineshop.entity.Product;
+import com.example.onlineshop.service.PromotionPriceService;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.math.BigDecimal;
@@ -21,13 +22,19 @@ public class ProductInfoResponse {
     @JsonProperty("short_desc")
     public String shortDesc;
     @JsonProperty("image_url")
-    public String imageUrl; // 向后兼容：第一张图片
+    public String imageUrl;
     @JsonProperty("images")
-    public List<String> images; // 图片 URL 列表
+    public List<String> images;
     @JsonProperty("media_resources")
     public List<MediaResourceResponse> mediaResources;
     @JsonProperty("price")
     public BigDecimal price;
+    @JsonProperty("original_price")
+    public BigDecimal originalPrice;
+    @JsonProperty("current_promotion_price")
+    public BigDecimal currentPromotionPrice;
+    @JsonProperty("has_active_promotion")
+    public Boolean hasActivePromotion;
     @JsonProperty("stock_quantity")
     public Integer stockQuantity;
     @JsonProperty("product_status")
@@ -44,10 +51,14 @@ public class ProductInfoResponse {
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public ProductInfoResponse(Product p) {
-        this(p, null, null);
+        this(p, null, null, null);
     }
 
     public ProductInfoResponse(Product p, List<String> images, List<MediaResourceResponse> mediaResources) {
+        this(p, images, mediaResources, null);
+    }
+
+    public ProductInfoResponse(Product p, List<String> images, List<MediaResourceResponse> mediaResources, PromotionPriceService.PromotionPriceResult promoResult) {
         if (p != null) {
             this.productId = p.getProductId();
             this.sellerId = p.getSellerId();
@@ -60,6 +71,16 @@ public class ProductInfoResponse {
             this.searchKeywords = p.getSearchKeywords();
             this.createdAt = p.getCreatedAt() != null ? p.getCreatedAt().format(formatter) : null;
             this.updatedAt = p.getUpdatedAt() != null ? p.getUpdatedAt().format(formatter) : null;
+
+            if (promoResult != null) {
+                this.originalPrice = promoResult.originalPrice;
+                this.currentPromotionPrice = promoResult.currentPromotionPrice;
+                this.hasActivePromotion = promoResult.hasActivePromotion;
+            } else {
+                this.originalPrice = p.getOriginalPrice();
+                this.currentPromotionPrice = p.getCurrentPromotionPrice();
+                this.hasActivePromotion = p.getHasActivePromotion();
+            }
         }
 
         this.images = images != null ? images : (p != null && p.getImages() != null ? p.getImages() : Collections.emptyList());
@@ -67,7 +88,6 @@ public class ProductInfoResponse {
         if (!this.images.isEmpty()) {
             this.imageUrl = this.images.get(0);
         } else if (p != null && p.getCoverImage() != null && !p.getCoverImage().isEmpty()) {
-            // 当 images 为空时，使用 Mapper 查询到的 coverImage 填充 image_url（优先展示）
             this.imageUrl = p.getCoverImage();
         } else {
             this.imageUrl = null;

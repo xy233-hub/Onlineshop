@@ -137,6 +137,19 @@ public class ShoppingCartController {
         return cartService.batchPurchase(customerId, cartItemIds, contactName, contactPhone, deliveryAddress, note);
     }
 
+    // 批量下单预结算（不创建订单）
+    @PostMapping("/batch-purchase-preview")
+    public Map<String, Object> batchPurchasePreview(@RequestBody Map<String, Object> body) {
+        Integer customerId = parseInteger(body.get("customer_id"));
+        List<Integer> cartItemIds = parseListOfIntegers(body.get("cart_item_ids"));
+
+        if (customerId == null || cartItemIds == null || cartItemIds.isEmpty()) {
+            return Map.of("code", 400, "message", "参数缺失：customer_id 或 cart_item_ids 为空", "data", Collections.emptyMap());
+        }
+
+        return cartService.batchPurchasePreview(customerId, cartItemIds);
+    }
+
     // 辅助方法：安全解析 Integer（支持 Number / String）
     private Integer parseInteger(Object obj) {
         if (obj == null) return null;

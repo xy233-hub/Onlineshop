@@ -1,4 +1,3 @@
-```vue
 <template>
   <div class="dashboard-container">
     <el-container>
@@ -40,6 +39,10 @@
           <el-menu-item index="/seller/dashboard/after-sales">
             <el-icon><Folder /></el-icon>
             <span>售后管理</span>
+          </el-menu-item>
+          <el-menu-item index="/seller/dashboard/promotions">
+            <el-icon><Discount /></el-icon>
+            <span>优惠营销管理</span>
           </el-menu-item>
         </el-menu>
 
