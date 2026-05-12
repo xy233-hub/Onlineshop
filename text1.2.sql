@@ -819,3 +819,39 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     INDEX idx_session_id (session_id),
     FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 切换到数据库
+USE onlineshop;
+
+-- 1. 先检查字段是否存在
+SELECT COUNT(*) AS field_exists
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'onlineshop' 
+  AND TABLE_NAME = 'products' 
+  AND COLUMN_NAME = 'active_promotion_ids';
+
+-- 2. 如果上面查询结果为 0，执行以下语句添加字段
+ALTER TABLE products
+    ADD COLUMN active_promotion_ids JSON COMMENT '当前生效的促销活动ID数组（按优先级从高到低）';
+
+-- 3. 初始化现有数据（避免 NULL 值导致问题）
+UPDATE products
+SET active_promotion_ids = JSON_ARRAY()
+WHERE active_promotion_ids IS NULL;
+
+-- 4. 验证字段是否添加成功
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_COMMENT, IS_NULLABLE
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'onlineshop' 
+  AND TABLE_NAME = 'products' 
+  AND COLUMN_NAME IN ('current_promotion_price', 'original_price', 'has_active_promotion', 'active_promotion_ids')
+ORDER BY ORDINAL_POSITION;
+
+USE onlineshop;
+
+-- 修改 rule_type 字段的 ENUM 定义，添加 FULL_REDUCTION
+ALTER TABLE promotion_rules
+    MODIFY COLUMN rule_type ENUM('TIME_RANGE', 'USER_LEVEL', 'QUANTITY_LIMIT', 'COMBINATION', 'FULL_REDUCTION') NOT NULL COMMENT '规则类型';
+
+-- 验证修改是否成功
+SHOW COLUMNS FROM promotion_rules LIKE 'rule_type';

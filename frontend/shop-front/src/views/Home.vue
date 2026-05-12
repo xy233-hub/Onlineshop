@@ -9,6 +9,7 @@
 
         <div class="nav-links">
           <a href="/" class="nav-link active">首页</a>
+          <a href="/promotions" class="nav-link">优惠营销</a>
         </div>
 
         <div class="header-actions">

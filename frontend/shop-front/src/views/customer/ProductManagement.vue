@@ -44,7 +44,7 @@
         <template #default="{ row }">{{ new Date(row.created_at).toLocaleString() }}</template>
       </el-table-column>
 
-      <el-table-column label="操作" width="360">
+      <el-table-column label="操作" width="460">
         <template #default="{ row }">
           <el-button size="small" type="primary" @click="goToDetail(row.product_id)">查看</el-button>
 
@@ -68,6 +68,12 @@
               :disabled="row.product_status === 'sold'"
               @click="handleMarkSold(row)"
           >标记已售</el-button>
+
+          <el-button
+              size="small"
+              type="danger"
+              @click="openPriceDialog(row)"
+          >修改价格</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -86,9 +92,47 @@
     </div>
 
     <ProductForm v-model:visible="showCreate" @created="onProductCreated" publisher-role="customer" />
+
+    <!-- 修改价格对话框 -->
+    <el-dialog
+        v-model="priceDialogVisible"
+        title="修改商品价格"
+        width="500px"
+        :close-on-click-modal="false"
+    >
+      <el-form :model="priceForm" :rules="priceRules" ref="priceFormRef" label-width="100px">
+        <el-form-item label="商品名称">
+          <span>{{ currentProduct?.product_name }}</span>
+        </el-form-item>
+        <el-form-item label="当前价格">
+          <span style="color: #f56c6c; font-weight: 600;">¥{{ currentProduct?.price }}</span>
+        </el-form-item>
+        <el-form-item label="新价格" prop="newPrice">
+          <el-input-number
+              v-model="priceForm.newPrice"
+              :min="0.01"
+              :precision="2"
+              :step="1"
+              style="width: 100%;"
+              placeholder="请输入新价格"
+          />
+        </el-form-item>
+        <el-form-item label="修改原因" prop="reason">
+          <el-input
+              v-model="priceForm.reason"
+              type="textarea"
+              :rows="3"
+              placeholder="请输入价格修改原因（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="priceDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="priceUpdating" @click="handleUpdatePrice">确认修改</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
-
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
@@ -110,6 +154,23 @@ const showCreate = ref(false)
 const categories = ref<any[]>([])
 const router = useRouter()
 const selectedProducts = ref<any[]>([])
+
+// 价格修改相关
+const priceDialogVisible = ref(false)
+const priceUpdating = ref(false)
+const priceFormRef = ref(null)
+const currentProduct = ref<any>(null)
+const priceForm = reactive({
+  newPrice: 0,
+  reason: ''
+})
+
+const priceRules = {
+  newPrice: [
+    { required: true, message: '请输入新价格', trigger: 'blur' },
+    { type: 'number', min: 0.01, message: '价格必须大于0', trigger: 'blur' }
+  ]
+}
 
 const extractData = (res: any) => res?.data?.data ?? res?.data ?? null
 
@@ -178,8 +239,7 @@ const fetchProducts = async (p = page.value, s = size.value) => {
     if (q.value) params.q = q.value
     if (categoryId.value) params.category_id = categoryId.value
     if (status.value) params.status = status.value
-    
-    // 使用买家专用的 API 获取自己的商品
+
     const res = await customerProductAPI.getMyProducts(params)
     const d = extractData(res)
     let items: any[] = []
@@ -188,7 +248,7 @@ const fetchProducts = async (p = page.value, s = size.value) => {
     else if (Array.isArray(d)) items = d
     else if (d && (d.product_id || d.product_id === 0)) items = [d]
     else items = []
-    
+
     items = normalizeItems(items)
     products.value = items
     page.value = Number(d?.page ?? p)
@@ -261,6 +321,53 @@ const handleMarkSold = async (product: any) => {
 const onProductCreated = (payload: any) => {
   fetchProducts()
   ElMessage.success('商品创建成功')
+}
+
+// 打开价格修改对话框
+const openPriceDialog = (product: any) => {
+  currentProduct.value = product
+  priceForm.newPrice = product.price
+  priceForm.reason = ''
+  priceDialogVisible.value = true
+}
+
+// 处理价格修改
+const handleUpdatePrice = async () => {
+  if (!priceFormRef.value) return
+  
+  try {
+    await priceFormRef.value.validate()
+    
+    await ElMessageBox.confirm(
+        `确认将商品"${currentProduct.value?.product_name}"的价格从 ¥${currentProduct.value?.price} 修改为 ¥${priceForm.newPrice}？`,
+        '确认修改',
+        { type: 'warning' }
+    )
+    
+    priceUpdating.value = true
+    
+    const payload = {
+      new_price: priceForm.newPrice,
+      change_reason: priceForm.reason || '卖家手动修改'
+    }
+    
+    const res = await customerProductAPI.updatePrice(currentProduct.value.product_id, payload)
+    
+    if (res?.data?.code === 200) {
+      ElMessage.success('价格修改成功')
+      priceDialogVisible.value = false
+      await fetchProducts()
+    } else {
+      ElMessage.error(res?.data?.message || '价格修改失败')
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('修改价格失败:', error)
+      ElMessage.error(error?.response?.data?.message || '修改价格失败')
+    }
+  } finally {
+    priceUpdating.value = false
+  }
 }
 </script>
 

@@ -29,6 +29,12 @@ const routes = [
     { path: '/product/:id', name: 'ProductDetail', component: ProductDetail, props: true },
     { path: '/seller', name: 'SellerLogin', component: SellerLogin, meta: { guestOnly: true } },
     { path: '/payment/alipay/return', name: 'AlipayReturn', component: AlipayReturn },
+    { 
+        path: '/promotions', 
+        name: 'Promotions', 
+        redirect: '/seller/dashboard/promotions',
+        meta: { requiresAuth: true }
+    },
     {
         path: '/customer/dashboard',
         component: () => import('@/views/customer/Dashboard.vue'),
