@@ -3,7 +3,9 @@ package com.example.onlineshop.service;
 import com.example.onlineshop.entity.Promotion;
 import com.example.onlineshop.entity.PromotionRule;
 import com.example.onlineshop.mapper.PromotionMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import java.util.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+@Slf4j
 @Service
 public class PromotionService {
 
@@ -621,6 +624,32 @@ public class PromotionService {
             return ids;
         } catch (Exception e) {
             return Collections.emptyList();
+        }
+    }
+
+    @Scheduled(fixedRate = 60000)
+    @Transactional
+    public void scheduleAutoActivateAndEndPromotions() {
+        LocalDateTime now = LocalDateTime.now();
+        
+        List<Promotion> toActivate = promotionMapper.findDraftPromotionsToActivate(now);
+        for (Promotion promotion : toActivate) {
+            try {
+                log.info("定时任务：自动激活促销活动 [{}] {}", promotion.getPromotionId(), promotion.getPromotionName());
+                activatePromotion(promotion.getPromotionId(), 0);
+            } catch (Exception e) {
+                log.error("自动激活促销活动 [{}] 失败: {}", promotion.getPromotionId(), e.getMessage());
+            }
+        }
+        
+        List<Promotion> toEnd = promotionMapper.findActivePromotionsToEnd(now);
+        for (Promotion promotion : toEnd) {
+            try {
+                log.info("定时任务：自动结束促销活动 [{}] {}", promotion.getPromotionId(), promotion.getPromotionName());
+                endPromotion(promotion.getPromotionId(), 0);
+            } catch (Exception e) {
+                log.error("自动结束促销活动 [{}] 失败: {}", promotion.getPromotionId(), e.getMessage());
+            }
         }
     }
 }

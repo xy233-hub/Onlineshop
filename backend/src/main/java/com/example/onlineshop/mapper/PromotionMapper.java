@@ -212,5 +212,13 @@ public interface PromotionMapper {
 
     @Select("SELECT COUNT(1) FROM product_promotions WHERE promotion_id = #{promotionId} AND is_active = TRUE")
     int activeProductCount(@Param("promotionId") Integer promotionId);
+
+    @Select("SELECT promotion_id, promotion_name, promotion_type, description, start_time, end_time, status, discount_value, min_purchase_amount, max_discount_amount, applicable_scope, target_ids, priority, created_by, created_at, updated_at " +
+            "FROM promotions WHERE status = 'DRAFT' AND start_time <= #{now} AND end_time > #{now}")
+    List<Promotion> findDraftPromotionsToActivate(@Param("now") LocalDateTime now);
+
+    @Select("SELECT promotion_id, promotion_name, promotion_type, description, start_time, end_time, status, discount_value, min_purchase_amount, max_discount_amount, applicable_scope, target_ids, priority, created_by, created_at, updated_at " +
+            "FROM promotions WHERE status = 'ACTIVE' AND end_time <= #{now}")
+    List<Promotion> findActivePromotionsToEnd(@Param("now") LocalDateTime now);
 }
 
