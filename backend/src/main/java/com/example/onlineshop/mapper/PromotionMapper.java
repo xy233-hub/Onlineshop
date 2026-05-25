@@ -164,7 +164,7 @@ public interface PromotionMapper {
             "ORDER BY p.priority DESC, pp.final_price ASC, pp.promotion_id ASC")
     List<Map<String, Object>> activePromotionsForProduct(@Param("productId") Integer productId);
 
-    @Update("UPDATE products SET price = #{price}, original_price = #{originalPrice}, current_promotion_price = #{currentPromotionPrice}, has_active_promotion = #{hasActivePromotion}, active_promotion_ids = #{activePromotionIds}, updated_at = #{now} WHERE product_id = #{productId}")
+    @Update("UPDATE products SET price = #{price}, current_promotion_price = #{currentPromotionPrice}, has_active_promotion = #{hasActivePromotion}, active_promotion_ids = #{activePromotionIds}, updated_at = #{now} WHERE product_id = #{productId}")
     int updateProductEffectivePrice(@Param("productId") Integer productId,
                                     @Param("price") BigDecimal price,
                                     @Param("originalPrice") BigDecimal originalPrice,
@@ -172,6 +172,9 @@ public interface PromotionMapper {
                                     @Param("hasActivePromotion") Boolean hasActivePromotion,
                                     @Param("activePromotionIds") String activePromotionIds,
                                     @Param("now") LocalDateTime now);
+
+    @Update("UPDATE products SET original_price = #{originalPrice}, updated_at = #{now} WHERE product_id = #{productId}")
+    int updateProductOriginalPrice(@Param("productId") Integer productId, @Param("originalPrice") BigDecimal originalPrice, @Param("now") LocalDateTime now);
 
     @Select({
             "<script>",

@@ -138,7 +138,12 @@ public class PromotionService {
 
             BigDecimal current = toDecimal(product.get("price"));
             BigDecimal original = toDecimal(product.get("original_price"));
-            if (original == null) original = current;
+            
+            if (original == null) {
+                original = current;
+                promotionMapper.updateProductOriginalPrice(productId, original, now);
+            }
+            
             if (current == null || original == null) continue;
 
             BigDecimal finalPrice = calculatePrice(promotion, original);
@@ -293,7 +298,11 @@ public class PromotionService {
             if (product == null) continue;
             BigDecimal oldPrice = toDecimal(product.get("price"));
             BigDecimal originalPrice = toDecimal(product.get("original_price"));
-            if (originalPrice == null) originalPrice = oldPrice;
+            
+            if (originalPrice == null) {
+                originalPrice = oldPrice;
+                promotionMapper.updateProductOriginalPrice(productId, originalPrice, now);
+            }
 
             List<Map<String, Object>> candidates = promotionMapper.activePromotionCandidatesForProduct(productId);
             if (candidates != null && !candidates.isEmpty()) {
@@ -317,11 +326,11 @@ public class PromotionService {
                             continue;
                         }
 
-                        BigDecimal candidatePrice = calculatePriceByRule(row, combinedPrice);
+                        BigDecimal candidatePrice = calculatePriceByRule(row, originalPrice);
                         if (candidatePrice == null) {
-                            candidatePrice = combinedPrice;
+                            candidatePrice = originalPrice;
                         }
-                        BigDecimal candidateDiscount = combinedPrice.subtract(candidatePrice).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal candidateDiscount = originalPrice.subtract(candidatePrice).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
                         promotionMapper.updatePromotionComputedPrice(productId, candidatePromotionId, candidatePrice, candidateDiscount, now);
 
                         if (winner == null || candidatePrice.compareTo(winnerPrice) < 0 ||

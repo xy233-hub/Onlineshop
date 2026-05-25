@@ -127,10 +127,11 @@ public class SellerService {
                 .productName(request.getProductName())
                 .productDesc(request.getProductDesc())
                 .price(request.getPrice())
+                .originalPrice(request.getPrice())
                 .stockQuantity(stock)
                 .productStatus(status)
                 .searchKeywords(request.getSearchKeywords())
-                .shortDesc(request.getShortDesc()) // 新增：写入 shortDesc
+                .shortDesc(request.getShortDesc())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
