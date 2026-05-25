@@ -14,9 +14,6 @@ rag:
     index-ttl-ms: 300000
     min-score: 0.50
 
-media:
-  upload-dir: D:/Onlineshop/backend/uploads
-  base-url: http://localhost:8080/media
 
 baidu:
   nlp:

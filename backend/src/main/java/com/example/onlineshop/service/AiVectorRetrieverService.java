@@ -79,22 +79,40 @@ public class AiVectorRetrieverService {
 
     public RetrievalResult retrieve(AiProductQuery query, String userText, String historyContext, int page, int size, Set<Integer> candidateIds) {
         List<IndexedProduct> index = loadIndexFromDatabase();
-        if (index.isEmpty()) return new RetrievalResult(0, Collections.emptyList());
+        System.out.println("[RAG] retrieve: 索引数量 = " + index.size() + ", candidateIds = " + (candidateIds != null ? candidateIds.size() : 0));
+        if (index.isEmpty()) {
+            System.out.println("[RAG] retrieve: 索引为空，返回空结果");
+            return new RetrievalResult(0, Collections.emptyList());
+        }
 
         String semanticText = buildSemanticText(query, userText, historyContext);
+        System.out.println("[RAG] retrieve: 语义文本 = " + semanticText.substring(0, Math.min(100, semanticText.length())));
         List<Double> queryVector = externalAiClient.generateEmbedding(semanticText);
+        System.out.println("[RAG] retrieve: 查询向量维度 = " + queryVector.size());
 
         List<ProductScore> scores = new ArrayList<>();
+        int candidateFilterCount = 0;
+        int statusFilterCount = 0;
+        int scoreFilterCount = 0;
+        
         for (IndexedProduct ip : index) {
             if (candidateIds != null && !candidateIds.isEmpty() && !candidateIds.contains(ip.product().getProductId())) {
+                candidateFilterCount++;
                 continue;
             }
-            if (!matchesFilter(ip.product(), query)) continue;
+            if (!matchesFilter(ip.product(), query)) {
+                statusFilterCount++;
+                continue;
+            }
             double score = queryVector.isEmpty() ? lexicalScore(semanticText, ip.searchText()) : cosine(queryVector, ip.vector());
             if (score >= minScore) {
                 scores.add(new ProductScore(ip.product(), score));
+            } else {
+                scoreFilterCount++;
             }
         }
+        
+        System.out.println("[RAG] retrieve: 候选过滤掉 " + candidateFilterCount + " 个, 状态过滤掉 " + statusFilterCount + " 个, 分数过滤掉 " + scoreFilterCount + " 个, 剩余 " + scores.size() + " 个");
 
         scores.sort(Comparator.comparingDouble(ProductScore::score).reversed()
                 .thenComparing(ps -> ps.product().getCreatedAt(), Comparator.nullsLast(Comparator.reverseOrder())));
@@ -109,6 +127,7 @@ public class AiVectorRetrieverService {
         for (ProductScore ps : scores.subList(from, to)) {
             items.add(new ScoredProduct(ps.product(), ps.score()));
         }
+        System.out.println("[RAG] retrieve: 返回 " + items.size() + " 个商品, 总匹配 " + total + " 个");
         return new RetrievalResult(total, items);
     }
 
