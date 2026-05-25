@@ -863,7 +863,7 @@ const normalizeProductItem = (item) => {
 }
 
 const getCurrentPrice = (item) => {
-  const current = item?.price ?? item?.current_promotion_price ?? item?.current_price ?? item?.final_price
+  const current = item?.current_promotion_price ?? item?.price ?? item?.current_price ?? item?.final_price
   const val = Number(current)
   return Number.isFinite(val) ? val : 0
 }

@@ -276,7 +276,7 @@ const toNumberPrice = (val) => {
 
 const displayCurrentPrice = computed(() => {
   const p = props.promotionInfo || {}
-  return toNumberPrice(props.product?.price ?? p.current_price ?? p.current_promotion_price)
+  return toNumberPrice(props.product?.current_promotion_price ?? p.current_promotion_price ?? props.product?.price ?? p.price)
 })
 
 const displayOriginalPrice = computed(() => {
