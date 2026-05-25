@@ -491,6 +491,8 @@ const loading = ref(false)
 const currentLanguage = ref('chinese_simplified')
 let translateReady = false
 
+const allProductIds = ref([])
+
 // AI 助手
 const aiPanelVisible = ref(false)
 const aiInput = ref('')
@@ -1011,13 +1013,16 @@ const submitAiQuery = async () => {
   aiInput.value = ''
   await scrollAiToBottom()
 
+  await ensureCandidateProducts()
+
   try {
     const response = await aiAPI.recommend({
       text,
       page: aiPage.value,
       size: aiSize.value,
       user_id: getAiUserId(),
-      session_id: currentSessionId.value
+      session_id: currentSessionId.value,
+      candidate_product_ids: allProductIds.value
     })
     aiRawResponse.value = response?.data ?? null
 
@@ -1153,7 +1158,6 @@ const fetchProducts = async (p = page.value, s = size.value) => {
         total.value = 0
       }
     } else {
-      // 普通文本检索
       const response = await productAPI.getProducts(params)
       console.log('获取商品列表响应:', response)
       const payload = extractData(response)
@@ -1176,7 +1180,6 @@ const fetchProducts = async (p = page.value, s = size.value) => {
       }
     }
 
-    // 规范化字段
     items = items.map(normalizeProductItem)
 
     page.value = p
@@ -1186,6 +1189,33 @@ const fetchProducts = async (p = page.value, s = size.value) => {
     console.error('获取商品失败:', error)
     products.value = []
     total.value = 0
+  }
+}
+
+const fetchAllProductIds = async () => {
+  try {
+    const response = await productAPI.getProducts({ page: 1, size: 1000 })
+    const payload = extractData(response)
+    let items = []
+    if (Array.isArray(payload?.items)) {
+      items = payload.items
+    } else if (Array.isArray(payload)) {
+      items = payload
+    }
+    const ids = items
+      .map(item => item?.product_id ?? item?.productId)
+      .filter(id => id != null && id !== undefined)
+    allProductIds.value = ids
+    console.log('[AI] 加载候选商品ID完成, 数量:', ids.length)
+  } catch (e) {
+    console.error('获取所有商品ID失败:', e)
+  }
+}
+
+const ensureCandidateProducts = async () => {
+  if (allProductIds.value.length === 0) {
+    console.log('[AI] 候选商品为空，重新加载...')
+    await fetchAllProductIds()
   }
 }
 
@@ -1232,7 +1262,6 @@ const getStatusText = (status) => {
 
 // 获取轮播图图片
 const fetchBannerProducts = () => {
-  // 使用热门游戏的图片
   bannerItems.value = [
     {
       id: 1,
@@ -1276,6 +1305,7 @@ onMounted(async () => {
   fetchCategories()
   fetchProducts()
   fetchBannerProducts()
+  fetchAllProductIds()
   updateAiDrawerSize()
   window.addEventListener('resize', updateAiDrawerSize)
   try {

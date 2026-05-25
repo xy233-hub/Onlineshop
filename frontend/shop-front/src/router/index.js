@@ -17,6 +17,7 @@ import CustomerDetail from '@/views/seller/CustomerDetail.vue'
 import AfterSales from '@/views/customer/AfterSales.vue'
 import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
 import PromotionManagement from '@/views/seller/PromotionManagement.vue'
+import Promotions from '@/views/Promotions.vue'
 import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
 import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
 import CustomerAfterSalesManagement from '@/views/customer/AfterSalesManagement.vue'
@@ -32,8 +33,7 @@ const routes = [
     { 
         path: '/promotions', 
         name: 'Promotions', 
-        redirect: '/seller/dashboard/promotions',
-        meta: { requiresAuth: true }
+        component: Promotions
     },
     {
         path: '/customer/dashboard',

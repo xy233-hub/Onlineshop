@@ -77,7 +77,7 @@ public class AiVectorRetrieverService {
         return "图片索引已就绪，共 " + cachedImageIndex.size() + " 张图片";
     }
 
-    public RetrievalResult retrieve(AiProductQuery query, String userText, String historyContext, int page, int size) {
+    public RetrievalResult retrieve(AiProductQuery query, String userText, String historyContext, int page, int size, Set<Integer> candidateIds) {
         List<IndexedProduct> index = loadIndexFromDatabase();
         if (index.isEmpty()) return new RetrievalResult(0, Collections.emptyList());
 
@@ -86,6 +86,9 @@ public class AiVectorRetrieverService {
 
         List<ProductScore> scores = new ArrayList<>();
         for (IndexedProduct ip : index) {
+            if (candidateIds != null && !candidateIds.isEmpty() && !candidateIds.contains(ip.product().getProductId())) {
+                continue;
+            }
             if (!matchesFilter(ip.product(), query)) continue;
             double score = queryVector.isEmpty() ? lexicalScore(semanticText, ip.searchText()) : cosine(queryVector, ip.vector());
             if (score >= minScore) {

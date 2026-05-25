@@ -26,6 +26,9 @@ public interface PromotionMapper {
     @Update("UPDATE promotions SET status = #{status}, updated_at = NOW() WHERE promotion_id = #{promotionId}")
     int updateStatus(@Param("promotionId") Integer promotionId, @Param("status") String status);
 
+    @Update("UPDATE promotions SET status = #{newStatus}, updated_at = NOW() WHERE promotion_id = #{promotionId} AND status = #{oldStatus}")
+    int updateStatusIf(@Param("promotionId") Integer promotionId, @Param("newStatus") String newStatus, @Param("oldStatus") String oldStatus);
+
     @Select({
             "<script>",
             "SELECT promotion_id, promotion_name, promotion_type, description, start_time, end_time, status, discount_value, min_purchase_amount, max_discount_amount, applicable_scope, target_ids, priority, created_by, created_at, updated_at",

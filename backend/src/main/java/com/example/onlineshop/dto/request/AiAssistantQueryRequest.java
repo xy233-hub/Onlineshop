@@ -1,6 +1,8 @@
 // src/main/java/com/example/onlineshop/dto/request/AiAssistantQueryRequest.java
 package com.example.onlineshop.dto.request;
 
+import java.util.List;
+
 public class AiAssistantQueryRequest {
     private String text;
     private Integer page;
@@ -10,6 +12,7 @@ public class AiAssistantQueryRequest {
     private String scene;
     private Integer sessionId;
     private Integer productId;
+    private List<Integer> candidateProductIds;
 
     public String getText() { return text; }
     public void setText(String text) { this.text = text; }
@@ -34,4 +37,7 @@ public class AiAssistantQueryRequest {
 
     public Integer getProductId() { return productId; }
     public void setProductId(Integer productId) { this.productId = productId; }
+
+    public List<Integer> getCandidateProductIds() { return candidateProductIds; }
+    public void setCandidateProductIds(List<Integer> candidateProductIds) { this.candidateProductIds = candidateProductIds; }
 }
