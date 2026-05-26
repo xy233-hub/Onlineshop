@@ -26,6 +26,9 @@ public interface PromotionMapper {
     @Update("UPDATE promotions SET status = #{status}, updated_at = NOW() WHERE promotion_id = #{promotionId}")
     int updateStatus(@Param("promotionId") Integer promotionId, @Param("status") String status);
 
+    @Update("UPDATE promotions SET status = #{newStatus}, updated_at = NOW() WHERE promotion_id = #{promotionId} AND status = #{oldStatus}")
+    int updateStatusIf(@Param("promotionId") Integer promotionId, @Param("newStatus") String newStatus, @Param("oldStatus") String oldStatus);
+
     @Select({
             "<script>",
             "SELECT promotion_id, promotion_name, promotion_type, description, start_time, end_time, status, discount_value, min_purchase_amount, max_discount_amount, applicable_scope, target_ids, priority, created_by, created_at, updated_at",
@@ -161,7 +164,7 @@ public interface PromotionMapper {
             "ORDER BY p.priority DESC, pp.final_price ASC, pp.promotion_id ASC")
     List<Map<String, Object>> activePromotionsForProduct(@Param("productId") Integer productId);
 
-    @Update("UPDATE products SET price = #{price}, original_price = #{originalPrice}, current_promotion_price = #{currentPromotionPrice}, has_active_promotion = #{hasActivePromotion}, active_promotion_ids = #{activePromotionIds}, updated_at = #{now} WHERE product_id = #{productId}")
+    @Update("UPDATE products SET current_promotion_price = #{currentPromotionPrice}, has_active_promotion = #{hasActivePromotion}, active_promotion_ids = #{activePromotionIds}, updated_at = #{now} WHERE product_id = #{productId}")
     int updateProductEffectivePrice(@Param("productId") Integer productId,
                                     @Param("price") BigDecimal price,
                                     @Param("originalPrice") BigDecimal originalPrice,
@@ -169,6 +172,9 @@ public interface PromotionMapper {
                                     @Param("hasActivePromotion") Boolean hasActivePromotion,
                                     @Param("activePromotionIds") String activePromotionIds,
                                     @Param("now") LocalDateTime now);
+
+    @Update("UPDATE products SET original_price = #{originalPrice}, updated_at = #{now} WHERE product_id = #{productId}")
+    int updateProductOriginalPrice(@Param("productId") Integer productId, @Param("originalPrice") BigDecimal originalPrice, @Param("now") LocalDateTime now);
 
     @Select({
             "<script>",
@@ -212,5 +218,13 @@ public interface PromotionMapper {
 
     @Select("SELECT COUNT(1) FROM product_promotions WHERE promotion_id = #{promotionId} AND is_active = TRUE")
     int activeProductCount(@Param("promotionId") Integer promotionId);
+
+    @Select("SELECT promotion_id, promotion_name, promotion_type, description, start_time, end_time, status, discount_value, min_purchase_amount, max_discount_amount, applicable_scope, target_ids, priority, created_by, created_at, updated_at " +
+            "FROM promotions WHERE status = 'DRAFT' AND start_time <= #{now} AND end_time > #{now}")
+    List<Promotion> findDraftPromotionsToActivate(@Param("now") LocalDateTime now);
+
+    @Select("SELECT promotion_id, promotion_name, promotion_type, description, start_time, end_time, status, discount_value, min_purchase_amount, max_discount_amount, applicable_scope, target_ids, priority, created_by, created_at, updated_at " +
+            "FROM promotions WHERE status = 'ACTIVE' AND end_time <= #{now}")
+    List<Promotion> findActivePromotionsToEnd(@Param("now") LocalDateTime now);
 }
 

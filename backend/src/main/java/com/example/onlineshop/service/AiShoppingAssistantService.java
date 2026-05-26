@@ -17,9 +17,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -44,8 +46,8 @@ public class AiShoppingAssistantService {
         this.productMapper = productMapper;
     }
 
-    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action, Integer sessionId, Integer productId) {
-        System.out.println("[AI] recommend called, sessionId=" + sessionId + ", userId=" + userId + ", productId=" + productId);
+    public AiAssistantProductResponse recommend(String userText, Integer page, Integer size, String userId, String scene, String action, Integer sessionId, Integer productId, List<Integer> candidateProductIds) {
+        System.out.println("[AI] recommend called, sessionId=" + sessionId + ", userId=" + userId + ", productId=" + productId + ", candidateProductIds=" + (candidateProductIds != null ? candidateProductIds.size() : 0));
         if (userText == null || userText.trim().isEmpty()) {
             throw new IllegalArgumentException("text 必填");
         }
@@ -76,9 +78,11 @@ public class AiShoppingAssistantService {
             System.out.println("[AI Agent] 意图识别结果: " + mode);
         }
 
+        Set<Integer> candidateIdSet = candidateProductIds != null ? new HashSet<>(candidateProductIds) : null;
+
         AiAssistantProductResponse response = switch (mode) {
-            case "chat" -> handleChat(userText, safePage, safeSize, userId, sessionId, productContext);
-            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId, sessionId, productContext);
+            case "chat" -> handleChat(userText, safePage, safeSize, userId, sessionId, productContext, candidateIdSet);
+            case "search", "recommend" -> handleRecommend(userText, safePage, safeSize, userId, sessionId, productContext, candidateIdSet);
             case "extract", "extract_query" -> handleExtractQuery(userText, safePage, safeSize);
             default -> throw new IllegalArgumentException("scene/action 仅支持: chat, recommend, extract_query, auto");
         };
@@ -99,7 +103,7 @@ public class AiShoppingAssistantService {
         return response;
     }
 
-    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId, Integer sessionId, String productContext) {
+    private AiAssistantProductResponse handleChat(String userText, int safePage, int safeSize, String userId, Integer sessionId, String productContext, Set<Integer> candidateIds) {
         String memoryKey = buildMemoryKey(userId);
 
         evictExpiredSessions();
@@ -124,7 +128,7 @@ public class AiShoppingAssistantService {
         return new AiAssistantProductResponse(query, aiReply, safePage, safeSize, 0, Collections.emptyList());
     }
 
-    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId, Integer sessionId, String productContext) {
+    private AiAssistantProductResponse handleRecommend(String userText, int safePage, int safeSize, String userId, Integer sessionId, String productContext, Set<Integer> candidateIds) {
         String memoryKey = buildMemoryKey(userId);
         evictExpiredSessions();
         String historyContext = buildRecentUserContext(memoryKey, 3);
@@ -144,7 +148,7 @@ public class AiShoppingAssistantService {
         query.setPage(safePage);
         query.setSize(safeSize);
 
-        AiVectorRetrieverService.RetrievalResult retrieval = aiVectorRetrieverService.retrieve(query, userText, historyContext, safePage, safeSize);
+        AiVectorRetrieverService.RetrievalResult retrieval = aiVectorRetrieverService.retrieve(query, userText, historyContext, safePage, safeSize, candidateIds);
         List<ProductInfoResponse> items = retrieval.items().stream().map(sp -> {
             ProductInfoResponse item = new ProductInfoResponse(sp.product());
             item.score = sp.score();

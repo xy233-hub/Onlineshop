@@ -9,9 +9,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class PriceAlertSetting {
     private Integer alertId;
     private Integer customerId;
@@ -24,4 +24,3 @@ public class PriceAlertSetting {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
-

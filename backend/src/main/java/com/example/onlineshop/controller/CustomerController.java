@@ -7,6 +7,7 @@ import com.example.onlineshop.dto.request.CustomerAddressRequest;
 import com.example.onlineshop.dto.request.CustomerCancelOrderRequest;
 import com.example.onlineshop.dto.response.ApiResponse;
 import com.example.onlineshop.dto.response.ProductInfoResponse;
+import com.example.onlineshop.dto.response.AddressParseResponse;
 import com.example.onlineshop.entity.Customer;
 import com.example.onlineshop.entity.CustomerAddress;
 import com.example.onlineshop.entity.LogisticsProvider;
@@ -20,6 +21,7 @@ import com.example.onlineshop.service.PurchaseIntentService;
 import com.example.onlineshop.service.LogisticsProviderService;
 import com.example.onlineshop.service.LogisticsTrackService;
 import com.example.onlineshop.entity.AfterSalesService;
+import com.example.onlineshop.service.AddressParseService;
 import com.example.onlineshop.service.AfterSalesServiceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.onlineshop.util.JwtUtil;
@@ -53,6 +55,9 @@ public class CustomerController {
 
     @Autowired
     private LogisticsProviderService logisticsProviderService;
+
+    @Autowired
+    private AddressParseService addressParseService;
 
 
     // 客户注册
@@ -854,6 +859,35 @@ public class CustomerController {
         } catch (Exception e) {
             return ResponseEntity.status(500)
                     .body(new ApiResponse(500, "查询失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()), null));
+        }
+    }
+
+    /**
+     * AI地址识别
+     */
+    @PostMapping(value = "/addresses/parse", produces = "application/json; charset=utf-8")
+    public ResponseEntity<ApiResponse> parseAddress(@RequestBody Map<String, String> request) {
+        try {
+            String addressText = request.get("address_text");
+            if (addressText == null || addressText.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse(400, "地址文本不能为空", null));
+            }
+
+            AddressParseResponse parsedAddress = addressParseService.parseAddress(addressText);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("recipient_name", parsedAddress.getRecipientName());
+            result.put("recipient_phone", parsedAddress.getRecipientPhone());
+            result.put("province", parsedAddress.getProvince());
+            result.put("city", parsedAddress.getCity());
+            result.put("district", parsedAddress.getDistrict());
+            result.put("detail_address", parsedAddress.getDetailAddress());
+
+            return ResponseEntity.ok(new ApiResponse(200, "地址识别成功", result));
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(new ApiResponse(500, "地址识别失败：" + e.getMessage(), null));
         }
     }
 }

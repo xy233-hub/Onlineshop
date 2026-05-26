@@ -1,10 +1,7 @@
 package com.example.onlineshop.entity;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -12,7 +9,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductPriceHistory {
+public class ProductPriceHistory implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private Integer historyId;
     private Integer productId;
     private BigDecimal oldPrice;
@@ -22,4 +21,3 @@ public class ProductPriceHistory {
     private Integer changedBy;
     private LocalDateTime createdAt;
 }
-

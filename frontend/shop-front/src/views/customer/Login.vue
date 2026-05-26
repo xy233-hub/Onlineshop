@@ -1,8 +1,8 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { customerAuthAPI } from '@/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { customerAuthAPI, favoritesAPI, priceHistoryAPI } from '@/api'
 import { useCustomerStore } from '@/stores/customer'
 
 const router = useRouter()
@@ -32,6 +32,10 @@ const handleLogin = async () => {
       if (token) {
         customerStore.login(token, info)
         ElMessage.success('登录成功')
+        
+        // 检查收藏商品价格波动
+        await checkFavoritedProductsPriceChanges(info?.customer_id || info?.id)
+        
         const redirect = route.query.redirect ?? '/dashboard'
         router.push(String(redirect))
       } else {
@@ -42,6 +46,132 @@ const handleLogin = async () => {
     } finally {
       loading.value = false
     }
+  })
+}
+
+// 检查收藏商品价格波动
+const checkFavoritedProductsPriceChanges = async (customerId) => {
+  if (!customerId) return
+  
+  try {
+    console.log('=== 开始检查收藏商品价格变动 ===')
+    console.log('客户ID:', customerId)
+    
+    // 获取收藏列表
+    const favoritesRes = await favoritesAPI.getFavorites({ customer_id: customerId })
+    console.log('收藏列表响应:', favoritesRes)
+    
+    // 尝试多种可能的数据结构
+    let favorites = []
+    const responseData = favoritesRes?.data?.data
+    if (Array.isArray(responseData)) {
+      favorites = responseData
+    } else if (Array.isArray(responseData?.list)) {
+      favorites = responseData.list
+    } else if (Array.isArray(responseData?.items)) {
+      favorites = responseData.items
+    } else if (Array.isArray(favoritesRes?.data?.data)) {
+      favorites = favoritesRes.data.data
+    }
+    
+    console.log('解析后的收藏列表:', favorites)
+    
+    if (favorites.length === 0) {
+      console.log('没有收藏商品')
+      return
+    }
+    
+    // 检查每个收藏商品的价格变动
+    const priceChanges = []
+    
+    for (const favorite of favorites) {
+      console.log('检查商品:', favorite.product_id, favorite.product_name)
+      
+      if (favorite.product_id) {
+        try {
+          // 获取商品价格历史
+          const historyRes = await priceHistoryAPI.getPriceHistory(favorite.product_id)
+          console.log(`商品 ${favorite.product_id} 价格历史响应:`, historyRes)
+          
+          // 后端返回格式：response.data.data.price_trend
+          const responseData = historyRes?.data?.data
+          const priceTrend = responseData?.price_trend || []
+          
+          console.log(`商品 ${favorite.product_id} 价格趋势:`, priceTrend)
+          
+          if (priceTrend.length >= 2) {
+            // 获取最近两次价格记录
+            const latest = priceTrend[0]
+            const previous = priceTrend[1]
+            
+            const oldPrice = parseFloat(previous.price)
+            const newPrice = parseFloat(latest.price)
+            const priceDiff = newPrice - oldPrice
+            
+            console.log(`商品 ${favorite.product_id}: 旧价格=${oldPrice}, 新价格=${newPrice}, 差异=${priceDiff}`)
+            
+            if (priceDiff !== 0) {
+              priceChanges.push({
+                productId: favorite.product_id,
+                productName: favorite.product_name || '商品',
+                oldPrice: oldPrice,
+                newPrice: newPrice,
+                priceDiff: priceDiff,
+                changePercent: ((priceDiff / oldPrice) * 100).toFixed(2)
+              })
+            }
+          } else {
+            console.log(`商品 ${favorite.product_id} 价格历史记录不足 (${priceTrend.length} 条)`)
+          }
+        } catch (error) {
+          console.error(`获取商品 ${favorite.product_id} 价格历史失败:`, error)
+        }
+      }
+    }
+    
+    console.log('检测到的价格变动:', priceChanges)
+    
+    // 如果有价格变动，显示弹窗
+    if (priceChanges.length > 0) {
+      console.log('显示价格变动通知')
+      showPriceChangesDialog(priceChanges)
+    } else {
+      console.log('没有检测到价格变动')
+    }
+  } catch (error) {
+    console.error('检查收藏商品价格波动失败:', error)
+  }
+}
+
+// 显示价格变动弹窗
+const showPriceChangesDialog = (priceChanges) => {
+  let message = '<div style="max-height: 300px; overflow-y: auto;"><h3 style="margin-bottom: 16px; color: #1e293b;">您收藏的商品价格有变动：</h3><ul style="list-style: none; padding: 0;">'
+  
+  priceChanges.forEach(item => {
+    const changeColor = item.priceDiff < 0 ? '#10b981' : '#ef4444'
+    const changeText = item.priceDiff < 0 ? '降价' : '涨价'
+    const arrowIcon = item.priceDiff < 0 ? '📉' : '📈'
+    
+    message += `
+      <li style="margin-bottom: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid ${changeColor};">
+        <div style="font-weight: 600; margin-bottom: 8px; color: #1e293b;">${arrowIcon} ${item.productName}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 14px;">
+          <span style="color: #64748b;">原价：¥${item.oldPrice.toFixed(2)}</span>
+          <span style="color: #64748b;">现价：¥${item.newPrice.toFixed(2)}</span>
+          <span style="color: ${changeColor}; font-weight: 600;">${changeText} ¥${Math.abs(item.priceDiff).toFixed(2)} (${Math.abs(item.changePercent)}%)</span>
+        </div>
+      </li>
+    `
+  })
+  
+  message += '</ul></div>'
+  
+  ElMessageBox.alert(message, '💰 价格变动通知', {
+    confirmButtonText: '我知道了',
+    type: 'info',
+    dangerouslyUseHTMLString: true,
+    customClass: 'price-change-dialog',
+    center: true
   })
 }
 
@@ -470,5 +600,42 @@ const handleRegister = () => {
     padding: 12px 0;
     font-size: 14px;
   }
+}
+</style>
+
+<style>
+/* 价格变动弹窗全局样式 */
+.price-change-dialog {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+.price-change-dialog .el-message-box__header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  padding: 20px !important;
+}
+
+.price-change-dialog .el-message-box__title {
+  color: #ffffff !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+
+.price-change-dialog .el-message-box__content {
+  padding: 24px !important;
+  background: #fafbfc !important;
+}
+
+.price-change-dialog .el-message-box__btns {
+  padding: 16px 24px !important;
+  background: #ffffff !important;
+}
+
+.price-change-dialog .el-button--primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 12px 32px !important;
+  font-weight: 600 !important;
 }
 </style>

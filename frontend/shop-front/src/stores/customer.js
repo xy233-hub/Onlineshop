@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useSellerStore } from './seller'
 
 const parseJSON = (raw) => {
     if (!raw) return null
@@ -47,6 +48,11 @@ export const useCustomerStore = defineStore('customer', {
     },
     actions: {
         login(token, customerInfo = null) {
+            const sellerStore = useSellerStore()
+            if (sellerStore.isLoggedIn) {
+                sellerStore.logout()
+            }
+            
             this.token = token
             this.customer = customerInfo
             localStorage.setItem('customer_token', token)

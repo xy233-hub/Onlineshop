@@ -102,6 +102,9 @@ public interface PriceAlertMapper {
 
     @Update("UPDATE price_alert_notifications SET is_read = TRUE, read_at = NOW() WHERE notification_id = #{notificationId} AND customer_id = #{customerId}")
     int markRead(@Param("notificationId") Integer notificationId, @Param("customerId") Integer customerId);
+    
+    @Update("<script>UPDATE price_alert_notifications SET is_read = TRUE, read_at = NOW() WHERE customer_id = #{customerId} AND notification_id IN <foreach collection='notificationIds' item='id' open='(' separator=',' close=')'>#{id}</foreach></script>")
+    int batchMarkAsRead(@Param("customerId") Integer customerId, @Param("notificationIds") List<Integer> notificationIds);
 
     @Update("UPDATE price_alert_notifications SET is_read = TRUE, read_at = NOW() WHERE customer_id = #{customerId} AND is_read = FALSE")
     int markAllRead(@Param("customerId") Integer customerId);

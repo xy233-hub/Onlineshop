@@ -3,7 +3,9 @@ package com.example.onlineshop.service;
 import com.example.onlineshop.entity.Promotion;
 import com.example.onlineshop.entity.PromotionRule;
 import com.example.onlineshop.mapper.PromotionMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import java.util.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+@Slf4j
 @Service
 public class PromotionService {
 
@@ -117,9 +120,13 @@ public class PromotionService {
     @Transactional
     public Map<String, Object> activatePromotion(Integer promotionId, Integer operatorId) {
         Promotion promotion = mustPromotion(promotionId);
-        if (!("DRAFT".equalsIgnoreCase(promotion.getStatus()) || "ENDED".equalsIgnoreCase(promotion.getStatus()))) {
+        String currentStatus = promotion.getStatus();
+        if (!("DRAFT".equalsIgnoreCase(currentStatus) || "ENDED".equalsIgnoreCase(currentStatus))) {
+            log.warn("促销活动 [{}] 当前状态为 {}，不可激活（可能已被其他任务处理）", promotionId, currentStatus);
             throw new IllegalArgumentException("当前状态不可激活");
         }
+
+        log.info("开始激活促销活动 [{}] {}，当前状态: {}", promotionId, promotion.getPromotionName(), currentStatus);
 
         List<Integer> productIds = resolveAffectedProductIds(promotion);
         LocalDateTime now = LocalDateTime.now();
@@ -131,7 +138,12 @@ public class PromotionService {
 
             BigDecimal current = toDecimal(product.get("price"));
             BigDecimal original = toDecimal(product.get("original_price"));
-            if (original == null) original = current;
+            
+            if (original == null) {
+                original = current;
+                promotionMapper.updateProductOriginalPrice(productId, original, now);
+            }
+            
             if (current == null || original == null) continue;
 
             BigDecimal finalPrice = calculatePrice(promotion, original);
@@ -141,7 +153,11 @@ public class PromotionService {
             changed++;
         }
 
-        promotionMapper.updateStatus(promotionId, "ACTIVE");
+        int updated = promotionMapper.updateStatusIf(promotionId, "ACTIVE", currentStatus);
+        if (updated == 0) {
+            log.warn("促销活动 [{}] 状态更新失败，可能已被其他任务修改", promotionId);
+            throw new IllegalArgumentException("促销活动状态已被修改，请刷新后重试");
+        }
 
         promotionPriceService.invalidatePromotionsCache();
 
@@ -152,6 +168,8 @@ public class PromotionService {
         }
 
         refreshProductsPriceByPromotion(promotionId, "PROMOTION_START", "促销活动激活", operatorId == null ? 0 : operatorId);
+
+        log.info("促销活动 [{}] 激活完成，影响商品数: {}", promotionId, changed);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("promotion_id", promotionId);
@@ -165,14 +183,25 @@ public class PromotionService {
     @Transactional
     public Map<String, Object> endPromotion(Integer promotionId, Integer operatorId) {
         Promotion promotion = mustPromotion(promotionId);
-        if (!"ACTIVE".equalsIgnoreCase(promotion.getStatus())) {
+        String currentStatus = promotion.getStatus();
+        if (!"ACTIVE".equalsIgnoreCase(currentStatus)) {
+            log.warn("促销活动 [{}] 当前状态为 {}，不可结束（可能已被其他任务处理）", promotionId, currentStatus);
             throw new IllegalArgumentException("仅进行中的促销可结束");
         }
 
-        promotionMapper.updateStatus(promotionId, "ENDED");
+        log.info("开始结束促销活动 [{}] {}", promotionId, promotion.getPromotionName());
+
+        int updated = promotionMapper.updateStatusIf(promotionId, "ENDED", currentStatus);
+        if (updated == 0) {
+            log.warn("促销活动 [{}] 状态更新失败，可能已被其他任务修改", promotionId);
+            throw new IllegalArgumentException("促销活动状态已被修改，请刷新后重试");
+        }
+
         promotionMapper.deactivateByPromotion(promotionId);
         promotionPriceService.invalidatePromotionsCache();
         refreshProductsPriceByPromotion(promotionId, "PROMOTION_END", "促销活动结束", operatorId == null ? 0 : operatorId);
+
+        log.info("促销活动 [{}] 结束完成", promotionId);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("promotion_id", promotionId);
@@ -269,7 +298,11 @@ public class PromotionService {
             if (product == null) continue;
             BigDecimal oldPrice = toDecimal(product.get("price"));
             BigDecimal originalPrice = toDecimal(product.get("original_price"));
-            if (originalPrice == null) originalPrice = oldPrice;
+            
+            if (originalPrice == null) {
+                originalPrice = oldPrice;
+                promotionMapper.updateProductOriginalPrice(productId, originalPrice, now);
+            }
 
             List<Map<String, Object>> candidates = promotionMapper.activePromotionCandidatesForProduct(productId);
             if (candidates != null && !candidates.isEmpty()) {
@@ -293,11 +326,11 @@ public class PromotionService {
                             continue;
                         }
 
-                        BigDecimal candidatePrice = calculatePriceByRule(row, combinedPrice);
+                        BigDecimal candidatePrice = calculatePriceByRule(row, originalPrice);
                         if (candidatePrice == null) {
-                            candidatePrice = combinedPrice;
+                            candidatePrice = originalPrice;
                         }
-                        BigDecimal candidateDiscount = combinedPrice.subtract(candidatePrice).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+                        BigDecimal candidateDiscount = originalPrice.subtract(candidatePrice).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
                         promotionMapper.updatePromotionComputedPrice(productId, candidatePromotionId, candidatePrice, candidateDiscount, now);
 
                         if (winner == null || candidatePrice.compareTo(winnerPrice) < 0 ||
@@ -622,6 +655,55 @@ public class PromotionService {
         } catch (Exception e) {
             return Collections.emptyList();
         }
+    }
+
+    @Scheduled(fixedRate = 60000)
+    @Transactional
+    public void scheduleAutoActivateAndEndPromotions() {
+        LocalDateTime now = LocalDateTime.now();
+        log.debug("定时任务开始执行，检查时间: {}", now);
+        
+        List<Promotion> toActivate = promotionMapper.findDraftPromotionsToActivate(now);
+        log.debug("待激活促销活动数量: {}", toActivate.size());
+        for (Promotion promotion : toActivate) {
+            try {
+                Promotion fresh = promotionMapper.findById(promotion.getPromotionId());
+                if (fresh == null) {
+                    log.warn("促销活动 [{}] 不存在，跳过", promotion.getPromotionId());
+                    continue;
+                }
+                if (!"DRAFT".equalsIgnoreCase(fresh.getStatus())) {
+                    log.info("定时任务：促销活动 [{}] 状态已变为 {}，跳过激活", promotion.getPromotionId(), fresh.getStatus());
+                    continue;
+                }
+                log.info("定时任务：自动激活促销活动 [{}] {}", promotion.getPromotionId(), promotion.getPromotionName());
+                activatePromotion(promotion.getPromotionId(), 0);
+            } catch (Exception e) {
+                log.error("自动激活促销活动 [{}] 失败: {}", promotion.getPromotionId(), e.getMessage());
+            }
+        }
+        
+        List<Promotion> toEnd = promotionMapper.findActivePromotionsToEnd(now);
+        log.debug("待结束促销活动数量: {}", toEnd.size());
+        for (Promotion promotion : toEnd) {
+            try {
+                Promotion fresh = promotionMapper.findById(promotion.getPromotionId());
+                if (fresh == null) {
+                    log.warn("促销活动 [{}] 不存在，跳过", promotion.getPromotionId());
+                    continue;
+                }
+                if (!"ACTIVE".equalsIgnoreCase(fresh.getStatus())) {
+                    log.info("定时任务：促销活动 [{}] 状态已变为 {}，跳过结束", promotion.getPromotionId(), fresh.getStatus());
+                    continue;
+                }
+                log.info("定时任务：自动结束促销活动 [{}] {}", promotion.getPromotionId(), promotion.getPromotionName());
+                endPromotion(promotion.getPromotionId(), 0);
+            } catch (Exception e) {
+                log.error("自动结束促销活动 [{}] 失败: {}", promotion.getPromotionId(), e.getMessage());
+            }
+        }
+        
+        log.debug("定时任务执行完成");
     }
 }
 

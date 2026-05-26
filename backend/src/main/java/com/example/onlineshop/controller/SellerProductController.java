@@ -347,8 +347,11 @@ public class SellerProductController {
                                           @PathVariable("product_id") Integer productId,
                                           @RequestBody Map<String, Object> body) {
         try {
-            Integer sellerId = JwtUtil.getSellerIdFromToken(token);
-            if (sellerId == null) {
+            Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+            Integer sellerIdFromToken = JwtUtil.getSellerIdFromToken(token);
+            Integer publisherId = customerId != null ? customerId : sellerIdFromToken;
+            
+            if (publisherId == null) {
                 return ApiResponse.error(401, "未授权");
             }
 
@@ -356,7 +359,7 @@ public class SellerProductController {
             if (product == null) {
                 return ApiResponse.error(404, "商品不存在");
             }
-            if (!sellerId.equals(product.getSellerId())) {
+            if (!publisherId.equals(product.getSellerId())) {
                 return ApiResponse.error(403, "无权修改该商品价格");
             }
 
@@ -385,14 +388,17 @@ public class SellerProductController {
 
             BigDecimal originalPrice = (BigDecimal) pricing.get("original_price");
             Boolean hasActivePromotion = Boolean.TRUE.equals(pricing.get("has_active_promotion"));
-            if (originalPrice == null || !hasActivePromotion) {
-                originalPrice = newPrice;
-            }
-
+            
             LocalDateTime now = LocalDateTime.now();
-            pricingMapper.deactivateProductPromotions(productId, now);
+            
+            if (hasActivePromotion) {
+                pricingMapper.deactivateProductPromotions(productId, now);
+            }
+            
+            originalPrice = newPrice;
+            
             pricingMapper.updateProductPrice(productId, newPrice, originalPrice, null, false, now);
-            priceHistoryService.recordPriceChange(productId, oldPrice, newPrice, "MANUAL", reason, sellerId);
+            priceHistoryService.recordPriceChange(productId, oldPrice, newPrice, "MANUAL", reason, publisherId);
             int alerts = priceAlertService.handlePriceChange(productId, oldPrice, newPrice);
 
             Map<String, Object> data = new HashMap<>();

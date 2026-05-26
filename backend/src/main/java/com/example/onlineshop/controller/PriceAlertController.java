@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -131,6 +132,43 @@ public class PriceAlertController {
             return ApiResponse.error(401, "未授权");
         }
         return new ApiResponse(200, "批量标记成功", priceAlertService.markAllRead(customerId));
+    }
+
+    @GetMapping("/notifications/unread-count")
+    public ApiResponse getUnreadCount(@RequestHeader("Authorization") String token) {
+        Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+        if (customerId == null) {
+            return ApiResponse.error(401, "未授权");
+        }
+        try {
+            int count = priceAlertService.getUnreadCount(customerId);
+            return new ApiResponse(200, "查询成功", Map.of("unread_count", count));
+        } catch (Exception e) {
+            return ApiResponse.error(500, "查询失败: " + e.getMessage());
+        }
+    }
+
+    @PatchMapping("/notifications/batch-read")
+    public ApiResponse batchMarkRead(@RequestHeader("Authorization") String token,
+                                     @RequestBody Map<String, List<Integer>> body) {
+        Integer customerId = JwtUtil.getCustomerIdFromToken(token);
+        if (customerId == null) {
+            return ApiResponse.error(401, "未授权");
+        }
+
+        List<Integer> notificationIds = body.get("notification_ids");
+        if (notificationIds == null || notificationIds.isEmpty()) {
+            return ApiResponse.error(400, "通知ID列表不能为空");
+        }
+
+        try {
+            priceAlertService.batchMarkNotificationsAsRead(customerId, notificationIds);
+            return new ApiResponse(200, "批量标记成功", null);
+        } catch (IllegalArgumentException e) {
+            return ApiResponse.error(400, e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error(500, "操作失败: " + e.getMessage());
+        }
     }
 
     private Integer toInt(Object value) {

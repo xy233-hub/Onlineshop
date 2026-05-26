@@ -259,6 +259,23 @@ public class PriceAlertService {
         return notified;
     }
 
+    @Transactional
+    public int checkAndNotifyPriceChange(Integer productId, BigDecimal oldPrice, BigDecimal newPrice) {
+        return handlePriceChange(productId, oldPrice, newPrice);
+    }
+
+    public int getUnreadCount(Integer customerId) {
+        return priceAlertMapper.unreadCount(customerId);
+    }
+
+    @Transactional
+    public void batchMarkNotificationsAsRead(Integer customerId, List<Integer> notificationIds) {
+        if (notificationIds == null || notificationIds.isEmpty()) {
+            throw new IllegalArgumentException("通知ID列表不能为空");
+        }
+        priceAlertMapper.batchMarkAsRead(customerId, notificationIds);
+    }
+
     private Map<String, Object> buildAlertResult(PriceAlertSetting setting, Map<String, Object> product) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("alert_id", setting.getAlertId());

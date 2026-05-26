@@ -107,6 +107,53 @@
                         </div>
                       </div>
                     </el-tab-pane>
+                    <el-tab-pane label="价格趋势" name="price">
+                      <div class="price-trend-section">
+                        <div v-if="priceHistoryLoading" class="loading-state">
+                          <el-skeleton :rows="4" animated />
+                        </div>
+                        <div v-else-if="priceHistory.length === 0" class="empty-state">
+                          <el-empty description="暂无价格变动记录" />
+                        </div>
+                        <div v-else>
+                          <div class="price-chart-container">
+                            <VChart :option="priceChartOption" style="width: 100%; height: 450px" autoresize />
+                          </div>
+                          <div class="price-history-list">
+                            <h3 class="history-title">价格变动记录</h3>
+                            <el-table :data="priceHistory" style="width: 100%" :fit="true">
+                              <el-table-column prop="createdAt" label="变动时间" min-width="160">
+                                <template #default="scope">
+                                  <span style="font-size: 13px;">{{ scope.row.createdAt }}</span>
+                                </template>
+                              </el-table-column>
+                              <el-table-column prop="oldPrice" label="旧价格" min-width="100" align="center">
+                                <template #default="scope">
+                                  <span style="font-size: 14px; color: #64748b;">¥{{ scope.row.oldPrice.toFixed(2) }}</span>
+                                </template>
+                              </el-table-column>
+                              <el-table-column prop="newPrice" label="新价格" min-width="100" align="center">
+                                <template #default="scope">
+                                  <span style="font-size: 15px; font-weight: 600; color: #3b82f6;">¥{{ scope.row.newPrice.toFixed(2) }}</span>
+                                </template>
+                              </el-table-column>
+                              <el-table-column prop="changeType" label="变动类型" min-width="100" align="center">
+                                <template #default="scope">
+                                  <el-tag :type="scope.row.changeType === 'initial' ? 'info' : scope.row.changeType === 'current' ? 'success' : 'warning'" size="small">
+                                    {{ scope.row.changeType === 'initial' ? '初始价格' : scope.row.changeType === 'current' ? '当前价格' : '手动修改' }}
+                                  </el-tag>
+                                </template>
+                              </el-table-column>
+                              <el-table-column prop="reason" label="变动原因" min-width="150">
+                                <template #default="scope">
+                                  <span style="font-size: 13px; color: #94a3b8;">{{ scope.row.reason || '无' }}</span>
+                                </template>
+                              </el-table-column>
+                            </el-table>
+                          </div>
+                        </div>
+                      </div>
+                    </el-tab-pane>
                   </el-tabs>
                 </div>
               </div>
@@ -328,12 +375,31 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { productAPI, favoritesAPI, cartAPI, sellerAPI, promotionAPI, aiAPI, chatAPI } from '@/api'
+import { productAPI, favoritesAPI, cartAPI, sellerAPI, promotionAPI, aiAPI, chatAPI, priceHistoryAPI } from '@/api'
 import PurchaseDialog from '@/components/buyer/PurchaseDialog.vue'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ZoomIn, ShoppingCart, Star, Plus, Message, Headset, Document, Goods, ChatDotRound } from '@element-plus/icons-vue'
+import VChart from 'vue-echarts'
+import { LineChart } from 'echarts/charts'
+import {
+  TitleComponent,
+  TooltipComponent,
+  GridComponent,
+  DataZoomComponent,
+  LegendComponent
+} from 'echarts/components'
+import { use } from 'echarts'
+
+use([
+  LineChart,
+  TitleComponent,
+  TooltipComponent,
+  GridComponent,
+  DataZoomComponent,
+  LegendComponent
+])
 
 const route = useRoute()
 const product = ref(null)
@@ -350,6 +416,10 @@ const activeTab = ref('desc')
 const isFavorited = ref(false)
 const productId = computed(() => route.params.id)
 const currentLanguage = ref('chinese_simplified')
+
+const priceHistory = ref([])
+const priceHistoryLoading = ref(false)
+const priceChartOption = ref({})
 
 const aiPanelVisible = ref(false)
 const aiInput = ref('')
@@ -568,6 +638,8 @@ const toggleLanguage = () => {
   currentLanguage.value = target
 }
 
+
+
 const fetchProduct = async () => {
   loading.value = true
   try {
@@ -597,6 +669,8 @@ const fetchProduct = async () => {
           console.error('错误详情:', sellerError.response)
         }
       }
+      // 获取价格历史
+      fetchPriceHistory()
     }
   } catch (error) {
     console.error('获取商品详情失败:', error)
@@ -604,6 +678,390 @@ const fetchProduct = async () => {
     productPromotionInfo.value = null
   } finally {
     loading.value = false
+  }
+}
+const fetchPriceHistory = async () => {
+  if (!product.value?.product_id) return
+  
+  priceHistoryLoading.value = true
+  try {
+    const response = await priceHistoryAPI.getPriceHistory(product.value.product_id)
+    console.log('获取价格历史响应:', response)
+    
+    // 后端返回格式：response.data.data.price_trend
+    const responseData = response?.data?.data
+    const priceTrend = responseData?.price_trend || []
+    
+    if (response?.data?.code === 200 && priceTrend.length > 0) {
+      // 转换后端返回的字段格式
+      priceHistory.value = priceTrend.map((item, index) => ({
+        historyId: index + 1,
+        productId: product.value.product_id,
+        oldPrice: index > 0 ? priceTrend[index - 1].price : item.price,
+        newPrice: item.price,
+        changeType: item.change_type || 'MANUAL',
+        reason: getChangeReason(item.change_type),
+        createdAt: item.date
+      }))
+      
+      console.log('价格历史数据:', priceHistory.value)
+      generatePriceChart()
+    } else {
+      console.warn('没有价格历史数据')
+      priceHistory.value = []
+    }
+  } catch (error) {
+    console.error('获取价格历史失败:', error)
+    priceHistory.value = []
+  } finally {
+    priceHistoryLoading.value = false
+  }
+}
+
+// 辅助函数：获取变动原因
+const getChangeReason = (changeType) => {
+  const reasons = {
+    'MANUAL': '手动修改',
+    'PROMOTION_START': '促销开始',
+    'PROMOTION_END': '促销结束',
+    'SYSTEM': '系统调整'
+  }
+  return reasons[changeType] || '价格调整'
+}
+
+const generatePriceChart = () => {
+  if (priceHistory.value.length === 0) return
+  
+  const dates = []
+  const prices = []
+  const changes = []
+  const reasons = []
+  
+  const sortedHistory = [...priceHistory.value].sort((a, b) => {
+    return new Date(a.createdAt) - new Date(b.createdAt)
+  })
+  
+  const completePriceHistory = []
+  
+  if (sortedHistory.length > 0) {
+    const firstRecord = sortedHistory[0]
+    const initialPrice = typeof firstRecord.oldPrice === 'object' 
+      ? firstRecord.oldPrice 
+      : parseFloat(firstRecord.oldPrice)
+    
+    completePriceHistory.push({
+      createdAt: firstRecord.createdAt,
+      newPrice: initialPrice,
+      oldPrice: initialPrice,
+      changeType: 'initial',
+      reason: '初始价格'
+    })
+    
+    sortedHistory.forEach(item => {
+      completePriceHistory.push({
+        createdAt: item.createdAt,
+        newPrice: typeof item.newPrice === 'object' ? item.newPrice : parseFloat(item.newPrice),
+        oldPrice: typeof item.oldPrice === 'object' ? item.oldPrice : parseFloat(item.oldPrice),
+        changeType: item.changeType,
+        reason: item.reason
+      })
+    })
+    
+    if (product.value?.price) {
+      const lastRecord = completePriceHistory[completePriceHistory.length - 1]
+      const currentPrice = typeof product.value.price === 'object' 
+        ? product.value.price 
+        : parseFloat(product.value.price)
+      
+      if (lastRecord.newPrice !== currentPrice) {
+        completePriceHistory.push({
+          createdAt: new Date().toISOString(),
+          newPrice: currentPrice,
+          oldPrice: lastRecord.newPrice,
+          changeType: 'current',
+          reason: '当前价格'
+        })
+      }
+    }
+  }
+  
+  completePriceHistory.forEach((item, index) => {
+    dates.push(new Date(item.createdAt).toLocaleString('zh-CN'))
+    prices.push(item.newPrice)
+    
+    if (index > 0) {
+      const prevPrice = completePriceHistory[index - 1].newPrice
+      const change = item.newPrice - prevPrice
+      changes.push(change)
+    } else {
+      changes.push(0)
+    }
+    
+    reasons.push(item.reason || '无')
+  })
+  
+  priceChartOption.value = {
+    backgroundColor: {
+      type: 'linear',
+      x: 0, y: 0, x2: 0, y2: 1,
+      colorStops: [
+        { offset: 0, color: '#fafbfc' },
+        { offset: 1, color: '#f5f7fa' }
+      ]
+    },
+    title: {
+      text: '价格变动趋势',
+      left: 'center',
+      top: 20,
+      textStyle: {
+        fontSize: 20,
+        fontWeight: 600,
+        color: '#1a1a2e',
+        letterSpacing: 2,
+        textShadowColor: 'rgba(0, 0, 0, 0.05)',
+        textShadowBlur: 10
+      }
+    },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: 'rgba(255, 255, 255, 0.98)',
+      borderColor: '#e8ecf0',
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: [16, 20],
+      textStyle: {
+        color: '#2d3748',
+        fontSize: 14,
+        lineHeight: 1.6
+      },
+      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.1)',
+      formatter: function(params) {
+        const data = params[0]
+        const index = params[0].dataIndex
+        const change = changes[index]
+        const reason = reasons[index]
+        
+        const changeColor = change > 0 ? '#ef4444' : change < 0 ? '#10b981' : '#6b7280'
+        const changeIcon = change > 0 ? '📈' : change < 0 ? '📉' : '➡️'
+        const changeText = change > 0 
+          ? `<span style="color: ${changeColor}; font-weight: 600;">${changeIcon} +¥${change.toFixed(2)}</span>`
+          : change < 0
+          ? `<span style="color: ${changeColor}; font-weight: 600;">${changeIcon} -¥${Math.abs(change).toFixed(2)}</span>`
+          : `<span style="color: ${changeColor};">${changeIcon} 无变动</span>`
+        
+        return `
+          <div style="padding: 4px;">
+            <div style="font-size: 15px; font-weight: 600; color: #1a1a2e; margin-bottom: 8px;">${data.name}</div>
+            <div style="display: flex; align-items: center; margin-bottom: 6px;">
+              <span style="color: #6b7280; width: 60px;">价格：</span>
+              <span style="font-size: 18px; font-weight: 700; color: #3b82f6;">¥${data.value.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 6px;">
+              <span style="color: #6b7280; width: 60px;">变动：</span>
+              ${changeText}
+            </div>
+            <div style="display: flex; align-items: center;">
+              <span style="color: #6b7280; width: 60px;">原因：</span>
+              <span style="color: #4b5563;">${reason}</span>
+            </div>
+          </div>
+        `
+      }
+    },
+    grid: {
+      left: '3%',
+      right: '3%',
+      top: '12%',
+      bottom: '10%',
+      height: '75%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: dates,
+      axisLabel: {
+        rotate: 45,
+        fontSize: 12,
+        color: '#6b7280',
+        fontWeight: 400,
+        margin: 15
+      },
+      axisLine: {
+        lineStyle: {
+          color: '#e5e7eb',
+          width: 1
+        }
+      },
+      axisTick: {
+        show: false
+      }
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: {
+        formatter: '¥{value}',
+        color: '#6b7280',
+        fontSize: 12,
+        fontWeight: 400
+      },
+      axisLine: {
+        show: true,
+        lineStyle: {
+          color: '#e5e7eb',
+          width: 1
+        }
+      },
+      axisTick: {
+        show: false
+      },
+      splitLine: {
+        lineStyle: {
+          color: '#f3f4f6',
+          width: 1,
+          type: 'dashed'
+        }
+      }
+    },
+    series: [
+      {
+        name: '价格',
+        type: 'line',
+        data: prices,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 10,
+        lineStyle: {
+          color: '#4f46e5',
+          width: 3,
+          shadowColor: 'rgba(79, 70, 229, 0.2)',
+          shadowBlur: 12,
+          shadowOffsetY: 6
+        },
+        itemStyle: {
+          color: function(params) {
+            const change = changes[params.dataIndex]
+            if (change > 0) return '#ef4444'
+            if (change < 0) return '#10b981'
+            return '#4f46e5'
+          },
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          shadowColor: function(params) {
+            const change = changes[params.dataIndex]
+            if (change > 0) return 'rgba(239, 68, 68, 0.3)'
+            if (change < 0) return 'rgba(16, 185, 129, 0.3)'
+            return 'rgba(79, 70, 229, 0.3)'
+          },
+          shadowBlur: 8,
+          shadowOffsetY: 3
+        },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(79, 70, 229, 0.25)' },
+              { offset: 0.5, color: 'rgba(79, 70, 229, 0.1)' },
+              { offset: 1, color: 'rgba(79, 70, 229, 0.02)' }
+            ]
+          }
+        },
+        emphasis: {
+          focus: 'series',
+          scale: true,
+          itemStyle: {
+            symbolSize: 16,
+            borderWidth: 4,
+            shadowBlur: 15,
+            shadowOffsetY: 5
+          }
+        },
+        animationDuration: 1500,
+        animationEasing: 'cubicOut'
+      }
+    ],
+    dataZoom: [
+      {
+        type: 'inside',
+        start: 0,
+        end: 100,
+        zoomLock: false,
+        zoomOnMouseWheel: true,
+        moveOnMouseMove: true
+      },
+      {
+        type: 'slider',
+        start: 0,
+        end: 100,
+        height: 24,
+        bottom: 20,
+        left: '5%',
+        right: '5%',
+        fillerColor: 'rgba(79, 70, 229, 0.12)',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        backgroundColor: '#f9fafb',
+        handleIcon: 'circle',
+        handleSize: '100%',
+        handleStyle: {
+          color: '#ffffff',
+          borderColor: '#4f46e5',
+          borderWidth: 2,
+          shadowColor: 'rgba(79, 70, 229, 0.3)',
+          shadowBlur: 4,
+          shadowOffsetY: 2
+        },
+        textStyle: {
+          color: '#9ca3af',
+          fontSize: 11
+        },
+        selectedDataBackgroundColor: 'rgba(79, 70, 229, 0.2)',
+        dataBackground: {
+          lineStyle: { color: '#e5e7eb' },
+          areaStyle: { color: '#f3f4f6' }
+        }
+      }
+    ],
+    toolbox: {
+      show: true,
+      right: '5%',
+      top: '15%',
+      feature: {
+        saveAsImage: {
+          show: true,
+          title: '保存图片',
+          pixelRatio: 2,
+          backgroundColor: '#ffffff',
+          iconStyle: {
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            borderRadius: 6
+          }
+        },
+        dataZoom: {
+          show: true,
+          title: {
+            zoom: '区域缩放',
+            back: '缩放还原'
+          },
+          iconStyle: {
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            borderRadius: 6
+          }
+        },
+        refresh: {
+          show: true,
+          title: '刷新数据',
+          iconStyle: {
+            borderColor: '#e5e7eb',
+            borderWidth: 1,
+            borderRadius: 6
+          }
+        }
+      }
+    }
   }
 }
 
@@ -631,7 +1089,7 @@ const purchasePromotionInfo = computed(() => {
     product_id: p.product_id,
     product_name: p.product_name,
     original_price: promo.original_price ?? p.original_price ?? p.price ?? null,
-    current_price: promo.current_price ?? p.current_promotion_price ?? p.price ?? null,
+    current_price: p.current_promotion_price ?? promo.current_price ?? p.price ?? null,
     current_promotion_price: promo.current_promotion_price ?? p.current_promotion_price ?? null,
     has_active_promotion: promo.has_active_promotion ?? Boolean(p.has_active_promotion),
     active_promotion_ids: promo.active_promotion_ids || [],
@@ -1735,5 +2193,39 @@ onMounted(async () => {
   font-size: 12px;
   color: #94a3b8;
   margin-left: auto;
+}
+
+.price-trend-section {
+  padding: 20px 0;
+}
+
+.price-chart-container {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  margin-bottom: 24px;
+}
+
+.price-history-list {
+  margin-top: 24px;
+}
+
+.history-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.loading-state {
+  padding: 40px 20px;
+}
+
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
 }
 </style>

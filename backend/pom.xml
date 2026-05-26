@@ -136,6 +136,12 @@
             <version>4.9.28.ALL</version>
         </dependency>
 
+         <!-- WebFlux for WebClient (地址识别功能需要) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -155,12 +161,13 @@
             </resource>
         </resources>
 
-        <plugins>
+         <plugins>
             <!-- Spring Boot 打包插件 -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <mainClass>com.example.onlineshop.OnlineShopApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

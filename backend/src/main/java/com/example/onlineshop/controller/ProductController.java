@@ -223,7 +223,8 @@ public class ProductController {
                     req == null ? null : req.getScene(),
                     req == null ? null : req.getAction(),
                     req == null ? null : req.getSessionId(),
-                    req == null ? null : req.getProductId()
+                    req == null ? null : req.getProductId(),
+                    req == null ? null : req.getCandidateProductIds()
             );
             return ResponseUtil.success("查询成功", resp);
         } catch (IllegalArgumentException e) {

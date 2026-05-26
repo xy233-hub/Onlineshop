@@ -17,6 +17,7 @@ import CustomerDetail from '@/views/seller/CustomerDetail.vue'
 import AfterSales from '@/views/customer/AfterSales.vue'
 import AfterSalesManagement from '@/views/seller/AfterSalesManagement.vue'
 import PromotionManagement from '@/views/seller/PromotionManagement.vue'
+import Promotions from '@/views/Promotions.vue'
 import CustomerProductManagement from '@/views/customer/ProductManagement.vue'
 import CustomerPurchaseIntents from '@/views/customer/PurchaseIntents.vue'
 import CustomerAfterSalesManagement from '@/views/customer/AfterSalesManagement.vue'
@@ -29,6 +30,11 @@ const routes = [
     { path: '/product/:id', name: 'ProductDetail', component: ProductDetail, props: true },
     { path: '/seller', name: 'SellerLogin', component: SellerLogin, meta: { guestOnly: true } },
     { path: '/payment/alipay/return', name: 'AlipayReturn', component: AlipayReturn },
+    { 
+        path: '/promotions', 
+        name: 'Promotions', 
+        component: Promotions
+    },
     {
         path: '/customer/dashboard',
         component: () => import('@/views/customer/Dashboard.vue'),

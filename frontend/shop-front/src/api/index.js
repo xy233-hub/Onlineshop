@@ -189,6 +189,10 @@ export const promotionAPI = {
     getProductPromotions: (productId) => api.get(`/products/${productId}/promotions`)
 }
 
+export const priceHistoryAPI = {
+    getPriceHistory: (productId) => api.get(`/products/${productId}/price-history`)
+}
+
 export const sellerProductAIAPI = {
     // AI 生成可能超过默认 10s，这里单独放宽超时。
     generateDescription: (data) => api.post('/seller/products/ai/description', data, { timeout: 120000 }),
@@ -207,7 +211,8 @@ export const customerProductAPI = {
     },
     freezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/freeze`, payload),
     unfreezeProduct: (productId, payload = {}) => api.put(`/seller/products/${productId}/unfreeze`, payload),
-    markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload)
+    markSold: (productId, payload = {}) => api.put(`/seller/products/${productId}/mark-sold`, payload),
+    updatePrice: (productId, payload) => api.put(`/seller/products/${productId}/price`, payload)
 }
 
 /**
