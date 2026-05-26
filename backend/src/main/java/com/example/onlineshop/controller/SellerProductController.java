@@ -388,12 +388,15 @@ public class SellerProductController {
 
             BigDecimal originalPrice = (BigDecimal) pricing.get("original_price");
             Boolean hasActivePromotion = Boolean.TRUE.equals(pricing.get("has_active_promotion"));
-            if (originalPrice == null || !hasActivePromotion) {
-                originalPrice = newPrice;
-            }
-
+            
             LocalDateTime now = LocalDateTime.now();
-            pricingMapper.deactivateProductPromotions(productId, now);
+            
+            if (hasActivePromotion) {
+                pricingMapper.deactivateProductPromotions(productId, now);
+            }
+            
+            originalPrice = newPrice;
+            
             pricingMapper.updateProductPrice(productId, newPrice, originalPrice, null, false, now);
             priceHistoryService.recordPriceChange(productId, oldPrice, newPrice, "MANUAL", reason, publisherId);
             int alerts = priceAlertService.handlePriceChange(productId, oldPrice, newPrice);
