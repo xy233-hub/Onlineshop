@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class ShoppingCartService {
@@ -45,6 +46,9 @@ public class ShoppingCartService {
 
     @Autowired
     private PromotionService promotionService;
+
+    @Autowired
+    private OrderCacheService orderCacheService;
 
     private static final Logger log = LoggerFactory.getLogger(ShoppingCartService.class);
 
@@ -287,7 +291,8 @@ public class ShoppingCartService {
                 purchaseIds.add(intent.getPurchaseId());
                 totalAmount = totalAmount.add(orderTotal).setScale(2, RoundingMode.HALF_UP);
 
-                // 为每个商品项创建记录
+                // 性能优化：批量创建商品项记录（减少多次INSERT开销）
+                List<PurchaseIntentItem> itemsToInsert = new ArrayList<>();
                 for (SettledCartItem settled : sellerItems) {
                     CartItemResponse cartItem = settled.cartItem;
                     PurchaseIntentItem item = new PurchaseIntentItem();
@@ -297,8 +302,11 @@ public class ShoppingCartService {
                     item.setProductPrice(settled.finalUnitPrice);
                     item.setQuantity(cartItem.getQuantity());
                     item.setSubtotal(settled.subtotal);
-
-                    int ir = purchaseIntentItemMapper.insert(item);
+                    itemsToInsert.add(item);
+                }
+                
+                if (!itemsToInsert.isEmpty()) {
+                    int ir = purchaseIntentItemMapper.batchInsert(itemsToInsert);
                     if (ir <= 0) {
                         throw new IllegalStateException("创建购买意向商品项失败");
                     }
@@ -348,8 +356,18 @@ public class ShoppingCartService {
 
     private List<SettledCartItem> buildSettledItems(List<CartItemResponse> cartItems) {
         List<SettledCartItem> settledItems = new ArrayList<>();
+        
+        // 性能优化：批量获取商品信息和促销信息（减少N+1查询）
+        List<Integer> productIds = cartItems.stream()
+                .map(CartItemResponse::getProductId)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        Map<Integer, Product> productMap = orderCacheService.batchGetProducts(productIds);
+        Map<Integer, Map<String, Object>> promotionMap = orderCacheService.batchGetPromotions(productIds);
+        
         for (CartItemResponse item : cartItems) {
-            Product product = productService.getProductById(item.getProductId());
+            Product product = productMap.get(item.getProductId());
             if (product == null || product.getSellerId() == null) {
                 log.warn("商品 ID {} 没有有效的卖家信息", item.getProductId());
                 continue;
@@ -361,7 +379,9 @@ public class ShoppingCartService {
                 continue;
             }
 
-            Map<String, Object> promotionSettlement = settlePromotionForCheckout(item.getProductId(), listedUnitPrice);
+            // 性能优化：使用缓存的促销信息
+            Map<String, Object> promotionData = promotionMap.get(item.getProductId());
+            Map<String, Object> promotionSettlement = settlePromotionForCheckoutWithCache(item.getProductId(), listedUnitPrice, promotionData);
             BigDecimal settledUnitPrice = toMoney(promotionSettlement.get("final_unit_price"));
             if (settledUnitPrice == null) settledUnitPrice = listedUnitPrice;
 
@@ -378,6 +398,72 @@ public class ShoppingCartService {
             settledItems.add(new SettledCartItem(item, product.getSellerId(), listedUnitPrice, settledUnitPrice, subtotal, promotionSettlement, blockedPromotionIds));
         }
         return settledItems;
+    }
+    
+    /**
+     * 性能优化：使用缓存的促销数据进行结算计算
+     */
+    private Map<String, Object> settlePromotionForCheckoutWithCache(Integer productId, BigDecimal checkoutUnitPrice, Map<String, Object> promotionData) {
+        Map<String, Object> settlement = new LinkedHashMap<>();
+        settlement.put("applied", false);
+        settlement.put("promotion_id", null);
+        settlement.put("skipped_reason", "NO_ACTIVE_PROMOTION");
+        settlement.put("discount_amount", BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        settlement.put("final_unit_price", checkoutUnitPrice);
+        settlement.put("active_promotion_ids", Collections.emptyList());
+
+        if (promotionData == null || promotionData.isEmpty()) {
+            settlement.put("skipped_reason", "PROMOTION_DATA_UNAVAILABLE");
+            return settlement;
+        }
+
+        boolean hasActivePromotion = Boolean.TRUE.equals(promotionData.get("has_active_promotion"));
+        if (!hasActivePromotion) {
+            return settlement;
+        }
+
+        Set<Integer> activePromotionIds = toPromotionIdSet(promotionData.get("active_promotion_ids"));
+        settlement.put("active_promotion_ids", new ArrayList<>(activePromotionIds));
+        Map<String, Object> selectedPromotion = null;
+        BigDecimal selectedFinalPrice = null;
+
+        Object promotionsRaw = promotionData.get("promotions");
+        if (promotionsRaw instanceof List<?>) {
+            for (Object row : (List<?>) promotionsRaw) {
+                if (!(row instanceof Map<?, ?>)) {
+                    continue;
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> promotion = (Map<String, Object>) row;
+                Integer promotionId = toInteger(promotion.get("promotion_id"));
+
+                if (promotionId != null && activePromotionIds.contains(promotionId)) {
+                    continue;
+                }
+
+                BigDecimal finalPrice = toMoney(promotion.get("final_price"));
+                if (finalPrice == null || finalPrice.compareTo(checkoutUnitPrice) >= 0) {
+                    continue;
+                }
+
+                if (selectedFinalPrice == null || finalPrice.compareTo(selectedFinalPrice) < 0) {
+                    selectedFinalPrice = finalPrice;
+                    selectedPromotion = promotion;
+                }
+            }
+        }
+
+        if (selectedPromotion != null && selectedFinalPrice != null) {
+            settlement.put("applied", true);
+            settlement.put("promotion_id", toInteger(selectedPromotion.get("promotion_id")));
+            settlement.put("promotion_name", selectedPromotion.get("promotion_name"));
+            settlement.put("promotion_type", selectedPromotion.get("promotion_type"));
+            settlement.put("discount_amount", checkoutUnitPrice.subtract(selectedFinalPrice).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
+            settlement.put("final_unit_price", selectedFinalPrice);
+            settlement.put("skipped_reason", null);
+        }
+
+        return settlement;
     }
 
     private Map<Integer, List<SettledCartItem>> groupItemsBySeller(List<SettledCartItem> settledItems) {
