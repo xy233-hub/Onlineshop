@@ -49,23 +49,32 @@ public class OrderCacheService {
         
         try {
             Object cached = redisTemplate.opsForValue().get(key);
-            if (cached != null && cached instanceof Product) {
-                log.debug("从缓存获取商品信息: productId={}", productId);
-                return (Product) cached;
+            if (cached != null) {
+                if (cached instanceof Product) {
+                    log.info("[缓存命中] 获取商品信息: productId={}", productId);
+                    return (Product) cached;
+                } else {
+                    log.warn("[缓存类型错误] productId={}, type={}", productId, cached.getClass().getName());
+                }
+            } else {
+                log.debug("[缓存未命中] productId={}", productId);
             }
         } catch (Exception e) {
-            log.warn("Redis获取商品缓存失败: productId={}, error={}", productId, e.getMessage());
+            log.error("[Redis获取失败] productId={}, error={}", productId, e.getMessage(), e);
         }
         
         // 缓存不存在，从数据库查询
+        log.info("[数据库查询] 获取商品信息: productId={}", productId);
         Product product = productService.getProductById(productId);
         if (product != null) {
             try {
                 redisTemplate.opsForValue().set(key, product, PRODUCT_CACHE_TTL, TimeUnit.MINUTES);
-                log.debug("商品信息已缓存: productId={}", productId);
+                log.info("[缓存写入成功] productId={}, key={}", productId, key);
             } catch (Exception e) {
-                log.warn("Redis缓存商品失败: productId={}, error={}", productId, e.getMessage());
+                log.error("[缓存写入失败] productId={}, key={}, error={}", productId, key, e.getMessage(), e);
             }
+        } else {
+            log.warn("[数据库查询为空] productId={}", productId);
         }
         
         return product;
