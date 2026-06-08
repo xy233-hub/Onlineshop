@@ -44,6 +44,9 @@ public class PurchaseIntentService {
     @Autowired
     private LogisticsTrackMapper logisticsTrackMapper;
 
+    @Autowired
+    private OrderCacheService orderCacheService;
+
 
     /**
      * 根据 purchaseId 回查购买意向并回填商品项
@@ -71,7 +74,8 @@ public class PurchaseIntentService {
      */
     @Transactional
     public PurchaseIntent createPurchaseIntent(PurchaseIntentRequest req) {
-        Product product = productMapper.findById(req.getProductId());
+        // 性能优化：使用缓存获取商品信息
+        Product product = orderCacheService.getProduct(req.getProductId());
         if (product == null) {
             throw new IllegalArgumentException("商品不存在");
         }
